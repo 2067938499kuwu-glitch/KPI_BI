@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>智能周报中心 · 自由填写、AI提取与历史周报</title>
+<style>
+:root{
+  --primary:#5b67f1;
+  --primary-dark:#4652d9;
+  --primary-soft:#eef0ff;
+  --primary-soft-2:#f7f7ff;
+  --cyan:#1db5c9;
+  --cyan-soft:#ebfbfd;
+  --success:#13a775;
+  --success-soft:#eaf9f3;
+  --warning:#e99b19;
+  --warning-soft:#fff7e8;
+  --danger:#e95863;
+  --danger-soft:#fff1f2;
+  --text:#172033;
+  --text-2:#5f6b80;
+  --text-3:#98a2b3;
+  --line:#e8ebf2;
+  --line-strong:#dce1eb;
+  --bg:#f5f7fb;
+  --card:#ffffff;
+  --shadow:0 12px 36px rgba(35,43,74,.08);
+  --shadow-lg:0 28px 88px rgba(23,32,51,.20);
+  --radius:16px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:Inter,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",Arial,sans-serif;
+  color:var(--text);
+  background:
+    radial-gradient(circle at 9% -6%,rgba(91,103,241,.11),transparent 26%),
+    radial-gradient(circle at 94% 4%,rgba(29,181,201,.07),transparent 22%),
+    var(--bg);
+  overflow:hidden;
+}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.55}
+svg{display:block}
+.hidden{display:none!important}
+.app{height:100vh;min-width:1240px;display:flex;flex-direction:column}
+.topbar{
+  height:62px;flex:none;padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+  background:rgba(255,255,255,.92);backdrop-filter:blur(16px);border-bottom:1px solid rgba(226,230,239,.96)
+}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{
+  width:36px;height:36px;border-radius:12px;display:grid;place-items:center;color:#fff;font-size:14px;font-weight:800;
+  background:linear-gradient(145deg,#6f7af7,#4d59e7);box-shadow:0 9px 20px rgba(91,103,241,.25)
+}
+.brand-name{font-size:17px;font-weight:780}
+.brand-divider{width:1px;height:20px;background:var(--line-strong);margin:0 2px}
+.brand-page{font-size:14px;color:var(--text-2)}
+.top-actions{display:flex;align-items:center;gap:10px}
+.user{display:flex;align-items:center;gap:9px;padding:5px 8px 5px 5px;border-radius:12px}
+.user:hover{background:#f4f6fa}
+.user-avatar{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#e9edff,#fff);border:1px solid #dfe3ff;color:var(--primary);font-size:12px;font-weight:780}
+.user-info strong{display:block;font-size:12px}
+.user-info span{display:block;font-size:10px;color:var(--text-3);margin-top:2px}
+.icon-btn,.btn{
+  height:38px;border-radius:10px;padding:0 15px;border:1px solid var(--line-strong);background:#fff;color:var(--text);
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.18s ease;white-space:nowrap
+}
+.icon-btn{width:38px;padding:0}
+.btn:hover,.icon-btn:hover{transform:translateY(-1px);border-color:#c7cedc;box-shadow:0 6px 16px rgba(39,50,78,.07)}
+.btn.primary{color:#fff;border-color:var(--primary);background:linear-gradient(135deg,var(--primary),#6d78f5);box-shadow:0 8px 18px rgba(91,103,241,.22)}
+.btn.primary:hover{background:linear-gradient(135deg,var(--primary-dark),#5f69ec)}
+.btn.soft{border-color:#dfe3ff;background:var(--primary-soft-2);color:var(--primary-dark)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--text-2)}
+.btn.success{border-color:#ccefe2;background:var(--success-soft);color:var(--success)}
+.btn.small{height:32px;padding:0 11px;border-radius:8px;font-size:11px}
+.btn.link{height:auto;padding:0;border:0;background:transparent;color:var(--primary);font-size:11px;box-shadow:none;transform:none}
+.hero{
+  min-height:86px;flex:none;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:22px
+}
+.hero-left{display:flex;align-items:flex-start;gap:14px;min-width:0}
+.hero-icon{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;color:var(--primary);background:linear-gradient(145deg,#eef0ff,#fff);border:1px solid #dfe3ff;box-shadow:0 8px 18px rgba(91,103,241,.08);flex:none}
+.hero h1{margin:0 0 6px;font-size:24px;line-height:1.2;letter-spacing:-.2px}
+.hero p{margin:0;color:var(--text-2);font-size:13px}
+.hero-controls{display:flex;align-items:center;gap:10px;flex:none}
+.period-box{height:44px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.85);display:flex;align-items:center;gap:10px;box-shadow:0 7px 20px rgba(35,43,74,.035)}
+.period-box svg{color:var(--primary)}
+.period-meta label{display:block;font-size:9.5px;color:var(--text-3);margin-bottom:2px}
+.period-meta select{border:0;outline:0;background:transparent;color:var(--text);font-size:12.5px;font-weight:700;max-width:190px}
+.view-switch{height:44px;padding:4px;display:flex;gap:3px;background:rgba(255,255,255,.84);border:1px solid var(--line);border-radius:13px;box-shadow:0 7px 20px rgba(35,43,74,.035)}
+.view-switch button{height:34px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--text-2);font-size:11.5px;display:flex;align-items:center;gap:7px}
+.view-switch button.active{background:#fff;color:var(--primary);font-weight:750;box-shadow:0 4px 12px rgba(39,50,78,.09)}
+.main{min-height:0;flex:1;padding:0 20px 16px}
+.view{height:100%;min-height:0;display:none}
+.view.active{display:flex;flex-direction:column}
+.card{background:rgba(255,255,255,.97);border:1px solid rgba(226,230,239,.96);border-radius:var(--radius);box-shadow:0 8px 28px rgba(35,43,74,.055);overflow:hidden}
+.status-strip{
+  min-height:68px;flex:none;margin-bottom:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  background:linear-gradient(135deg,rgba(91,103,241,.095),rgba(29,181,201,.055)),rgba(255,255,255,.96);border:1px solid #dfe3ff;border-radius:15px;box-shadow:0 8px 24px rgba(35,43,74,.04)
+}
+.status-main{display:flex;align-items:center;gap:12px;min-width:0}
+.status-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--primary);background:#fff;border:1px solid #dfe3ff;flex:none}
+.status-title{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.status-title strong{font-size:13.5px}
+.tag{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;font-size:9.5px;font-weight:700;white-space:nowrap}
+.tag.primary{color:var(--primary);background:var(--primary-soft)}
+.tag.success{color:var(--success);background:var(--success-soft)}
+.tag.warning{color:var(--warning);background:var(--warning-soft)}
+.tag.danger{color:var(--danger);background:var(--danger-soft)}
+.tag.neutral{color:#647087;background:#eff2f6}
+.status-sub{font-size:10.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status-metrics{display:flex;align-items:center;gap:10px;flex:none}
+.metric-pill{min-width:96px;padding:7px 10px;border-radius:11px;background:rgba(255,255,255,.86);border:1px solid var(--line)}
+.metric-pill label{display:block;font-size:9px;color:var(--text-3);margin-bottom:3px}
+.metric-pill strong{font-size:12px}
+.completeness{width:112px}
+.progress{height:5px;border-radius:999px;background:#e9edf3;overflow:hidden;margin-top:6px}
+.progress span{height:100%;display:block;border-radius:999px;background:linear-gradient(90deg,var(--primary),#7f89f8)}
+.employee-grid{min-height:0;flex:1;display:grid;grid-template-columns:minmax(620px,1fr) 460px;gap:14px}
+.editor-card,.ai-card{min-height:0;display:flex;flex-direction:column}
+.card-head{min-height:61px;padding:13px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
+.card-title{display:flex;align-items:center;gap:9px;min-width:0}
+.title-icon{width:33px;height:33px;border-radius:10px;display:grid;place-items:center;background:var(--primary-soft-2);color:var(--primary);border:1px solid #e0e4ff;flex:none}
+.card-title h2,.card-title h3{margin:0;font-size:14px;line-height:1.25}
+.card-title p{margin:4px 0 0;font-size:10px;color:var(--text-3)}
+.head-actions{display:flex;align-items:center;gap:7px}
+.editor-body{min-height:0;flex:1;overflow:auto;padding:13px 15px 78px}
+.smart-tip{padding:11px 12px;border-radius:12px;border:1px solid #dfe4ff;background:linear-gradient(135deg,#f7f8ff,#fbfdff);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.smart-tip-main{display:flex;gap:9px;min-width:0}
+.smart-tip-icon{width:29px;height:29px;border-radius:9px;display:grid;place-items:center;color:var(--primary);background:#fff;border:1px solid #e3e6ff;flex:none}
+.smart-tip strong{display:block;font-size:11px;margin-bottom:3px}
+.smart-tip p{margin:0;font-size:10px;line-height:1.5;color:var(--text-2)}
+.quick-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.quick-row label{font-size:10px;color:var(--text-3);margin-right:2px}
+.quick-chip{height:29px;padding:0 9px;border-radius:8px;border:1px solid var(--line-strong);background:#fff;color:var(--text-2);font-size:10px}
+.quick-chip:hover{border-color:#bfc6ff;color:var(--primary);background:#fafaff}
+.field-label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
+.field-label strong{font-size:11.5px}
+.field-label span{font-size:9.5px;color:var(--text-3)}
+.report-textarea{width:100%;min-height:250px;resize:vertical;border:1px solid var(--line-strong);border-radius:13px;padding:14px 15px;outline:0;color:var(--text);font-size:12px;line-height:1.8;background:#fff;transition:.16s ease}
+.report-textarea:focus{border-color:#a7afff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
+.report-textarea::placeholder{color:#b2bac7}
+.editor-footer{position:absolute;left:0;right:0;bottom:0;min-height:62px;padding:11px 15px;border-top:1px solid var(--line);background:rgba(255,255,255,.95);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.editor-wrap{height:100%;position:relative;display:flex;flex-direction:column}
+.save-info{display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:10px}
+.save-dot{width:7px;height:7px;border-radius:50%;background:var(--success);box-shadow:0 0 0 4px rgba(19,167,117,.10)}
+.action-group{display:flex;align-items:center;gap:8px}
+.ai-card{position:relative}
+.ai-head-extra{display:flex;align-items:center;gap:7px}
+.ai-status{display:flex;align-items:center;gap:6px;color:var(--success);font-size:9.5px}
+.ai-status i{width:6px;height:6px;border-radius:50%;background:var(--success);box-shadow:0 0 0 4px rgba(19,167,117,.1)}
+.ai-tabs{height:39px;padding:4px;margin:12px 14px 0;display:flex;gap:4px;border-radius:11px;background:#f1f3f7;flex:none}
+.ai-tabs button{flex:1;border:0;border-radius:8px;background:transparent;color:var(--text-2);font-size:10.5px}
+.ai-tabs button.active{background:#fff;color:var(--primary);font-weight:750;box-shadow:0 3px 10px rgba(39,50,78,.08)}
+.ai-body{min-height:0;flex:1;overflow:auto;padding:12px 14px 72px}
+.ai-overview{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:11px}
+.ai-kpi{padding:9px 10px;border-radius:11px;border:1px solid var(--line);background:#fafbfc}
+.ai-kpi label{display:block;font-size:8.8px;color:var(--text-3);margin-bottom:3px}
+.ai-kpi strong{font-size:12px}
+.ai-section{border:1px solid var(--line);border-radius:13px;overflow:hidden;margin-bottom:9px;background:#fff}
+.ai-section-head{min-height:38px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fafbfc;border-bottom:1px solid #eff1f5}
+.ai-section-title{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:750}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--primary)}
+.dot.success{background:var(--success)}
+.dot.warning{background:var(--warning)}
+.dot.cyan{background:var(--cyan)}
+.section-count{font-size:9px;color:var(--text-3)}
+.ai-items{padding:6px 9px 8px}
+.ai-item{position:relative;padding:8px 27px 8px 19px;border-radius:9px;font-size:10.5px;line-height:1.6;color:#344057;outline:0}
+.ai-item::before{content:"";position:absolute;left:7px;top:15px;width:4px;height:4px;border-radius:50%;background:#adb5c4}
+.ai-item:hover{background:#f8f9fc}
+.ai-item:focus{background:#f6f7ff;box-shadow:inset 0 0 0 1px #dfe3ff}
+.ai-item .remove-ai{position:absolute;right:5px;top:7px;width:20px;height:20px;border:0;border-radius:6px;background:transparent;color:#aab2bf;opacity:0;padding:0}
+.ai-item:hover .remove-ai{opacity:1}
+.ai-item .remove-ai:hover{color:var(--danger);background:var(--danger-soft)}
+.add-ai{width:100%;height:28px;border:1px dashed #d8deea;border-radius:8px;background:#fff;color:var(--text-3);font-size:9.5px}
+.add-ai:hover{border-color:#bfc6ff;color:var(--primary);background:#fafaff}
+.leader-summary{padding:12px;border-radius:13px;background:linear-gradient(135deg,rgba(91,103,241,.09),rgba(29,181,201,.045)),#fbfcff;border:1px solid #dfe3ff;margin-bottom:10px}
+.leader-summary-label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.leader-summary-label strong{font-size:11px}
+.leader-summary-text{font-size:11px;line-height:1.75;color:#344057;outline:0;border-radius:8px;padding:4px}
+.leader-summary-text:focus{background:#fff;box-shadow:0 0 0 1px #dfe3ff}
+.ai-foot{position:absolute;left:0;right:0;bottom:0;min-height:62px;padding:10px 14px;border-top:1px solid var(--line);background:rgba(255,255,255,.96);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.ai-foot-info{font-size:9.5px;color:var(--text-3);line-height:1.5}
+.ai-foot-actions{display:flex;gap:7px}
+.ai-loading{position:absolute;inset:61px 0 0;background:rgba(255,255,255,.86);backdrop-filter:blur(3px);z-index:8;display:none;align-items:center;justify-content:center}
+.ai-loading.show{display:flex}
+.ai-loading-box{text-align:center}
+.ai-orbit{width:54px;height:54px;border-radius:50%;border:3px solid #e6e9ff;border-top-color:var(--primary);animation:spin 1s linear infinite;margin:0 auto 13px;display:grid;place-items:center}
+.ai-orbit::after{content:"AI";font-size:11px;font-weight:800;color:var(--primary)}
+.ai-loading strong{display:block;font-size:12px;margin-bottom:4px}
+.ai-loading span{font-size:10px;color:var(--text-3)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;flex:none}
+#teamView .kpi-grid{grid-template-columns:repeat(3,1fr)}
+.kpi-card{min-height:82px;padding:13px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(255,255,255,.97);border:1px solid var(--line);border-radius:15px;box-shadow:0 8px 24px rgba(35,43,74,.045)}
+.kpi-card label{display:block;font-size:10px;color:var(--text-3);margin-bottom:5px}
+.kpi-card strong{font-size:23px;line-height:1}
+.kpi-card .sub{font-size:9.5px;color:var(--text-2);margin-top:6px}
+.kpi-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary)}
+.kpi-icon.success{background:var(--success-soft);color:var(--success)}
+.kpi-icon.warning{background:var(--warning-soft);color:var(--warning)}
+.kpi-icon.danger{background:var(--danger-soft);color:var(--danger)}
+.team-grid{min-height:0;flex:1;display:grid;grid-template-columns:260px minmax(560px,1fr);gap:14px}
+.member-panel,.report-panel,.insight-panel{min-height:0;display:flex;flex-direction:column}
+.compact-head{padding:13px 14px;border-bottom:1px solid var(--line);flex:none}
+.compact-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.compact-title strong{font-size:13px}
+.search{height:35px;border-radius:9px;border:1px solid var(--line-strong);display:flex;align-items:center;gap:8px;padding:0 9px;background:#fff;margin-top:10px}
+.search:focus-within{border-color:#adb5ff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
+.search svg{color:var(--text-3);flex:none}
+.search input{border:0;outline:0;min-width:0;flex:1;color:var(--text);background:transparent;font-size:10.5px}
+.member-filters{display:flex;gap:4px;margin-top:9px}
+.member-filters button{height:26px;padding:0 8px;border:0;border-radius:7px;background:transparent;color:var(--text-2);font-size:9.5px}
+.member-filters button.active{background:var(--primary-soft);color:var(--primary);font-weight:700}
+.member-list{min-height:0;flex:1;overflow:auto;padding:7px 7px 12px}
+.member-item{min-height:58px;padding:8px 9px;border:1px solid transparent;border-radius:11px;display:flex;align-items:center;gap:9px;margin-bottom:4px;transition:.15s ease;cursor:pointer}
+.member-item:hover{background:#fafbfe;border-color:#eef1f5}
+.member-item.active{background:var(--primary-soft-2);border-color:#dfe3ff}
+.member-avatar{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(145deg,#edf0f7,#fff);border:1px solid #e3e7ef;color:#5d6880;font-size:11px;font-weight:760;flex:none}
+.member-info{min-width:0;flex:1}
+.member-info strong{display:block;font-size:11px;margin-bottom:4px}
+.member-info span{display:block;font-size:9px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.member-state{text-align:right;flex:none}
+.member-state b{display:block;font-size:9px;font-weight:700;color:var(--success)}
+.member-state b.draft{color:var(--warning)}
+.member-state b.pending{color:var(--danger)}
+.member-state small{display:block;font-size:8.5px;color:var(--text-3);margin-top:4px}
+.member-foot{padding:10px 12px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;background:#fcfcfe}
+.report-head{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
+.report-person{display:flex;align-items:center;gap:10px;min-width:0}
+.report-person .member-avatar{width:38px;height:38px}
+.report-person h3{margin:0 0 4px;font-size:14px}
+.report-person p{margin:0;font-size:9.5px;color:var(--text-3)}
+.report-actions{display:flex;gap:7px}
+.report-body{min-height:0;flex:1;overflow:auto;padding:13px 15px 20px}
+.summary-banner{padding:12px 13px;border-radius:13px;background:linear-gradient(135deg,#f6f7ff,#fbfdff);border:1px solid #dfe3ff;margin-bottom:11px}
+.summary-banner .label{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:750;color:var(--primary);margin-bottom:7px}
+.summary-banner p{margin:0;font-size:10.5px;line-height:1.7;color:#3a465b}
+.report-block{border:1px solid var(--line);border-radius:12px;margin-bottom:9px;overflow:hidden}
+.report-block-head{padding:9px 11px;background:#fafbfc;border-bottom:1px solid #eff1f5;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.report-block-head strong{font-size:10.5px;display:flex;align-items:center;gap:7px}
+.report-block-content{padding:9px 11px}
+.report-block-content ul{margin:0;padding-left:17px}
+.report-block-content li{font-size:10.5px;line-height:1.7;color:#3f4a5d;margin:2px 0}
+.original-toggle{width:100%;height:38px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text-2);font-size:10px;display:flex;align-items:center;justify-content:center;gap:6px}
+.original-content{display:none;margin:8px 0 11px;padding:12px;border-radius:11px;background:#fafbfc;border:1px solid var(--line);font-size:10px;line-height:1.75;color:#5a667a;white-space:pre-wrap}
+.original-content.show{display:block}
+.insight-head{padding:13px 14px;border-bottom:1px solid var(--line);flex:none}
+.insight-body{min-height:0;flex:1;overflow:auto;padding:12px 13px 74px}
+.insight-card{border:1px solid var(--line);border-radius:12px;padding:11px;margin-bottom:9px}
+.insight-card.ai{background:linear-gradient(135deg,#f8f8ff,#fcfdff);border-color:#dfe3ff}
+.insight-card-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.insight-card-title strong{font-size:10.5px}
+.insight-list{display:flex;flex-direction:column;gap:7px}
+.insight-row{display:flex;align-items:flex-start;gap:8px;font-size:10px;line-height:1.55;color:#455166}
+.insight-row i{width:6px;height:6px;border-radius:50%;background:var(--warning);margin-top:5px;flex:none}
+.insight-row i.success{background:var(--success)}
+.insight-row i.primary{background:var(--primary)}
+.comment-box{width:100%;min-height:82px;resize:vertical;border:1px solid var(--line-strong);border-radius:10px;padding:10px;outline:0;font-size:10.5px;line-height:1.6}
+.comment-box:focus{border-color:#a7afff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
+.insight-foot{position:absolute;left:0;right:0;bottom:0;padding:11px 13px;border-top:1px solid var(--line);background:rgba(255,255,255,.96);display:flex;gap:8px}
+.insight-wrap{height:100%;position:relative;display:flex;flex-direction:column}
+.leader-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex:none}
+.leader-filter{display:flex;align-items:center;gap:8px}
+.select-box{height:37px;padding:0 10px;border:1px solid var(--line-strong);border-radius:10px;background:#fff;color:var(--text);outline:0;font-size:10.5px}
+.leader-grid{min-height:0;flex:1;display:grid;grid-template-columns:minmax(650px,1.35fr) minmax(390px,.85fr);gap:14px}
+.leader-left,.leader-right{min-height:0;display:flex;flex-direction:column;gap:12px}
+.team-brief{min-height:0;flex:1;display:flex;flex-direction:column}
+.brief-head{padding:14px 15px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex:none}
+.brief-head h2{margin:0 0 4px;font-size:15px}
+.brief-head p{margin:0;font-size:10px;color:var(--text-3)}
+.brief-body{min-height:0;flex:1;overflow:auto;padding:13px 15px 18px}
+.executive-summary{padding:13px 14px;border-radius:13px;background:linear-gradient(135deg,rgba(91,103,241,.10),rgba(29,181,201,.05)),#fbfcff;border:1px solid #dfe3ff;margin-bottom:11px}
+.executive-summary-label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.executive-summary-label strong{font-size:11px;color:var(--primary)}
+.executive-summary p{margin:0;font-size:11px;line-height:1.75;color:#384459}
+.brief-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.brief-section{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fff}
+.brief-section-head{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.brief-section-head strong{font-size:10.5px}
+.brief-section ul{margin:0;padding-left:16px}
+.brief-section li{font-size:10px;line-height:1.65;color:#455166;margin:3px 0}
+.department-card,.decision-card{display:flex;flex-direction:column}
+.department-card{height:258px;flex:none}
+.department-head,.decision-head{padding:13px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none}
+.department-head strong,.decision-head strong{font-size:12px}
+.department-body{padding:12px 14px;min-height:0;flex:1;overflow:auto}
+.dept-row{margin-bottom:11px}
+.dept-row:last-child{margin-bottom:0}
+.dept-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.dept-top strong{font-size:10px}
+.dept-top span{font-size:9px;color:var(--text-3)}
+.bar{height:7px;border-radius:999px;background:#edf0f4;overflow:hidden}
+.bar span{height:100%;display:block;border-radius:999px;background:linear-gradient(90deg,var(--primary),#7e88f8)}
+.bar.warning span{background:linear-gradient(90deg,#f3b043,#e99b19)}
+.decision-card{min-height:0;flex:1}
+.decision-body{padding:11px 13px;min-height:0;flex:1;overflow:auto}
+.decision-item{padding:10px 11px;border:1px solid var(--line);border-radius:11px;margin-bottom:8px}
+.decision-item:last-child{margin-bottom:0}
+.decision-item-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.decision-item-top strong{font-size:10.5px}
+.decision-item p{margin:0;font-size:9.8px;line-height:1.6;color:#566176}
+
+/* v2: AI使用必填、提示词配置与历史周报 */
+.history-entry{height:44px;border-radius:12px;background:rgba(255,255,255,.88);box-shadow:0 7px 20px rgba(35,43,74,.035)}
+.required-card{margin-bottom:12px;padding:12px;border:1px solid #dfe3ff;border-radius:13px;background:linear-gradient(135deg,#f8f9ff,#fcfeff);transition:.18s ease}
+.required-card.attention{border-color:#f1b951;box-shadow:0 0 0 4px rgba(233,155,25,.12);animation:requiredPulse .5s ease}
+@keyframes requiredPulse{50%{transform:translateY(-2px)}}
+.required-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.required-title{display:flex;align-items:flex-start;gap:9px;min-width:0}
+.required-icon{width:29px;height:29px;border-radius:9px;display:grid;place-items:center;background:#fff;color:var(--primary);border:1px solid #e1e5ff;flex:none}
+.required-title strong{display:block;font-size:11.5px;margin-bottom:3px}
+.required-title p{margin:0;font-size:9.5px;color:var(--text-2);line-height:1.5}
+.required-star,.form-field em{color:var(--danger);font-style:normal;margin-left:2px}
+.freeform-ai-field{display:block}
+.freeform-ai-field span{display:block;margin-bottom:6px;color:var(--text-2);font-size:9.5px;font-weight:650}
+.freeform-ai-field textarea{width:100%;min-height:88px;resize:vertical;padding:10px 11px;border:1px solid var(--line-strong);border-radius:10px;background:#fff;color:var(--text);outline:0;font-size:10.5px;line-height:1.65;transition:.16s ease}
+.freeform-ai-field textarea:focus{border-color:#a7afff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
+#employeeView .ai-item{padding-right:12px;cursor:default}
+#employeeView .ai-item:hover{background:transparent}
+.usage-toggle{display:inline-flex;height:31px;padding:3px;border:1px solid var(--line);border-radius:9px;background:#f1f3f7;margin-bottom:10px}
+.usage-toggle button{height:23px;padding:0 11px;border:0;border-radius:6px;background:transparent;color:var(--text-2);font-size:9.5px}
+.usage-toggle button.active{background:#fff;color:var(--primary);font-weight:750;box-shadow:0 2px 7px rgba(39,50,78,.09)}
+.ai-usage-grid{display:grid;grid-template-columns:180px minmax(210px,1fr) 145px;gap:9px;align-items:end}
+.form-field{min-width:0}
+.form-field.full{grid-column:1 / -1}
+.form-field label{display:block;font-size:9.5px;color:var(--text-2);font-weight:650;margin-bottom:5px}
+.form-field input,.form-field select,.form-field textarea{width:100%;border:1px solid var(--line-strong);border-radius:9px;background:#fff;color:var(--text);outline:0;font-size:10.5px}
+.form-field input,.form-field select{height:34px;padding:0 9px}
+.form-field textarea{min-height:55px;resize:vertical;padding:8px 9px;line-height:1.55}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{border-color:#a7afff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
+.review-check{height:34px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:#fff;display:flex;align-items:center;gap:7px;color:var(--text-2);font-size:9.5px;white-space:nowrap}
+.review-check input{accent-color:var(--primary)}
+.prompt-summary{margin:9px 14px 0;padding:9px 10px;border:1px solid #e3e6ff;border-radius:11px;background:linear-gradient(135deg,#f9f9ff,#fff);display:flex;align-items:center;justify-content:space-between;gap:10px;flex:none}
+.prompt-summary-main{display:flex;align-items:center;gap:8px;min-width:0}
+.prompt-summary-icon{width:27px;height:27px;border-radius:8px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);flex:none}
+.prompt-summary label{display:block;font-size:8.5px;color:var(--text-3);margin-bottom:2px}
+.prompt-summary strong{display:block;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:270px}
+.prompt-summary span{font-size:8.8px;color:var(--text-3)}
+.ai-usage-preview{padding:10px 11px;border-radius:10px;border:1px solid #dfe3ff;background:#f8f9ff;font-size:10px;line-height:1.65;color:#4d5870}
+.ai-adoption-banner{margin-bottom:11px;padding:11px 12px;border:1px solid #d9f0f3;border-radius:13px;background:linear-gradient(135deg,#f1fcfd,#fbfeff);display:grid;grid-template-columns:1.2fr repeat(3,1fr);gap:10px;align-items:center}
+.ai-adoption-main strong{display:block;font-size:11px;color:#137d8c;margin-bottom:3px}
+.ai-adoption-main span{font-size:9px;color:var(--text-3)}
+.ai-adoption-metric{padding-left:10px;border-left:1px solid #dceff2}
+.ai-adoption-metric label{display:block;font-size:8.5px;color:var(--text-3);margin-bottom:3px}
+.ai-adoption-metric strong{font-size:11px}
+.drawer-mask{position:fixed;inset:0;background:rgba(15,23,42,.38);backdrop-filter:blur(4px);z-index:130;display:none}
+.drawer-mask.show{display:block}
+.side-drawer{position:absolute;right:0;top:0;bottom:0;width:520px;background:#fff;box-shadow:-24px 0 70px rgba(23,32,51,.18);display:flex;flex-direction:column}
+.side-drawer.history-drawer{width:min(930px,78vw)}
+.drawer-head{height:66px;padding:0 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
+.drawer-head h3{margin:0;font-size:15px}
+.drawer-head p{margin:4px 0 0;font-size:9.5px;color:var(--text-3)}
+.drawer-body{min-height:0;flex:1;overflow:auto;padding:18px 20px}
+.drawer-foot{min-height:62px;padding:11px 20px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;flex:none;background:#fff}
+.prompt-notice{padding:11px 12px;border:1px solid #dfe3ff;border-radius:11px;background:#f7f8ff;color:#4f5b71;font-size:10px;line-height:1.6;margin-bottom:15px}
+.prompt-textarea{width:100%;min-height:230px;resize:vertical;border:1px solid var(--line-strong);border-radius:11px;padding:11px 12px;outline:0;font-size:10.5px;line-height:1.7;color:#344057}
+.prompt-textarea:focus{border-color:#a7afff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
+.prompt-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;font-size:9px;color:var(--text-3)}
+.focus-tags{display:flex;gap:7px;flex-wrap:wrap}
+.focus-tag{height:31px;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:#fff;color:var(--text-2);display:inline-flex;align-items:center;gap:6px;font-size:9.5px}
+.focus-tag input{width:14px!important;height:14px!important;padding:0!important;margin:0;accent-color:var(--primary);flex:none}
+.history-layout{height:100%;min-height:0;display:grid;grid-template-columns:285px minmax(0,1fr)}
+.history-list-pane{min-height:0;border-right:1px solid var(--line);display:flex;flex-direction:column;background:#fafbfe}
+.history-list-head{padding:14px;border-bottom:1px solid var(--line);flex:none}
+.history-list-head strong{font-size:12px}
+.history-list-head p{margin:4px 0 0;font-size:9px;color:var(--text-3)}
+.history-list{min-height:0;flex:1;overflow:auto;padding:8px}
+.history-item{padding:11px;border:1px solid transparent;border-radius:11px;margin-bottom:5px;cursor:pointer;transition:.15s ease;background:transparent}
+.history-item:hover{background:#fff;border-color:#eef1f5}
+.history-item.active{background:#fff;border-color:#dfe3ff;box-shadow:0 5px 14px rgba(39,50,78,.06)}
+.history-item-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
+.history-item-top strong{font-size:10.5px}
+.history-item p{margin:0;font-size:9px;line-height:1.5;color:var(--text-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.history-item-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px;font-size:8.8px;color:var(--text-3)}
+.history-detail-pane{min-width:0;min-height:0;overflow:auto;padding:18px 20px;background:#fff}
+.history-cover{padding:14px 15px;border:1px solid #dfe3ff;border-radius:13px;background:linear-gradient(135deg,#f7f8ff,#fcfeff);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.history-cover h4{margin:0 0 5px;font-size:14px}
+.history-cover p{margin:0;font-size:9.5px;color:var(--text-3)}
+.history-summary{padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#fafbfc;font-size:10.5px;line-height:1.7;color:#435066;margin-bottom:10px}
+.history-content-label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 8px}
+.history-content-label strong{font-size:11px;color:var(--text)}
+.history-content-label span{font-size:8.8px;color:var(--text-3)}
+.history-original{padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:10.5px;line-height:1.75;color:#4b576b;white-space:pre-wrap}
+.history-content-label.ai strong{color:var(--primary)}
+.history-section{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:9px}
+.history-section-head{padding:9px 11px;background:#fafbfc;border-bottom:1px solid #eff1f5;display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:750}
+.history-section-body{padding:9px 12px}
+.history-section-body ul{margin:0;padding-left:16px}
+.history-section-body li{font-size:10px;line-height:1.65;color:#566176;margin:3px 0}
+.history-ai-box{padding:11px 12px;border:1px solid #d9f0f3;border-radius:12px;background:#f4fcfd;margin-bottom:9px}
+.history-ai-box strong{display:block;font-size:10.5px;color:#137d8c;margin-bottom:6px}
+.history-ai-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.history-ai-grid div{padding:7px 8px;border-radius:8px;background:#fff;border:1px solid #e5f2f4}
+.history-ai-grid label{display:block;font-size:8.5px;color:var(--text-3);margin-bottom:3px}
+.history-ai-grid span{font-size:9.5px;color:#455166;line-height:1.45}
+
+.modal-mask{position:fixed;inset:0;background:rgba(15,23,42,.38);backdrop-filter:blur(4px);z-index:100;display:none}
+.modal-mask.show{display:block}
+.modal{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:690px;max-height:calc(100vh - 70px);background:#fff;border-radius:17px;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column}
+.modal.small{width:520px}
+.modal-head{min-height:62px;padding:13px 17px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
+.modal-head h3{margin:0;font-size:15px}
+.modal-head p{margin:4px 0 0;font-size:9.5px;color:var(--text-3)}
+.modal-body{padding:15px 17px;overflow:auto;min-height:0;flex:1}
+.modal-foot{padding:12px 17px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:none}
+.preview-tabs{height:38px;padding:4px;display:flex;gap:4px;border-radius:10px;background:#f1f3f7;margin-bottom:12px}
+.preview-tabs button{flex:1;border:0;border-radius:7px;background:transparent;color:var(--text-2);font-size:10.5px}
+.preview-tabs button.active{background:#fff;color:var(--primary);font-weight:750;box-shadow:0 3px 9px rgba(39,50,78,.08)}
+.preview-paper{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+.preview-cover{padding:15px 16px;background:linear-gradient(135deg,#f6f7ff,#fbfdff);border-bottom:1px solid #dfe3ff;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.preview-cover h4{margin:0 0 5px;font-size:14px}
+.preview-cover p{margin:0;font-size:9.5px;color:var(--text-3)}
+.preview-content{padding:14px 16px}
+.preview-summary{padding:11px 12px;border-radius:11px;background:#fafbfc;border:1px solid var(--line);font-size:10.5px;line-height:1.7;color:#435066;margin-bottom:10px}
+.preview-section{margin-bottom:10px}
+.preview-section:last-child{margin-bottom:0}
+.preview-section strong{display:block;font-size:10.5px;margin-bottom:6px}
+.preview-section ul{margin:0;padding-left:17px}
+.preview-section li{font-size:10px;line-height:1.7;color:#566176}
+.confirm-list{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:12px}
+.confirm-row{min-height:44px;padding:10px 12px;border-bottom:1px solid #eff1f5;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:10.5px}
+.confirm-row:last-child{border-bottom:0}
+.confirm-row span{color:var(--text-3)}
+.confirm-row strong{text-align:right}
+.notice-box{padding:11px 12px;border-radius:11px;border:1px solid #dfe3ff;background:#f7f8ff;font-size:10px;line-height:1.6;color:#4f5b71}
+.toast-stack{position:fixed;right:22px;top:76px;z-index:180;display:flex;flex-direction:column;gap:8px}
+.toast{min-width:285px;padding:11px 13px;border-radius:11px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--success);box-shadow:var(--shadow);font-size:10.5px;animation:toastIn .2s ease}
+.toast.warning{border-left-color:var(--warning)}
+.toast.error{border-left-color:var(--danger)}
+@keyframes toastIn{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-thumb{background:#d9dee8;border-radius:999px}
+::-webkit-scrollbar-track{background:transparent}
+@media(max-width:1360px){
+  .employee-grid{grid-template-columns:minmax(560px,1fr) 430px}
+  .team-grid{grid-template-columns:245px minmax(520px,1fr)}
+  .hero p{max-width:450px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">汇</div>
+      <div class="brand-name">经营管理平台</div>
+      <div class="brand-divider"></div>
+      <div class="brand-page">智能汇报中心</div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" title="消息">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </button>
+      <div class="user">
+        <div class="user-avatar">林</div>
+        <div class="user-info"><strong>林晓</strong><span>制片组 · 执行制片</span></div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" stroke-width="1.8"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-left">
+      <div class="hero-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+      </div>
+      <div>
+        <h1>智能周报</h1>
+      </div>
+    </div>
+    <div class="hero-controls">
+      <div class="period-box">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <div class="period-meta"><label>汇报周期</label><select id="weekSelect"><option>2026年7月6日 - 7月12日</option><option>2026年6月29日 - 7月5日</option><option>2026年7月13日 - 7月19日</option></select></div>
+      </div>
+      <button class="btn history-entry" id="historyBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>历史周报
+        </button>
+      <div class="view-switch" id="viewSwitch">
+        <button class="active" data-view="employee">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/></svg>我的周报
+        </button>
+        <button data-view="team">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队周报
+        </button>
+        <button data-view="leader">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="m7 16 4-5 3 3 5-7"/></svg>领导概览
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <main class="main">
+    <section class="view active" id="employeeView">
+      <div class="status-strip">
+        <div class="status-main">
+          <div class="status-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
+          <div>
+            <div class="status-title"><strong id="reportStatusTitle">本周周报正在编辑</strong><span class="tag warning" id="reportStatusTag">草稿</span></div>
+            <div class="status-sub">截止时间：7月13日 10:00 · 周报正文与“本周AI使用情况”均填写后方可提交</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="employee-grid">
+        <article class="card editor-card">
+          <div class="editor-wrap">
+            <div class="card-head">
+              <div class="card-title">
+                <div class="title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
+                <div><h2>填写周报内容</h2><p>可直接粘贴工作记录，AI会自动识别结构，无需重复拆分填写</p></div>
+              </div>
+            </div>
+            <div class="editor-body">
+              <div class="smart-tip">
+                <div class="smart-tip-main">
+                  <div class="smart-tip-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-1.9 4.4L6 9.3l4.1 1.8L12 15.5l1.9-4.4L18 9.3l-4.1-1.9Z"/><path d="m5 16-.9 2.1L2 19l2.1.9L5 22l.9-2.1L8 19l-2.1-.9Z"/></svg></div>
+                  <div><strong>推荐写法</strong><p>写清“做了什么、结果如何、有什么风险、下周做什么”。数据和时间节点越明确，AI提炼越准确。</p></div>
+                </div>
+                <span class="tag success">结构识别正常</span>
+              </div>
+
+              <div class="required-card" id="aiUsageCard">
+                <div class="required-head">
+                  <div class="required-title">
+                    <div class="required-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a2.5 2.5 0 0 1 2.45 2h2.05A2.5 2.5 0 0 1 19 6.5v2.05A2.5 2.5 0 0 1 21 11a2.5 2.5 0 0 1-2 2.45v2.05A2.5 2.5 0 0 1 16.5 18h-2.05A2.5 2.5 0 0 1 12 20a2.5 2.5 0 0 1-2.45-2H7.5A2.5 2.5 0 0 1 5 15.5v-2.05A2.5 2.5 0 0 1 3 11a2.5 2.5 0 0 1 2-2.45V6.5A2.5 2.5 0 0 1 7.5 4h2.05A2.5 2.5 0 0 1 12 2Z"/><path d="M8 12h8M12 8v8"/></svg></div>
+                    <div><strong>本周 AI 使用情况 <span class="required-star">*</span></strong><p>直接填写使用的工具、应用场景、实际产出与效果；本周未使用时填写原因即可。</p></div>
+                  </div>
+                </div>
+                <label class="freeform-ai-field"><span>使用情况说明</span><textarea id="aiUsageInput" placeholder="例如：本周使用内部 AI 助手优化拍摄排期并整理风险清单，人工复核后采用，减少了重复整理时间。">本周使用内部AI助手优化拍摄排期并整理风险清单，人工复核后采用，预计节省1-2小时。</textarea></label>
+              </div>
+              <div class="field-label"><strong>周报正文</strong><span><b id="charCount">395</b> 字 · 已自动保存</span></div>
+              <textarea class="report-textarea" id="reportTextarea">本周完成：
+1. 完成《城市回声》短剧前10集拍摄，整体拍摄进度达到92%，粗剪素材已按计划交付后期团队。
+2. 重新协调演员和场地档期，在不影响拍摄进度的情况下减少两天场地占用，预计节省成本12%。
+3. 完成B项目开机方案、拍摄排期和主要演员确认，开机准备完成度80%。
+4. 与编剧组完成第11-20集剧本复盘，确认3处场景调整和2处台词优化。
+
+数据结果：
+本周完成10集、38场拍摄，计划达成率92%；返工镜头3个，低于目标上限5个；预算执行率88%。
+
+问题与风险：
+1. 三个特效镜头在拍摄后发生需求变更，可能影响7月15日的首版交付。
+2. 第18集配音演员档期仍未最终确认，需最晚在周二前锁定，否则将影响粗剪节奏。
+
+下周计划：
+完成后10集拍摄并推进项目杀青；B项目按7月16日开机目标完成场地、通告和设备确认；推动特效镜头变更方案在周一前定稿。
+
+需要支持：
+请协助确认配音资源优先级，并审批备用录音棚及替补配音演员的临时预算。</textarea>
+            </div>
+            <div class="editor-footer">
+              <div class="save-info"><span class="save-dot"></span><span id="saveText">已于 10:26 自动保存</span></div>
+            </div>
+          </div>
+        </article>
+
+        <aside class="card ai-card">
+          <div class="card-head">
+            <div class="card-title">
+              <div class="title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a2.5 2.5 0 0 1 2.45 2h2.05A2.5 2.5 0 0 1 19 6.5v2.05A2.5 2.5 0 0 1 21 11a2.5 2.5 0 0 1-2 2.45v2.05A2.5 2.5 0 0 1 16.5 18h-2.05A2.5 2.5 0 0 1 12 20a2.5 2.5 0 0 1-2.45-2H7.5A2.5 2.5 0 0 1 5 15.5v-2.05A2.5 2.5 0 0 1 3 11a2.5 2.5 0 0 1 2-2.45V6.5A2.5 2.5 0 0 1 7.5 4h2.05A2.5 2.5 0 0 1 12 2Z"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/><path d="M8 14h8"/></svg></div>
+              <div><h2>AI提取内容</h2><p>根据左侧填写内容自动提取，仅用于提交前确认</p></div>
+            </div>
+          </div>
+          <div class="ai-body">
+            <div id="managerAiView">
+              <div class="ai-section" data-section="achievement"><div class="ai-section-head"><div class="ai-section-title"><span class="dot success"></span>关键成果</div><span class="section-count">3条</span></div><div class="ai-items"><div class="ai-item">《城市回声》前10集完成拍摄，整体进度92%，粗剪素材按计划交付。</div><div class="ai-item">通过档期与场地重排，预计节省项目成本12%，未影响当前交付节奏。</div><div class="ai-item">B项目开机准备完成度80%，排期、主要演员及开机方案已确认。</div></div></div>
+              <div class="ai-section" data-section="risk"><div class="ai-section-head"><div class="ai-section-title"><span class="dot warning"></span>风险与阻塞</div><span class="section-count">2条</span></div><div class="ai-items"><div class="ai-item">3个特效镜头发生需求变更，可能影响7月15日首版交付。</div><div class="ai-item">第18集配音演员档期未确认，需在周二前锁定。</div></div></div>
+              <div class="ai-section" data-section="plan"><div class="ai-section-head"><div class="ai-section-title"><span class="dot cyan"></span>下周重点</div><span class="section-count">2条</span></div><div class="ai-items"><div class="ai-item">完成后10集拍摄，按计划推进项目杀青。</div><div class="ai-item">保障B项目7月16日开机，完成场地、通告和设备确认。</div></div></div>
+              <div class="ai-section" data-section="support"><div class="ai-section-head"><div class="ai-section-title"><span class="dot"></span>需要支持</div><span class="section-count">1条</span></div><div class="ai-items"><div class="ai-item">需协调配音资源优先级，并审批备用录音棚及替补配音演员预算。</div></div></div>
+              <div class="ai-section" data-section="aiusage"><div class="ai-section-head"><div class="ai-section-title"><span class="dot cyan"></span>本周AI使用</div><span class="section-count">1条</span></div><div class="ai-items"><div class="ai-item" id="aiUsageAiItem">本周使用内部AI助手优化拍摄排期并整理风险清单，人工复核后采用，预计节省1-2小时。</div></div></div>
+            </div>
+          </div>
+          <div class="ai-foot"><button class="btn primary" id="submitReportBtn">提交周报</button></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="view" id="teamView">
+      <div class="kpi-grid">
+        <div class="kpi-card"><div><label>本周应提交</label><strong>12</strong><div class="sub">制片部门全部成员</div></div><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></div></div>
+        <div class="kpi-card"><div><label>已提交</label><strong>9</strong><div class="sub">提交率 75%</div></div><div class="kpi-icon success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6 9 17l-5-5"/></svg></div></div>
+        <div class="kpi-card"><div><label>待提交</label><strong>3</strong><div class="sub">其中 1 人仍为草稿</div></div><div class="kpi-icon warning"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div></div>
+      </div>
+      <div class="team-grid">
+        <aside class="card member-panel">
+          <div class="compact-head"><div class="compact-title"><strong>团队成员</strong><span class="tag primary">12人</span></div><div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="memberSearch" placeholder="搜索姓名或岗位" /></div><div class="member-filters" id="memberFilters"><button class="active" data-filter="all">全部</button><button data-filter="submitted">已提交</button><button data-filter="draft">草稿</button><button data-filter="pending">未提交</button></div></div>
+          <div class="member-list" id="memberList"></div>
+        </aside>
+        <article class="card report-panel">
+          <div class="report-head"><div class="report-person"><div class="member-avatar" id="selectedMemberAvatar">林</div><div><h3 id="selectedMemberName">林晓的周报</h3><p id="selectedMemberMeta">执行制片 · 制片组 · 提交于今天 10:31</p></div></div><div class="report-actions"><span class="tag success" id="selectedMemberStatus">已提交</span><button class="btn small" id="exportMemberBtn">导出</button></div></div>
+          <div class="report-body" id="memberReportBody"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="view" id="leaderView">
+      <div class="leader-toolbar"><div class="leader-filter"><select class="select-box" id="departmentSelect"><option>内容经营中心</option><option>制片部门</option><option>编剧中心</option><option>剪辑部门</option></select><select class="select-box"><option>全部团队</option><option>制片组</option><option>导演组</option><option>剪辑一组</option></select><span class="tag success">数据更新至今天 10:35</span></div><div style="display:flex;gap:8px"><button class="btn" id="copyBriefBtn">复制简报</button><button class="btn primary" id="generateBriefBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-1.9 4.4L6 9.3l4.1 1.8L12 15.5l1.9-4.4L18 9.3l-4.1-1.9Z"/></svg>重新生成团队简报</button></div></div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div><label>覆盖员工</label><strong>46</strong><div class="sub">4个部门，8个业务组</div></div><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div></div>
+        <div class="kpi-card"><div><label>周报提交率</label><strong>87%</strong><div class="sub">较上周提升 5%</div></div><div class="kpi-icon success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="m7 16 4-5 3 3 5-7"/></svg></div></div>
+        <div class="kpi-card"><div><label>关键项目进展</label><strong>6</strong><div class="sub">5项正常，1项有风险</div></div><div class="kpi-icon warning"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14"/><path d="M8 7h8M8 11h8M8 15h5"/></svg></div></div>
+        <div class="kpi-card"><div><label>需决策/协调</label><strong>5</strong><div class="sub">跨部门3项，预算2项</div></div><div class="kpi-icon danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg></div></div>
+      </div>
+      <div class="leader-grid">
+        <div class="leader-left">
+          <article class="card team-brief">
+            <div class="brief-head"><div><h2>AI团队周报简报</h2><p>综合46份个人周报与8份负责人总结，按经营影响自动排序</p></div><div style="display:flex;gap:7px"><span class="tag primary">AI聚合</span><span class="tag neutral">可编辑</span></div></div>
+            <div class="brief-body">
+              <div class="executive-summary"><div class="executive-summary-label"><strong>本周经营摘要</strong><span class="tag primary">建议领导先读</span></div><p id="executiveSummaryText">内容经营中心本周整体交付稳定，6个重点项目中5个按计划推进。《城市回声》拍摄进度达到92%，通过排期优化预计节省12%场地成本；B项目进入开机准备阶段。当前主要风险集中在特效需求变更、配音资源和剪辑设备产能，涉及3项跨部门协调与2项临时预算决策。</p></div>
+
+              <div class="ai-adoption-banner"><div class="ai-adoption-main"><strong>本周 AI 应用洞察</strong><span>来自员工必填的“本周AI使用情况”，仅展示聚合结果</span></div><div class="ai-adoption-metric"><label>填写覆盖率</label><strong>100%</strong></div><div class="ai-adoption-metric"><label>实际使用率</label><strong>83%</strong></div><div class="ai-adoption-metric"><label>人均节省</label><strong>2.6小时</strong></div></div>
+              <div class="brief-grid">
+                <section class="brief-section"><div class="brief-section-head"><span class="dot success"></span><strong>关键成果</strong></div><ul><li>《城市回声》完成前10集拍摄，计划达成率92%。</li><li>“夏夜计划”完成全季剧本定稿，比计划提前2天。</li><li>内容投放ROI提升至1.68，较上周增长11%。</li></ul></section>
+                <section class="brief-section"><div class="brief-section-head"><span class="dot warning"></span><strong>主要风险</strong></div><ul><li>特效镜头变更可能影响7月15日首版交付。</li><li>配音演员档期未锁定，粗剪节点存在延迟风险。</li><li>剪辑一组设备负荷达到95%，下周产能承压。</li></ul></section>
+                <section class="brief-section"><div class="brief-section-head"><span class="dot"></span><strong>需要决策与支持</strong></div><ul><li>审批备用录音棚与替补配音演员临时预算。</li><li>协调技术中心临时借调2台高性能剪辑设备。</li><li>确认B项目新增场景的预算上限。</li></ul></section>
+                <section class="brief-section"><div class="brief-section-head"><span class="dot cyan"></span><strong>下周关键节点</strong></div><ul><li>7月15日：《城市回声》首版交付。</li><li>7月16日：B项目正式开机。</li><li>7月18日：“夏夜计划”完成分镜评审。</li></ul></section>
+              </div>
+            </div>
+          </article>
+        </div>
+        <div class="leader-right">
+          <article class="card department-card"><div class="department-head"><strong>部门提交与风险分布</strong><span class="tag neutral">本周</span></div><div class="department-body"><div class="dept-row"><div class="dept-top"><strong>制片部门</strong><span>提交率 92% · 风险 2</span></div><div class="bar"><span style="width:92%"></span></div></div><div class="dept-row"><div class="dept-top"><strong>编剧中心</strong><span>提交率 100% · 风险 1</span></div><div class="bar"><span style="width:100%"></span></div></div><div class="dept-row"><div class="dept-top"><strong>剪辑部门</strong><span>提交率 78% · 风险 2</span></div><div class="bar warning"><span style="width:78%"></span></div></div><div class="dept-row"><div class="dept-top"><strong>运营部门</strong><span>提交率 83% · 风险 0</span></div><div class="bar"><span style="width:83%"></span></div></div></div></article>
+          <article class="card decision-card"><div class="decision-head"><strong>领导关注事项</strong><button class="btn link">查看全部 5 项</button></div><div class="decision-body"><div class="decision-item"><div class="decision-item-top"><strong>配音资源与临时预算</strong><span class="tag danger">高优先级</span></div><p>最晚周二前确认替补配音演员和备用录音棚，否则影响第18集粗剪节奏。</p></div><div class="decision-item"><div class="decision-item-top"><strong>剪辑设备产能协调</strong><span class="tag warning">跨部门</span></div><p>剪辑一组设备负荷达到95%，建议从技术中心临时借调2台设备。</p></div><div class="decision-item"><div class="decision-item-top"><strong>B项目新增场景预算</strong><span class="tag primary">待决策</span></div><p>新增室外夜景可能增加约8万元成本，需要在开机前确认预算上限。</p></div></div></article>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal-mask" id="submitModalMask">
+  <div class="modal small">
+    <div class="modal-head"><div><h3>确认提交本周周报</h3><p>提交后负责人可查看完整重点，领导视图将展示精简摘要</p></div><button class="icon-btn" id="closeSubmitBtn">×</button></div>
+    <div class="modal-body"><div class="confirm-list"><div class="confirm-row"><span>汇报周期</span><strong>2026年7月6日 - 7月12日</strong></div><div class="confirm-row"><span>AI重点</span><strong>9条，含2项风险</strong></div><div class="confirm-row"><span>AI使用情况</span><strong id="submitAiUsageSummary">已填写 · 内部AI助手</strong></div><div class="confirm-row"><span>展示对象</span><strong>直属负责人、部门负责人、分管领导</strong></div><div class="confirm-row"><span>内容完整度</span><strong style="color:var(--success)">86% · 可提交</strong></div></div><div class="notice-box">提交后仍可在截止时间前更新。再次提交时，系统会同步更新负责人和领导看到的AI摘要。</div></div>
+    <div class="modal-foot"><button class="btn" id="cancelSubmitBtn">再检查一下</button><button class="btn primary" id="confirmSubmitBtn">确认提交</button></div>
+  </div>
+</div>
+
+
+<div class="drawer-mask" id="historyDrawerMask">
+  <aside class="side-drawer history-drawer">
+    <div class="drawer-head"><div><h3>我的历史周报</h3><p>同时查看本人填写内容与AI提炼结果</p></div><button class="icon-btn" id="closeHistoryDrawerBtn">×</button></div>
+    <div class="drawer-body" style="padding:0;overflow:hidden"><div class="history-layout"><div class="history-list-pane"><div class="history-list-head"><strong>历史记录</strong><p>共 12 份，默认按提交时间倒序</p><div class="search" style="margin-top:10px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="historySearch" placeholder="搜索周期或重点内容" /></div></div><div class="history-list" id="historyList"></div></div><div class="history-detail-pane" id="historyDetail"></div></div></div>
+    <div class="drawer-foot"><span style="font-size:9.5px;color:var(--text-3)">历史记录只读，支持将下周计划带入当前周报</span><div style="display:flex;gap:8px"><button class="btn" id="closeHistoryFooterBtn">关闭</button><button class="btn primary" id="copyHistoryPlanBtn">带入本周计划</button></div></div>
+  </aside>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = { currentView:'employee', memberFilter:'all', selectedMember:'lin', historyId:'w27' };
+
+function toast(message,type='success'){
+  const el=document.createElement('div');
+  el.className='toast '+(type==='success'?'':type);
+  el.textContent=message;
+  $('toastStack').appendChild(el);
+  setTimeout(()=>el.remove(),2800);
+}
+
+function switchView(view){
+  state.currentView=view;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $(view+'View').classList.add('active');
+  document.querySelectorAll('#viewSwitch button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  $('historyBtn').classList.toggle('hidden',view!=='employee');
+}
+
+document.querySelectorAll('#viewSwitch button').forEach(btn=>btn.addEventListener('click',()=>switchView(btn.dataset.view)));
+
+$('weekSelect').addEventListener('change',()=>toast('汇报周期已切换，内容将按新周期保存','warning'));
+
+const reportTextarea=$('reportTextarea');
+const aiUsageInput=$('aiUsageInput');
+function aiUsageIsValid(){return aiUsageInput.value.trim().length>=6}
+function getAiUsageSummary(){return aiUsageInput.value.trim()||'未填写本周 AI 使用情况'}
+function updateCharCount(markChanged=true){
+  const len=reportTextarea.value.replace(/\s/g,'').length;
+  $('charCount').textContent=len;
+  $('aiUsageAiItem').textContent=getAiUsageSummary();
+  if(markChanged)$('saveText').textContent='内容已变化，等待自动保存';
+}
+reportTextarea.addEventListener('input',()=>updateCharCount(true));
+aiUsageInput.addEventListener('input',()=>updateCharCount(true));
+function validateRequiredFields(){
+  if(reportTextarea.value.replace(/\s/g,'').length<30){toast('请先补充周报正文后再提交','warning');reportTextarea.focus();return false}
+  if(!aiUsageIsValid()){
+    toast('“本周AI使用情况”为必填项，请补充完整','warning');
+    $('aiUsageCard').classList.add('attention');
+    $('aiUsageCard').scrollIntoView({behavior:'smooth',block:'center'});
+    setTimeout(()=>$('aiUsageCard').classList.remove('attention'),1000);
+    return false;
+  }
+  return true;
+}
+updateCharCount(false);
+
+const histories=[
+  {id:'w27',week:'2026年第27周',range:'6月29日 - 7月5日',submitted:'7月6日 09:42',summary:'完成《城市回声》前期筹备和首轮拍摄，项目进度稳定；演员档期存在轻微冲突，已通过调整通告解决。',achievements:['完成前5集拍摄及素材归档，计划达成率100%。','B项目完成主要演员第一轮沟通和场地踏勘。'],risks:['第8集夜戏受天气影响，已准备替代场景。'],plan:['完成《城市回声》前10集拍摄并交付粗剪素材。','完成B项目开机前排期、演员和场地确认。'],ai:{tool:'内部AI助手',scene:'通告单检查、拍摄排期对比',effect:'生成冲突检查清单，人工复核后采用，提前发现2处档期冲突。',time:'1-2小时'}},
+  {id:'w26',week:'2026年第26周',range:'6月22日 - 6月28日',submitted:'6月29日 10:03',summary:'完成项目开机准备与跨组协同，核心资源已锁定；预算审批较计划晚1天，但未影响开机。',achievements:['完成设备、场地及核心演员锁定。','项目预算拆分完成并通过负责人复核。'],risks:['备用场地合同仍待法务确认。'],plan:['按计划完成首周5集拍摄。','跟进备用场地合同并完成归档。'],ai:{tool:'ChatGPT',scene:'会议纪要整理、预算说明润色',effect:'将三次跨组会议合并为行动清单，负责人确认后下发。',time:'2-4小时'}},
+  {id:'w25',week:'2026年第25周',range:'6月15日 - 6月21日',submitted:'6月22日 09:36',summary:'完成剧本拆解和拍摄资源初排，明确主要成本风险；项目处于正常准备阶段。',achievements:['完成20集剧本场景和角色拆解。','形成第一版拍摄日历与资源需求表。'],risks:['两处核心场景报价高于预算，需要替代方案。'],plan:['完成场地比价与演员档期确认。','提交开机方案和预算审批。'],ai:{tool:'Microsoft Copilot',scene:'Excel资源表整理、场景分类',effect:'自动归类场景与拍摄资源，减少手工汇总时间。',time:'1-2小时'}},
+  {id:'w24',week:'2026年第24周',range:'6月8日 - 6月14日',submitted:'6月15日 11:05',summary:'本周以线下勘景和供应商沟通为主，暂未使用AI；完成了项目启动和基础资料整理。',achievements:['完成项目启动会和职责确认。','完成首轮勘景及供应商名单整理。'],risks:['部分拍摄设备档期紧张。'],plan:['完成剧本拆解和资源初排。'],ai:{tool:'未使用AI',scene:'线下勘景与现场沟通为主',effect:'本周工作以现场判断和面对面沟通为主，暂未找到合适AI场景。',time:'0小时'}}
+];
+function renderHistory(){
+  const q=$('historySearch').value.trim();
+  const list=histories.filter(h=>!q||h.week.includes(q)||h.range.includes(q)||h.summary.includes(q)||h.ai.scene.includes(q));
+  $('historyList').innerHTML=list.map(h=>`<div class="history-item ${state.historyId===h.id?'active':''}" data-history="${h.id}"><div class="history-item-top"><strong>${h.week}</strong><span class="tag success">已提交</span></div><p>${h.summary}</p><div class="history-item-meta"><span>${h.range}</span><span>${h.ai.tool}</span></div></div>`).join('')||'<div style="padding:50px 15px;text-align:center;color:var(--text-3);font-size:10px">未找到历史周报</div>';
+  document.querySelectorAll('[data-history]').forEach(el=>el.onclick=()=>{state.historyId=el.dataset.history;renderHistory();renderHistoryDetail()});
+}
+function renderHistoryDetail(){
+  const h=histories.find(x=>x.id===state.historyId)||histories[0];
+  const original=`本周完成：\n- ${h.achievements.join('\n- ')}\n\n问题与风险：\n- ${h.risks.join('\n- ')}\n\n下周计划：\n- ${h.plan.join('\n- ')}\n\n本周 AI 使用情况：\n${h.ai.tool}；${h.ai.scene}；${h.ai.effect}`;
+  $('historyDetail').innerHTML=`<div class="history-cover"><div><h4>${h.week}周报</h4><p>${h.range} · 提交于 ${h.submitted}</p></div><span class="tag success">已提交</span></div><div class="history-content-label"><strong>我的填写内容</strong><span>提交原文</span></div><div class="history-original">${original}</div><div class="history-content-label ai"><strong>AI提炼内容</strong><span>自动生成</span></div><div class="history-summary"><strong style="display:block;margin-bottom:5px;color:var(--primary)">AI重点摘要</strong>${h.summary}</div><div class="history-ai-box"><strong>本周AI使用情况</strong><div class="history-ai-grid"><div><label>工具/产品</label><span>${h.ai.tool}</span></div><div><label>估算节省时间</label><span>${h.ai.time}</span></div><div><label>使用场景</label><span>${h.ai.scene}</span></div><div><label>产出与效果</label><span>${h.ai.effect}</span></div></div></div><div class="history-section"><div class="history-section-head"><span class="dot success"></span>关键成果</div><div class="history-section-body"><ul>${h.achievements.map(x=>`<li>${x}</li>`).join('')}</ul></div></div><div class="history-section"><div class="history-section-head"><span class="dot warning"></span>风险与阻塞</div><div class="history-section-body"><ul>${h.risks.map(x=>`<li>${x}</li>`).join('')}</ul></div></div><div class="history-section"><div class="history-section-head"><span class="dot cyan"></span>下周计划</div><div class="history-section-body"><ul>${h.plan.map(x=>`<li>${x}</li>`).join('')}</ul></div></div>`;
+}
+function openHistoryDrawer(){renderHistory();renderHistoryDetail();$('historyDrawerMask').classList.add('show')}
+function closeHistoryDrawer(){$('historyDrawerMask').classList.remove('show')}
+$('historyBtn').onclick=openHistoryDrawer;
+$('closeHistoryDrawerBtn').onclick=$('closeHistoryFooterBtn').onclick=closeHistoryDrawer;
+$('historyDrawerMask').addEventListener('click',e=>{if(e.target===$('historyDrawerMask'))closeHistoryDrawer()});
+$('historySearch').addEventListener('input',renderHistory);
+$('copyHistoryPlanBtn').onclick=()=>{const h=histories.find(x=>x.id===state.historyId)||histories[0];reportTextarea.value+='\n\n【从'+h.week+'带入的计划】\n- '+h.plan.join('\n- ');updateCharCount(true);closeHistoryDrawer();toast('历史周报中的下周计划已带入当前周报')};
+
+function syncAiUsageForSubmit(){
+  $('submitAiUsageSummary').textContent='已填写';
+}
+function openSubmit(){if(!validateRequiredFields())return;syncAiUsageForSubmit();$('submitModalMask').classList.add('show')}
+function closeSubmit(){$('submitModalMask').classList.remove('show')}
+$('submitReportBtn').onclick=openSubmit;
+$('closeSubmitBtn').onclick=$('cancelSubmitBtn').onclick=closeSubmit;
+$('submitModalMask').addEventListener('click',e=>{if(e.target===$('submitModalMask'))closeSubmit()});
+$('confirmSubmitBtn').addEventListener('click',()=>{
+  closeSubmit();
+  $('reportStatusTitle').textContent='本周周报已提交';
+  $('reportStatusTag').className='tag success';
+  $('reportStatusTag').textContent='已提交';
+  $('submitReportBtn').textContent='更新周报';
+  toast('周报提交成功，AI提取内容已同步更新');
+});
+
+const members=[
+  {id:'lin',name:'林晓',role:'执行制片',team:'制片组',status:'submitted',time:'今天 10:31',risk:2,summary:'核心项目交付正常，拍摄进度92%，成本优化12%；两项资源风险需下周初解决。'},
+  {id:'zhang',name:'张驰',role:'项目制片',team:'制片组',status:'submitted',time:'今天 09:48',risk:0,summary:'A项目按计划交付，客户验收一次通过；下周重点为完成复盘并启动第二阶段。'},
+  {id:'he',name:'何曼',role:'制片助理',team:'制片组',status:'draft',time:'更新于 09:20',risk:1,summary:'已完成主要素材归档和通告整理，目前仍在补充下周计划。'},
+  {id:'wu',name:'吴越',role:'执行导演',team:'导演组',status:'submitted',time:'昨天 18:42',risk:1,summary:'完成核心场次分镜调整，拍摄节奏正常；夜戏天气可能影响周三排期。'},
+  {id:'xu',name:'徐安',role:'场记',team:'导演组',status:'pending',time:'尚未提交',risk:0,summary:'本周周报尚未提交。'},
+  {id:'song',name:'宋雨',role:'项目制片',team:'制片组',status:'submitted',time:'昨天 17:55',risk:0,summary:'完成供应商结算和项目台账更新，当前无明显风险。'},
+  {id:'gu',name:'顾然',role:'制片助理',team:'制片组',status:'pending',time:'尚未提交',risk:0,summary:'本周周报尚未提交。'}
+];
+const memberOriginals={
+  lin:'本周完成《城市回声》前10集拍摄，整体进度达到92%，粗剪素材已交付。通过调整演员和场地档期，预计节省成本12%。B项目开机准备完成80%。\n\n问题与风险：三个特效镜头需求变更；第18集配音演员档期未确认。\n\n下周计划：完成后10集拍摄，推进B项目7月16日开机。',
+  zhang:'本周完成A项目全部交付物整理与客户验收，验收一次通过；完成第二阶段任务拆分和资源预排。\n\n当前无重大风险。\n\n下周计划：完成项目复盘并启动第二阶段。',
+  he:'本周完成主要素材归档、通告整理和拍摄记录核对。\n\n当前仍有一批素材标签需要补充。\n\n下周计划正在整理中。',
+  wu:'本周完成核心场次分镜调整和现场调度，拍摄节奏符合计划。\n\n问题与风险：周三夜戏可能受天气影响。\n\n下周计划：确认替代场景并完成后续分镜。',
+  song:'本周完成供应商结算、项目台账更新和合同资料归档。\n\n当前无明显风险。\n\n下周计划：推进下一阶段供应商询价。'
+};
+function statusLabel(s){return s==='submitted'?['已提交','']:s==='draft'?['草稿','draft']:['未提交','pending']}
+function renderMembers(){
+  const q=$('memberSearch').value.trim();
+  const list=members.filter(m=>(state.memberFilter==='all'||m.status===state.memberFilter)&&(!q||m.name.includes(q)||m.role.includes(q)));
+  $('memberList').innerHTML=list.map(m=>{const s=statusLabel(m.status);return `<div class="member-item ${state.selectedMember===m.id?'active':''}" data-member="${m.id}"><div class="member-avatar">${m.name.slice(0,1)}</div><div class="member-info"><strong>${m.name}</strong><span>${m.role} · ${m.team}</span></div><div class="member-state"><b class="${s[1]}">${s[0]}</b><small>${m.risk?m.risk+'项风险':m.time}</small></div></div>`}).join('') || '<div style="padding:60px 20px;text-align:center;font-size:10px;color:var(--text-3)">未找到成员</div>';
+  document.querySelectorAll('[data-member]').forEach(el=>el.addEventListener('click',()=>{state.selectedMember=el.dataset.member;renderMembers();renderMemberReport()}));
+}
+function renderMemberReport(){
+  const m=members.find(x=>x.id===state.selectedMember)||members[0];
+  $('selectedMemberAvatar').textContent=m.name.slice(0,1);
+  $('selectedMemberName').textContent=m.name+'的周报';
+  $('selectedMemberMeta').textContent=`${m.role} · ${m.team} · ${m.time}`;
+  const s=statusLabel(m.status);$('selectedMemberStatus').textContent=s[0];$('selectedMemberStatus').className='tag '+(m.status==='submitted'?'success':m.status==='draft'?'warning':'danger');
+  if(m.status==='pending'){
+    $('memberReportBody').innerHTML=`<div style="height:100%;min-height:360px;display:grid;place-items:center;text-align:center;color:var(--text-3)"><div><div style="width:52px;height:52px;border-radius:16px;background:#f1f3f7;display:grid;place-items:center;margin:0 auto 12px;font-size:20px">⌛</div><strong style="font-size:12px;color:var(--text-2)">${m.name}尚未提交本周周报</strong><div style="font-size:10px;margin-top:6px">提交后将在此展示填写内容与AI提炼结果</div><button class="btn soft small" style="margin-top:14px" onclick="toast('已向${m.name}发送提交提醒')">发送提醒</button></div></div>`;
+    return;
+  }
+  const original=memberOriginals[m.id]||`本周填写：${m.summary}`;
+  $('memberReportBody').innerHTML=`<button class="original-toggle" id="originalToggle"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 15 6-6 6 6"/></svg>收起员工填写内容</button><div class="original-content show" id="originalContent">${original}</div><div class="summary-banner"><div class="label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-1.9 4.4L6 9.3l4.1 1.8L12 15.5l1.9-4.4L18 9.3l-4.1-1.9Z"/></svg>AI摘要</div><p>${m.summary}</p></div><div class="report-block"><div class="report-block-head"><strong><span class="dot success"></span>关键成果</strong><span class="tag success">3项</span></div><div class="report-block-content"><ul><li>《城市回声》前10集完成拍摄，整体进度92%。</li><li>档期及场地重排预计节省成本12%。</li><li>B项目开机准备完成度80%。</li></ul></div></div><div class="report-block"><div class="report-block-head"><strong><span class="dot warning"></span>风险与支持</strong><span class="tag warning">2项</span></div><div class="report-block-content"><ul><li>特效需求变更可能影响7月15日首版交付。</li><li>配音演员档期需在周二前确认，并审批备用方案预算。</li></ul></div></div><div class="report-block"><div class="report-block-head"><strong><span class="dot cyan"></span>下周重点</strong><span class="tag primary">2项</span></div><div class="report-block-content"><ul><li>完成后10集拍摄并推进杀青。</li><li>保障B项目7月16日开机。</li></ul></div></div><div class="report-block"><div class="report-block-head"><strong><span class="dot"></span>本周AI使用</strong><span class="tag primary">已复核</span></div><div class="report-block-content"><ul><li>内部AI助手：用于排期优化和风险清单整理，预计节省1-2小时。</li></ul></div></div>`;
+  const toggle=$('originalToggle');if(toggle)toggle.onclick=()=>{const content=$('originalContent');content.classList.toggle('show');toggle.textContent=content.classList.contains('show')?'收起员工填写内容':'展开员工填写内容'};
+}
+$('memberSearch').addEventListener('input',renderMembers);
+document.querySelectorAll('#memberFilters button').forEach(btn=>btn.addEventListener('click',()=>{state.memberFilter=btn.dataset.filter;document.querySelectorAll('#memberFilters button').forEach(b=>b.classList.toggle('active',b===btn));renderMembers()}));
+$('exportMemberBtn').onclick=()=>toast('已生成该成员周报导出文件');
+renderMembers();renderMemberReport();
+
+$('copyBriefBtn').onclick=()=>toast('团队简报已复制到剪贴板');
+$('generateBriefBtn').onclick=()=>{const btn=$('generateBriefBtn');const old=btn.innerHTML;btn.disabled=true;btn.textContent='AI生成中…';setTimeout(()=>{btn.disabled=false;btn.innerHTML=old;toast('团队简报已根据最新周报重新生成')},1000)};
+$('departmentSelect').onchange=()=>toast(`已切换至${$('departmentSelect').value}领导概览`);
+
+const queryParams=new URLSearchParams(location.search);
+const queryView=queryParams.get('view');
+if(['employee','team','leader'].includes(queryView))switchView(queryView);
+const queryPanel=queryParams.get('panel');
+if(queryPanel==='history')openHistoryDrawer();
+</script>
+</body>
+</html>

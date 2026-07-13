@@ -1,0 +1,9 @@
+{
+  "name": "kpi-bi-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "npm.cmd --prefix ./kpi-bi-demo run dev",
+    "build": "npm.cmd --prefix ./kpi-bi-demo run build",
+    "preview": "npm.cmd --prefix ./kpi-bi-demo run preview"
+  }
+}
