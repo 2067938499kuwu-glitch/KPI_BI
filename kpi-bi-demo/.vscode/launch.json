@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Trae: Launch KPI Demo",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "dev: vite"
+    },
+    {
+      "name": "Trae: Attach to KPI Demo",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "Trae: Preview Build",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:4173",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "preview: vite"
+    },
+    {
+      "name": "Trae: Launch KPI Demo (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "dev: vite"
+    }
+  ]
+}

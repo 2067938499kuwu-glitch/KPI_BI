@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Flow Product Prototype"
+  short_description: "Match ai-fiow-admin product UI style"
+  default_prompt: "Use $ai-flow-product-prototype to create a style-consistent admin product prototype for this workflow."
