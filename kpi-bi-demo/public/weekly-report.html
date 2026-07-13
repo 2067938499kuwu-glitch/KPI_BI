@@ -228,6 +228,8 @@ svg{display:block}
 .member-state b{display:block;font-size:9px;font-weight:700;color:var(--success)}
 .member-state b.draft{color:var(--warning)}
 .member-state b.pending{color:var(--danger)}
+.member-state b.locked{color:var(--text-2)}
+.member-state b.revision{color:var(--primary)}
 .member-state small{display:block;font-size:8.5px;color:var(--text-3);margin-top:4px}
 .member-foot{padding:10px 12px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;background:#fcfcfe}
 .report-head{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
@@ -453,12 +455,9 @@ svg{display:block}
       <div class="brand-page">智能汇报中心</div>
     </div>
     <div class="top-actions">
-      <button class="icon-btn" title="消息">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-      </button>
       <div class="user">
         <div class="user-avatar">林</div>
-        <div class="user-info"><strong>林晓</strong><span>制片组 · 执行制片</span></div>
+        <div class="user-info"><strong>林制片</strong><span>制片中心 · 中级制片</span></div>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" stroke-width="1.8"><path d="m6 9 6 6 6-6"/></svg>
       </div>
     </div>
@@ -476,7 +475,7 @@ svg{display:block}
     <div class="hero-controls">
       <div class="period-box">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-        <div class="period-meta"><label>汇报周期</label><select id="weekSelect"><option>2026年7月6日 - 7月12日</option><option>2026年6月29日 - 7月5日</option><option>2026年7月13日 - 7月19日</option></select></div>
+        <div class="period-meta"><label>汇报周期</label><select id="weekSelect"><option data-cycle="2026-07" data-deadline="2026-07-13T10:00:00+08:00" data-end="2026-07-12" data-start="2026-07-06" value="W28">2026年7月6日 - 7月12日</option><option data-cycle="2026-07" data-deadline="2026-07-06T10:00:00+08:00" data-end="2026-07-05" data-start="2026-06-29" value="W27">2026年6月29日 - 7月5日</option><option data-cycle="2026-07" data-deadline="2026-07-20T10:00:00+08:00" data-end="2026-07-19" data-start="2026-07-13" value="W29">2026年7月13日 - 7月19日</option></select></div>
       </div>
       <button class="btn history-entry" id="historyBtn">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>历史周报
@@ -522,7 +521,6 @@ svg{display:block}
                   <div class="smart-tip-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-1.9 4.4L6 9.3l4.1 1.8L12 15.5l1.9-4.4L18 9.3l-4.1-1.9Z"/><path d="m5 16-.9 2.1L2 19l2.1.9L5 22l.9-2.1L8 19l-2.1-.9Z"/></svg></div>
                   <div><strong>推荐写法</strong><p>写清“做了什么、结果如何、有什么风险、下周做什么”。数据和时间节点越明确，AI提炼越准确。</p></div>
                 </div>
-                <span class="tag success">结构识别正常</span>
               </div>
 
               <div class="required-card" id="aiUsageCard">
@@ -589,7 +587,7 @@ svg{display:block}
       </div>
       <div class="team-grid">
         <aside class="card member-panel">
-          <div class="compact-head"><div class="compact-title"><strong>团队成员</strong><span class="tag primary">12人</span></div><div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="memberSearch" placeholder="搜索姓名或岗位" /></div><div class="member-filters" id="memberFilters"><button class="active" data-filter="all">全部</button><button data-filter="submitted">已提交</button><button data-filter="draft">草稿</button><button data-filter="pending">未提交</button></div></div>
+          <div class="compact-head"><div class="compact-title"><strong>团队成员</strong><span class="tag primary">12人</span></div><div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="memberSearch" placeholder="搜索姓名或岗位" /></div><div class="member-filters" id="memberFilters"><button class="active" data-filter="all">全部</button><button data-filter="complete">已提交</button><button data-filter="pending">待处理</button></div></div>
           <div class="member-list" id="memberList"></div>
         </aside>
         <article class="card report-panel">
@@ -655,6 +653,81 @@ svg{display:block}
 <script>
 const $ = id => document.getElementById(id);
 const state = { currentView:'employee', memberFilter:'all', selectedMember:'lin', historyId:'w27' };
+const WEEKLY_REPORT_STORAGE_KEY='kpi-bi-weekly-report-records-v1';
+const WEEKLY_REPORT_UPDATED_EVENT='kpi-bi-weekly-report-updated';
+const CURRENT_WEEKLY_EMPLOYEE={employeeId:'emp-003',name:'林制片',department:'制片中心',role:'中级制片'};
+const DEMO_NOW_ISO='2026-07-13T13:30:00+08:00';
+const WEEKLY_STATUS={draft:'draft',submitted:'submitted',locked:'locked',overdueMissing:'overdue_missing',overdueSubmitted:'overdue_submitted',revisionRequested:'revision_requested'};
+let autoSaveTimer=null;
+let submitExpectedVersion=0;
+let submitInFlight=false;
+
+function getDemoNow(){return new Date(DEMO_NOW_ISO)}
+function deriveStoredWeeklyStatus(record,meta=getSelectedPeriod(),now=getDemoNow()){
+  if(record?.state===WEEKLY_STATUS.revisionRequested)return WEEKLY_STATUS.revisionRequested;
+  const deadlinePassed=now.getTime()>new Date(meta.deadline).getTime();
+  if(!record?.submitted&&!record?.versions?.length)return deadlinePassed?WEEKLY_STATUS.overdueMissing:WEEKLY_STATUS.draft;
+  if(record?.state===WEEKLY_STATUS.overdueSubmitted||record?.submitted?.status==='late')return WEEKLY_STATUS.overdueSubmitted;
+  return deadlinePassed?WEEKLY_STATUS.locked:WEEKLY_STATUS.submitted;
+}
+function weeklyStatusMeta(status){
+  return {
+    draft:['本周周报正在编辑','草稿','warning','提交周报'],
+    submitted:['本周周报已提交','已提交','success','更新周报'],
+    locked:['本周周报已锁定','已锁定','primary','已锁定'],
+    overdue_missing:['本周周报逾期未交','逾期未交','danger','逾期补交'],
+    overdue_submitted:['本周周报已逾期提交','逾期已提交','warning','已锁定'],
+    revision_requested:['周报已重新开放','待修改','warning','重新提交'],
+  }[status];
+}
+
+function getSelectedPeriod(){
+  const option=$('weekSelect').selectedOptions[0];
+  return {
+    week:option.value,
+    cycle:option.dataset.cycle,
+    deadline:option.dataset.deadline,
+    period:{label:`${option.dataset.cycle.slice(0,4)}年${option.value}`,start:option.dataset.start,end:option.dataset.end}
+  };
+}
+function getStoredWeeklyRecords(){
+  try{
+    const records=JSON.parse(localStorage.getItem(WEEKLY_REPORT_STORAGE_KEY)||'[]');
+    return Array.isArray(records)?records:[];
+  }catch{return []}
+}
+function getWeeklyRecordId(meta){return `${meta.cycle}-${CURRENT_WEEKLY_EMPLOYEE.employeeId}-${meta.week}`}
+function findStoredWeeklyRecord(meta){return getStoredWeeklyRecords().find(record=>record.id===getWeeklyRecordId(meta))}
+function writeStoredWeeklyRecord(record){
+  try{
+    const records=getStoredWeeklyRecords().filter(item=>item.id!==record.id);
+    records.push(record);
+    localStorage.setItem(WEEKLY_REPORT_STORAGE_KEY,JSON.stringify(records));
+    window.parent.postMessage({type:WEEKLY_REPORT_UPDATED_EVENT,recordId:record.id},location.origin==='null'?'*':location.origin);
+  }catch{
+    toast('本地保存失败，请检查浏览器存储权限','warning');
+  }
+}
+function cleanReportLine(line){return line.trim().replace(/^[-*•]\s*/, '').replace(/^\d+[.、]\s*/, '')}
+function extractReportSections(content){
+  const sections={achievements:[],risks:[],nextPlan:[]};
+  let current='achievements';
+  content.split(/\r?\n/).forEach(rawLine=>{
+    const line=rawLine.trim();
+    if(!line)return;
+    if(/问题|风险/.test(line)){current='risks'}
+    else if(/下周计划|下周重点/.test(line)){current='nextPlan'}
+    else if(/需要支持|AI\s*使用/.test(line)){current=null}
+    else if(/本周完成|主要成果|数据结果/.test(line)){current='achievements'}
+    const contentPart=cleanReportLine(line.replace(/^[^：:]+[：:]\s*/,''));
+    if(current&&contentPart&&!/^(本周完成|主要成果|数据结果|问题与风险|风险事项|下周计划|下周重点)$/.test(contentPart))sections[current].push(contentPart);
+  });
+  return sections;
+}
+function formatDateTime(date){
+  const pad=value=>String(value).padStart(2,'0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 function toast(message,type='success'){
   const el=document.createElement('div');
@@ -674,10 +747,9 @@ function switchView(view){
 
 document.querySelectorAll('#viewSwitch button').forEach(btn=>btn.addEventListener('click',()=>switchView(btn.dataset.view)));
 
-$('weekSelect').addEventListener('change',()=>toast('汇报周期已切换，内容将按新周期保存','warning'));
-
 const reportTextarea=$('reportTextarea');
 const aiUsageInput=$('aiUsageInput');
+const initialWeeklyForm={week:'W28',draftContent:reportTextarea.value,aiUsage:aiUsageInput.value};
 function aiUsageIsValid(){return aiUsageInput.value.trim().length>=6}
 function getAiUsageSummary(){return aiUsageInput.value.trim()||'未填写本周 AI 使用情况'}
 function updateCharCount(markChanged=true){
@@ -686,8 +758,67 @@ function updateCharCount(markChanged=true){
   $('aiUsageAiItem').textContent=getAiUsageSummary();
   if(markChanged)$('saveText').textContent='内容已变化，等待自动保存';
 }
-reportTextarea.addEventListener('input',()=>updateCharCount(true));
-aiUsageInput.addEventListener('input',()=>updateCharCount(true));
+function showDraftState(){
+  const meta=getSelectedPeriod();
+  const status=getDemoNow().getTime()>new Date(meta.deadline).getTime()?WEEKLY_STATUS.overdueMissing:WEEKLY_STATUS.draft;
+  renderOwnWeeklyState(status);
+}
+function renderOwnWeeklyState(status){
+  const [title,label,tone,buttonText]=weeklyStatusMeta(status);
+  $('reportStatusTitle').textContent=title;
+  $('reportStatusTag').className='tag '+tone;
+  $('reportStatusTag').textContent=label;
+  $('submitReportBtn').textContent=buttonText;
+  const locked=[WEEKLY_STATUS.locked,WEEKLY_STATUS.overdueSubmitted].includes(status);
+  reportTextarea.disabled=locked;
+  aiUsageInput.disabled=locked;
+  $('submitReportBtn').disabled=locked;
+}
+function saveWeeklyDraft(meta=getSelectedPeriod(),draftContent=reportTextarea.value,aiUsage=aiUsageInput.value){
+  const existing=findStoredWeeklyRecord(meta);
+  const currentStatus=deriveStoredWeeklyStatus(existing,meta);
+  if([WEEKLY_STATUS.locked,WEEKLY_STATUS.overdueSubmitted].includes(currentStatus)){
+    toast('截止后周报已锁定，请联系Leader或HR重新开放','warning');
+    return existing;
+  }
+  const record={
+    ...existing,
+    id:getWeeklyRecordId(meta),
+    ...CURRENT_WEEKLY_EMPLOYEE,
+    cycle:meta.cycle,
+    period:meta.period,
+    deadline:meta.deadline,
+    draftContent,
+    aiUsage,
+    state:currentStatus===WEEKLY_STATUS.revisionRequested?WEEKLY_STATUS.revisionRequested:WEEKLY_STATUS.draft,
+    version:Number(existing?.version??0)+1,
+    updatedAt:new Date().toISOString(),
+    sourceModule:'周报中心',
+    operationLogs:existing?.operationLogs??[]
+  };
+  if(!existing)record.operationLogs.push({action:'保存周报草稿',operator:CURRENT_WEEKLY_EMPLOYEE.name,actedAt:formatDateTime(getDemoNow()),fromStatus:'未创建',toStatus:WEEKLY_STATUS.draft});
+  writeStoredWeeklyRecord(record);
+  $('saveText').textContent=`已于 ${formatDateTime(new Date()).slice(11)} 自动保存`;
+  return record;
+}
+function scheduleWeeklyDraftSave(){
+  const meta=getSelectedPeriod();
+  const draftContent=reportTextarea.value;
+  const aiUsage=aiUsageInput.value;
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer=setTimeout(()=>saveWeeklyDraft(meta,draftContent,aiUsage),500);
+}
+function loadSelectedWeeklyReport(){
+  const meta=getSelectedPeriod();
+  const stored=findStoredWeeklyRecord(meta);
+  reportTextarea.value=stored?.draftContent??(meta.week===initialWeeklyForm.week?initialWeeklyForm.draftContent:'');
+  aiUsageInput.value=stored?.aiUsage??(meta.week===initialWeeklyForm.week?initialWeeklyForm.aiUsage:'');
+  renderOwnWeeklyState(deriveStoredWeeklyStatus(stored,meta));
+  updateCharCount(false);
+}
+reportTextarea.addEventListener('input',()=>{updateCharCount(true);const stored=findStoredWeeklyRecord(getSelectedPeriod());renderOwnWeeklyState(stored?.state===WEEKLY_STATUS.revisionRequested?WEEKLY_STATUS.revisionRequested:deriveStoredWeeklyStatus(null,getSelectedPeriod()));scheduleWeeklyDraftSave()});
+aiUsageInput.addEventListener('input',()=>{updateCharCount(true);const stored=findStoredWeeklyRecord(getSelectedPeriod());renderOwnWeeklyState(stored?.state===WEEKLY_STATUS.revisionRequested?WEEKLY_STATUS.revisionRequested:deriveStoredWeeklyStatus(null,getSelectedPeriod()));scheduleWeeklyDraftSave()});
+$('weekSelect').addEventListener('change',()=>{loadSelectedWeeklyReport();toast('汇报周期已切换，内容将按新周期保存','warning')});
 function validateRequiredFields(){
   if(reportTextarea.value.replace(/\s/g,'').length<30){toast('请先补充周报正文后再提交','warning');reportTextarea.focus();return false}
   if(!aiUsageIsValid()){
@@ -699,7 +830,7 @@ function validateRequiredFields(){
   }
   return true;
 }
-updateCharCount(false);
+loadSelectedWeeklyReport();
 
 const histories=[
   {id:'w27',week:'2026年第27周',range:'6月29日 - 7月5日',submitted:'7月6日 09:42',summary:'完成《城市回声》前期筹备和首轮拍摄，项目进度稳定；演员档期存在轻微冲突，已通过调整通告解决。',achievements:['完成前5集拍摄及素材归档，计划达成率100%。','B项目完成主要演员第一轮沟通和场地踏勘。'],risks:['第8集夜戏受天气影响，已准备替代场景。'],plan:['完成《城市回声》前10集拍摄并交付粗剪素材。','完成B项目开机前排期、演员和场地确认。'],ai:{tool:'内部AI助手',scene:'通告单检查、拍摄排期对比',effect:'生成冲突检查清单，人工复核后采用，提前发现2处档期冲突。',time:'1-2小时'}},
@@ -729,28 +860,63 @@ $('copyHistoryPlanBtn').onclick=()=>{const h=histories.find(x=>x.id===state.hist
 function syncAiUsageForSubmit(){
   $('submitAiUsageSummary').textContent='已填写';
 }
-function openSubmit(){if(!validateRequiredFields())return;syncAiUsageForSubmit();$('submitModalMask').classList.add('show')}
+function openSubmit(){
+  const meta=getSelectedPeriod();
+  const stored=findStoredWeeklyRecord(meta);
+  const status=deriveStoredWeeklyStatus(stored,meta);
+  if([WEEKLY_STATUS.locked,WEEKLY_STATUS.overdueSubmitted].includes(status)){toast('截止后周报已锁定，请联系Leader或HR重新开放','warning');return}
+  if(!validateRequiredFields())return;
+  submitExpectedVersion=Number(stored?.version??0);
+  syncAiUsageForSubmit();
+  $('submitModalMask').classList.add('show');
+}
 function closeSubmit(){$('submitModalMask').classList.remove('show')}
 $('submitReportBtn').onclick=openSubmit;
 $('closeSubmitBtn').onclick=$('cancelSubmitBtn').onclick=closeSubmit;
 $('submitModalMask').addEventListener('click',e=>{if(e.target===$('submitModalMask'))closeSubmit()});
 $('confirmSubmitBtn').addEventListener('click',()=>{
+  if(submitInFlight){toast('正在提交，请勿重复操作','warning');return}
+  const meta=getSelectedPeriod();
+  const now=getDemoNow();
+  const existing=findStoredWeeklyRecord(meta);
+  if(Number(existing?.version??0)!==submitExpectedVersion){closeSubmit();toast('周报版本已更新，已保留填写内容，请确认后重试','warning');return}
+  const currentStatus=deriveStoredWeeklyStatus(existing,meta,now);
+  if([WEEKLY_STATUS.locked,WEEKLY_STATUS.overdueSubmitted].includes(currentStatus)){closeSubmit();renderOwnWeeklyState(currentStatus);toast('截止后周报已锁定，请联系Leader或HR重新开放','warning');return}
+  submitInFlight=true;
+  $('confirmSubmitBtn').disabled=true;
+  $('confirmSubmitBtn').textContent='提交中…';
+  const sections=extractReportSections(reportTextarea.value);
+  const isLate=now.getTime()>new Date(meta.deadline).getTime();
+  const reportVersion=(existing?.versions?.at(-1)?.reportVersion??(existing?.submitted?1:0))+1;
+  const nextState=isLate?WEEKLY_STATUS.overdueSubmitted:WEEKLY_STATUS.submitted;
+  const record={...existing,id:getWeeklyRecordId(meta),...CURRENT_WEEKLY_EMPLOYEE,cycle:meta.cycle,period:meta.period,deadline:meta.deadline,draftContent:reportTextarea.value,aiUsage:aiUsageInput.value,state:nextState,version:Number(existing?.version??0)+1,sourceModule:'周报中心',versions:[...(existing?.versions??[]),{reportVersion,status:nextState,submittedAt:formatDateTime(now),originalContent:reportTextarea.value,achievements:sections.achievements,risks:sections.risks,nextPlan:sections.nextPlan}],operationLogs:[...(existing?.operationLogs??[]),{action:isLate?'逾期补交周报':reportVersion>1?'更新周报':'提交周报',operator:CURRENT_WEEKLY_EMPLOYEE.name,actedAt:formatDateTime(now),fromStatus:currentStatus,toStatus:nextState,reportVersion}]};
+  record.submitted={
+    status:isLate?'late':'normal',
+    submittedAt:formatDateTime(now),
+    achievements:sections.achievements,
+    risks:sections.risks,
+    nextPlan:sections.nextPlan,
+    originalContent:reportTextarea.value,
+    aiUsage:aiUsageInput.value
+  };
+  record.updatedAt=now.toISOString();
+  writeStoredWeeklyRecord(record);
   closeSubmit();
-  $('reportStatusTitle').textContent='本周周报已提交';
-  $('reportStatusTag').className='tag success';
-  $('reportStatusTag').textContent='已提交';
-  $('submitReportBtn').textContent='更新周报';
-  toast('周报提交成功，AI提取内容已同步更新');
+  renderOwnWeeklyState(deriveStoredWeeklyStatus(record,meta,now));
+  submitInFlight=false;
+  $('confirmSubmitBtn').disabled=false;
+  $('confirmSubmitBtn').textContent='确认提交';
+  toast(`${isLate?'周报逾期补交':'周报提交'}成功，已生成V${reportVersion}并同步数据看板`);
 });
 
 const members=[
-  {id:'lin',name:'林晓',role:'执行制片',team:'制片组',status:'submitted',time:'今天 10:31',risk:2,summary:'核心项目交付正常，拍摄进度92%，成本优化12%；两项资源风险需下周初解决。'},
-  {id:'zhang',name:'张驰',role:'项目制片',team:'制片组',status:'submitted',time:'今天 09:48',risk:0,summary:'A项目按计划交付，客户验收一次通过；下周重点为完成复盘并启动第二阶段。'},
+  {id:'lin',name:'林晓',role:'执行制片',team:'制片组',status:'locked',time:'已锁定 · V2',risk:2,summary:'核心项目交付正常，拍摄进度92%，成本优化12%；两项资源风险需下周初解决。'},
+  {id:'zhang',name:'张驰',role:'项目制片',team:'制片组',status:'overdue_submitted',time:'逾期 2小时18分 · V1',risk:0,summary:'A项目按计划交付，客户验收一次通过；下周重点为完成复盘并启动第二阶段。'},
   {id:'he',name:'何曼',role:'制片助理',team:'制片组',status:'draft',time:'更新于 09:20',risk:1,summary:'已完成主要素材归档和通告整理，目前仍在补充下周计划。'},
   {id:'wu',name:'吴越',role:'执行导演',team:'导演组',status:'submitted',time:'昨天 18:42',risk:1,summary:'完成核心场次分镜调整，拍摄节奏正常；夜戏天气可能影响周三排期。'},
-  {id:'xu',name:'徐安',role:'场记',team:'导演组',status:'pending',time:'尚未提交',risk:0,summary:'本周周报尚未提交。'},
-  {id:'song',name:'宋雨',role:'项目制片',team:'制片组',status:'submitted',time:'昨天 17:55',risk:0,summary:'完成供应商结算和项目台账更新，当前无明显风险。'},
-  {id:'gu',name:'顾然',role:'制片助理',team:'制片组',status:'pending',time:'尚未提交',risk:0,summary:'本周周报尚未提交。'}
+  {id:'xu',name:'徐安',role:'场记',team:'导演组',status:'overdue_missing',time:'逾期未交',risk:0,summary:'本周周报尚未提交。'},
+  {id:'song',name:'宋雨',role:'项目制片',team:'制片组',status:'revision_requested',time:'已重新开放 · 待V2',risk:0,summary:'完成供应商结算和项目台账更新，当前无明显风险。'},
+  {id:'gu',name:'顾然',role:'制片助理',team:'制片组',status:'draft',time:'更新于 11:08',risk:0,summary:'本周周报仍在填写中。'}
 ];
 const memberOriginals={
   lin:'本周完成《城市回声》前10集拍摄，整体进度达到92%，粗剪素材已交付。通过调整演员和场地档期，预计节省成本12%。B项目开机准备完成80%。\n\n问题与风险：三个特效镜头需求变更；第18集配音演员档期未确认。\n\n下周计划：完成后10集拍摄，推进B项目7月16日开机。',
@@ -759,10 +925,18 @@ const memberOriginals={
   wu:'本周完成核心场次分镜调整和现场调度，拍摄节奏符合计划。\n\n问题与风险：周三夜戏可能受天气影响。\n\n下周计划：确认替代场景并完成后续分镜。',
   song:'本周完成供应商结算、项目台账更新和合同资料归档。\n\n当前无明显风险。\n\n下周计划：推进下一阶段供应商询价。'
 };
-function statusLabel(s){return s==='submitted'?['已提交','']:s==='draft'?['草稿','draft']:['未提交','pending']}
+function statusLabel(s){
+  return ({
+    submitted:['已提交',''],locked:['已锁定','locked'],overdue_submitted:['逾期已提交','draft'],
+    draft:['草稿','draft'],overdue_missing:['逾期未交','pending'],revision_requested:['待修改','revision']
+  })[s]||['未提交','pending'];
+}
+function memberFilterGroup(status){
+  return ['submitted','locked','overdue_submitted'].includes(status)?'complete':'pending';
+}
 function renderMembers(){
   const q=$('memberSearch').value.trim();
-  const list=members.filter(m=>(state.memberFilter==='all'||m.status===state.memberFilter)&&(!q||m.name.includes(q)||m.role.includes(q)));
+  const list=members.filter(m=>(state.memberFilter==='all'||memberFilterGroup(m.status)===state.memberFilter)&&(!q||m.name.includes(q)||m.role.includes(q)));
   $('memberList').innerHTML=list.map(m=>{const s=statusLabel(m.status);return `<div class="member-item ${state.selectedMember===m.id?'active':''}" data-member="${m.id}"><div class="member-avatar">${m.name.slice(0,1)}</div><div class="member-info"><strong>${m.name}</strong><span>${m.role} · ${m.team}</span></div><div class="member-state"><b class="${s[1]}">${s[0]}</b><small>${m.risk?m.risk+'项风险':m.time}</small></div></div>`}).join('') || '<div style="padding:60px 20px;text-align:center;font-size:10px;color:var(--text-3)">未找到成员</div>';
   document.querySelectorAll('[data-member]').forEach(el=>el.addEventListener('click',()=>{state.selectedMember=el.dataset.member;renderMembers();renderMemberReport()}));
 }
@@ -771,14 +945,17 @@ function renderMemberReport(){
   $('selectedMemberAvatar').textContent=m.name.slice(0,1);
   $('selectedMemberName').textContent=m.name+'的周报';
   $('selectedMemberMeta').textContent=`${m.role} · ${m.team} · ${m.time}`;
-  const s=statusLabel(m.status);$('selectedMemberStatus').textContent=s[0];$('selectedMemberStatus').className='tag '+(m.status==='submitted'?'success':m.status==='draft'?'warning':'danger');
-  if(m.status==='pending'){
-    $('memberReportBody').innerHTML=`<div style="height:100%;min-height:360px;display:grid;place-items:center;text-align:center;color:var(--text-3)"><div><div style="width:52px;height:52px;border-radius:16px;background:#f1f3f7;display:grid;place-items:center;margin:0 auto 12px;font-size:20px">⌛</div><strong style="font-size:12px;color:var(--text-2)">${m.name}尚未提交本周周报</strong><div style="font-size:10px;margin-top:6px">提交后将在此展示填写内容与AI提炼结果</div><button class="btn soft small" style="margin-top:14px" onclick="toast('已向${m.name}发送提交提醒')">发送提醒</button></div></div>`;
+  const s=statusLabel(m.status);$('selectedMemberStatus').textContent=s[0];$('selectedMemberStatus').className='tag '+(['submitted','locked'].includes(m.status)?'success':['draft','overdue_submitted','revision_requested'].includes(m.status)?'warning':'danger');
+  if(['draft','overdue_missing'].includes(m.status)){
+    const isDraft=m.status==='draft';
+    $('memberReportBody').innerHTML=`<div style="height:100%;min-height:360px;display:grid;place-items:center;text-align:center;color:var(--text-3)"><div><div style="width:52px;height:52px;border-radius:16px;background:#f1f3f7;display:grid;place-items:center;margin:0 auto 12px;font-size:20px">⌛</div><strong style="font-size:12px;color:var(--text-2)">${m.name}${isDraft?'正在填写周报':'尚未提交本周周报'}</strong><div style="font-size:10px;margin-top:6px">${isDraft?'草稿正文、成果、风险、计划和AI摘要仅员工本人可见':'正式提交后才会展示周报完整内容'}</div><button class="btn soft small" style="margin-top:14px" onclick="toast('已向${m.name}发送提交提醒')">发送提醒</button></div></div>`;
     return;
   }
   const original=memberOriginals[m.id]||`本周填写：${m.summary}`;
-  $('memberReportBody').innerHTML=`<button class="original-toggle" id="originalToggle"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 15 6-6 6 6"/></svg>收起员工填写内容</button><div class="original-content show" id="originalContent">${original}</div><div class="summary-banner"><div class="label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-1.9 4.4L6 9.3l4.1 1.8L12 15.5l1.9-4.4L18 9.3l-4.1-1.9Z"/></svg>AI摘要</div><p>${m.summary}</p></div><div class="report-block"><div class="report-block-head"><strong><span class="dot success"></span>关键成果</strong><span class="tag success">3项</span></div><div class="report-block-content"><ul><li>《城市回声》前10集完成拍摄，整体进度92%。</li><li>档期及场地重排预计节省成本12%。</li><li>B项目开机准备完成度80%。</li></ul></div></div><div class="report-block"><div class="report-block-head"><strong><span class="dot warning"></span>风险与支持</strong><span class="tag warning">2项</span></div><div class="report-block-content"><ul><li>特效需求变更可能影响7月15日首版交付。</li><li>配音演员档期需在周二前确认，并审批备用方案预算。</li></ul></div></div><div class="report-block"><div class="report-block-head"><strong><span class="dot cyan"></span>下周重点</strong><span class="tag primary">2项</span></div><div class="report-block-content"><ul><li>完成后10集拍摄并推进杀青。</li><li>保障B项目7月16日开机。</li></ul></div></div><div class="report-block"><div class="report-block-head"><strong><span class="dot"></span>本周AI使用</strong><span class="tag primary">已复核</span></div><div class="report-block-content"><ul><li>内部AI助手：用于排期优化和风险清单整理，预计节省1-2小时。</li></ul></div></div>`;
+  const reopenAction=['locked','overdue_submitted'].includes(m.status)?`<button class="btn soft small" id="reopenMemberBtn">重新开放</button>`:'';
+  $('memberReportBody').innerHTML=`${reopenAction}<button class="original-toggle" id="originalToggle"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 15 6-6 6 6"/></svg>收起员工填写内容</button><div class="original-content show" id="originalContent">${original}</div><div class="summary-banner"><div class="label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-1.9 4.4L6 9.3l4.1 1.8L12 15.5l1.9-4.4L18 9.3l-4.1-1.9Z"/></svg>AI摘要</div><p>${m.summary}</p></div><div class="report-block"><div class="report-block-head"><strong><span class="dot success"></span>关键成果</strong><span class="tag success">3项</span></div><div class="report-block-content"><ul><li>《城市回声》前10集完成拍摄，整体进度92%。</li><li>档期及场地重排预计节省成本12%。</li><li>B项目开机准备完成度80%。</li></ul></div></div><div class="report-block"><div class="report-block-head"><strong><span class="dot warning"></span>风险与支持</strong><span class="tag warning">2项</span></div><div class="report-block-content"><ul><li>特效需求变更可能影响7月15日首版交付。</li><li>配音演员档期需在周二前确认，并审批备用方案预算。</li></ul></div></div><div class="report-block"><div class="report-block-head"><strong><span class="dot cyan"></span>下周重点</strong><span class="tag primary">2项</span></div><div class="report-block-content"><ul><li>完成后10集拍摄并推进杀青。</li><li>保障B项目7月16日开机。</li></ul></div></div>`;
   const toggle=$('originalToggle');if(toggle)toggle.onclick=()=>{const content=$('originalContent');content.classList.toggle('show');toggle.textContent=content.classList.contains('show')?'收起员工填写内容':'展开员工填写内容'};
+  const reopen=$('reopenMemberBtn');if(reopen)reopen.onclick=()=>{const reason=prompt('请输入重新开放原因');if(!reason?.trim()){toast('重新开放原因不能为空','warning');return}m.status='revision_requested';m.time='刚刚重新开放 · 待V2';m.operationLogs=[...(m.operationLogs||[]),{action:'重新开放周报',operator:'当前Leader',actedAt:formatDateTime(getDemoNow()),reason:reason.trim()}];renderMembers();renderMemberReport();toast(`已重新开放${m.name}的周报，原版本已保留`)};
 }
 $('memberSearch').addEventListener('input',renderMembers);
 document.querySelectorAll('#memberFilters button').forEach(btn=>btn.addEventListener('click',()=>{state.memberFilter=btn.dataset.filter;document.querySelectorAll('#memberFilters button').forEach(b=>b.classList.toggle('active',b===btn));renderMembers()}));

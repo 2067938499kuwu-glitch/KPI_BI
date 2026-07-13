@@ -40,6 +40,8 @@ function createReview({
   evidence,
 }) {
   const template = getRoleTemplate(templateId);
+  const targetIssued = status !== REVIEW_STATUS.targetIssue;
+  const targetConfirmed = targetIssued && ![REVIEW_STATUS.employeeConfirm, REVIEW_STATUS.targetDispute].includes(status);
 
   return {
     id,
@@ -63,6 +65,10 @@ function createReview({
     templateHighlights,
     sheetMeta: `花名：${employee} / 部门：内容经营中心 / ${department} / 岗位：${role}`,
     rows: createRowsFromTemplate(templateId, values),
+    version: 1,
+    activeTargetVersion: targetConfirmed ? 1 : null,
+    pendingTargetVersion: targetIssued && !targetConfirmed ? 1 : null,
+    targetVersions: targetIssued ? [{ version: 1, status: targetConfirmed ? "已生效" : "待员工确认", targets: createRowsFromTemplate(templateId, values), operator: directLeader, actedAt: lastActionAt, changeReason: "首次下发" }] : [],
     operationLogs: operationLogs ?? [
       {
         id: `${id}-log-1`,
@@ -86,10 +92,10 @@ export const reviewsSeed = [
     role: "中级剪辑师",
     department: "剪辑中心",
     templateId: ROLE_TEMPLATE_IDS.editor,
-    directLeader: "周岚",
-    indirectLeader: "江晚",
+    directLeader: "江晚",
+    indirectLeader: "磊姐",
     status: REVIEW_STATUS.targetIssue,
-    owner: "周岚",
+    owner: "江晚",
     templateHighlights: [
       { label: "剪辑产出", value: "46 条" },
       { label: "一次通过", value: "88%" },
@@ -238,13 +244,13 @@ export const reviewsSeed = [
     directLeader: "赵启",
     indirectLeader: "江晚",
     status: REVIEW_STATUS.committeeApproval,
-    owner: "绩效委员会",
+    owner: "CEO",
     committeeStatus: "待审批",
     templateHighlights: [
       { label: "日均发布", value: "36 条" },
       { label: "维护账号", value: "12 个" },
       { label: "异常", value: "1 项" },
-      { label: "审批", value: "委员会" },
+      { label: "审批", value: "CEO" },
     ],
     values: {
       domesticWorkload: { selfText: "切片素材日均发布 36 条，维护账号 12 个。", firstScore: 84, secondScore: 82 },
@@ -252,7 +258,7 @@ export const reviewsSeed = [
       domesticEfficiency: { selfText: "多账号并发发布稳定，异常处理平均 2 小时内响应。", firstScore: 82, secondScore: 80 },
       domesticAccountAsset: { selfText: "沉淀账号异常排查清单。", firstScore: 2, secondScore: 1 },
     },
-    comment: "HR 已提交委员会审批。",
+    comment: "HR 已提交CEO审批。",
     evidence: "账号运营记录、人工导入表、截图附件、HR复核意见。",
   }),
   createReview({
@@ -290,9 +296,9 @@ export const reviewsSeed = [
     templateId: ROLE_TEMPLATE_IDS.director,
     directLeader: "李晓言",
     indirectLeader: "江晚",
-    status: REVIEW_STATUS.appealInProgress,
+    status: REVIEW_STATUS.appealSubmitted,
     owner: "HR-唐宁",
-    appealStatus: "待综合管理中心调查",
+    appealStatus: "待HR调查",
     committeeStatus: "已审批",
     templateHighlights: [
       { label: "分镜提交", value: "21 组" },
@@ -348,12 +354,12 @@ export const reviewsSeed = [
         action: "结果归档",
         operator: "HR-唐宁",
         actedAt: "2026-07-08 09:20",
-        note: "委员会审批通过，申诉期结束后归档。",
+        note: "CEO审批通过，申诉期结束后归档。",
         fromStatus: REVIEW_STATUS.feedback,
         toStatus: REVIEW_STATUS.archived,
       },
     ],
     comment: "已完成归档，可作为一期流程样例。",
-    evidence: "HR汇总表、委员会审批记录、归档日志。",
+    evidence: "HR汇总表、CEO审批记录、归档日志。",
   }),
 ];

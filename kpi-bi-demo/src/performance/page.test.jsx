@@ -1,105 +1,122 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
 import { App } from "../App";
 import { REVIEW_STATUS } from "./logic";
 
-afterEach(() => {
-  cleanup();
-});
+afterEach(cleanup);
 
-describe("performance center page shell", () => {
-  test("shows the assessment ledger with the previous list columns", () => {
+function openPerformance() {
+  fireEvent.click(screen.getByRole("button", { name: "绩效中心" }));
+}
+
+function switchRole(name) {
+  fireEvent.click(screen.getByRole("button", { name }));
+}
+
+describe("绩效中心交互与权限", () => {
+  test("导航只保留数据看板、绩效中心和周报，默认进入绩效中心", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "绩效中心" }));
+    expect(screen.getByRole("button", { name: "绩效中心" })).toHaveClass("is-active");
+    expect(screen.queryByRole("button", { name: "工作台" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "项目中心" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "任务中心" })).toBeNull();
+  });
 
-    expect(screen.queryByText("月度绩效流程")).toBeNull();
+  test("用户可见绩效页面不再出现旧术语", () => {
+    render(<App />);
+    openPerformance();
+    expect(document.body.textContent).not.toContain("OKR");
+    expect(document.body.textContent).not.toContain("委员会");
+    expect(screen.getByText("绩效目标确认率")).toBeInTheDocument();
+    expect(screen.getByText("S级人数")).toBeInTheDocument();
+  });
+
+  test("顶部指标卡是不可点击的展示卡片", () => {
+    render(<App />);
+    openPerformance();
+    const card = screen.getByText("绩效目标确认率").closest("article");
+    expect(card).toHaveClass("performance-summary-card");
+    expect(card?.tagName).toBe("ARTICLE");
+    expect(within(card).queryByRole("button")).toBeNull();
+  });
+
+  test("指标卡不随状态页签与等级筛选改变", () => {
+    render(<App />);
+    openPerformance();
+    const before = screen.getByText("绩效目标确认率").parentElement?.textContent;
+    fireEvent.change(screen.getByLabelText("等级"), { target: { value: "S" } });
+    fireEvent.click(screen.getByRole("button", { name: /已结束/ }));
+    expect(screen.getByText("绩效目标确认率").parentElement?.textContent).toBe(before);
+  });
+
+  test("HR和CEO不能互相代办审批节点", () => {
+    render(<App />);
+    switchRole("HR组织视图");
+    openPerformance();
+    fireEvent.change(screen.getByLabelText("状态"), { target: { value: REVIEW_STATUS.hrReview } });
+    expect(screen.getAllByRole("button", { name: "HR复审并提交CEO" }).some((button) => !button.disabled)).toBe(true);
+
+    switchRole("CEO经营驾驶舱");
+    fireEvent.change(screen.getByLabelText("状态"), { target: { value: REVIEW_STATUS.hrReview } });
+    expect(screen.getAllByRole("button", { name: "HR复审并提交CEO" }).every((button) => button.disabled)).toBe(true);
+    fireEvent.change(screen.getByLabelText("状态"), { target: { value: REVIEW_STATUS.committeeApproval } });
+    expect(screen.getAllByRole("button", { name: "CEO审批" }).some((button) => !button.disabled)).toBe(true);
+  });
+
+  test("员工视图只显示本人且不能发起他人流程", () => {
+    render(<App />);
+    switchRole("员工个人工作台");
+    openPerformance();
+    expect(screen.getByText("张小北")).toBeInTheDocument();
+    expect(screen.queryByText("周编剧")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "下发月度绩效目标" }).every((button) => button.disabled)).toBe(true);
+  });
+
+  test("Leader按部门岗位选择模板，并在草案中编辑后下发", () => {
+    render(<App />);
+    switchRole("Leader团队负责人");
+    openPerformance();
+    fireEvent.click(screen.getAllByRole("button", { name: "下发月度绩效目标" }).find((button) => !button.disabled));
+    expect(screen.getByRole("heading", { name: "下发月度绩效目标" })).toBeInTheDocument();
+    expect(screen.getByText("岗位通用绩效目标")).toBeInTheDocument();
+    expect(screen.getByText("个人月度重点目标")).toBeInTheDocument();
+    expect(screen.getByText("独立加减分项")).toBeInTheDocument();
+    expect(screen.getAllByText("模板必选").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("独立计分").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("当前部门岗位模板")).toHaveValue("template-edit-middle");
+    expect(screen.getByRole("option", { name: "剪辑中心 · 中级剪辑师" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "返回列表" }));
     expect(screen.getByText("人员绩效列表")).toBeInTheDocument();
-    expect(screen.queryByText("组织绩效层级")).toBeNull();
-    expect(screen.getAllByRole("button", { name: "下发月度OKR" }).length).toBeGreaterThan(0);
-    expect(screen.getByText("OKR确认")).toBeInTheDocument();
-    expect(screen.getByText("结果补充")).toBeInTheDocument();
-    expect(screen.getAllByText("一级评分").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("二级评分").length).toBeGreaterThan(0);
-    expect(screen.getByText("加减项")).toBeInTheDocument();
-    expect(screen.getByText("流程状态")).toBeInTheDocument();
-    expect(screen.getByText("申诉状态")).toBeInTheDocument();
   });
 
-  test("shows appealed reviews in the 申诉中 tab after department filtering", () => {
+  test("HR可按部门和岗位创建绩效模板，Leader看不到维护入口", () => {
     render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: "绩效中心" }));
-    const appealButton = screen.getAllByRole("button", { name: "发起申诉" }).find((button) => !button.disabled);
-    expect(appealButton).toBeTruthy();
-    fireEvent.click(appealButton);
-
-    fireEvent.change(screen.getByLabelText("申诉事项与原因"), {
-      target: { value: "对评分结果存在异议，需要复核绩效任务达成举证" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "提交申诉" }));
-
-    fireEvent.change(screen.getByLabelText("归属部门"), {
-      target: { value: "运营增长中心" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /申诉中/ }));
-
-    expect(screen.getAllByText("绩效申诉处理中").length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "申诉受理" }).length).toBeGreaterThan(0);
+    switchRole("HR组织视图");
+    openPerformance();
+    fireEvent.click(screen.getByRole("button", { name: "绩效模板下发" }));
+    expect(screen.getByRole("dialog", { name: "维护岗位绩效目标模板" })).toBeInTheDocument();
+    expect(screen.getByLabelText("模板所属部门")).toBeInTheDocument();
+    expect(screen.queryByLabelText("适用岗位")).toBeNull();
+    expect(screen.queryByLabelText("模板名称")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "新建部门" }));
+    fireEvent.change(screen.getByLabelText("新部门名称"), { target: { value: "测试部门" } });
+    fireEvent.click(screen.getByRole("button", { name: "确认新建部门" }));
+    expect(screen.getByRole("option", { name: "测试部门" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "+ 新增必选目标" }));
+    expect(screen.getByDisplayValue("新增绩效目标")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭模板维护" }));
+    switchRole("Leader团队负责人");
+    expect(screen.queryByRole("button", { name: "绩效模板下发" })).toBeNull();
   });
 
-  test("shows the performance ledger without role-template filter", () => {
+  test("详情展示目标版本、结果版本和评分拆分", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "绩效中心" }));
-
-    expect(screen.queryByLabelText("岗位模板")).toBeNull();
-    expect(screen.getByLabelText("月份")).toBeInTheDocument();
-    expect(screen.getByLabelText("归属部门")).toBeInTheDocument();
-    expect(screen.getByLabelText("人员")).toBeInTheDocument();
-    expect(screen.getByLabelText("等级")).toBeInTheDocument();
-    expect(screen.getByLabelText("状态")).toBeInTheDocument();
-  });
-
-  test("shows actionable buttons for HR review and committee approval stages", () => {
-    render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "绩效中心" }));
-
-    fireEvent.change(screen.getByLabelText("状态"), {
-      target: { value: REVIEW_STATUS.hrReview },
-    });
-    expect(screen.getAllByRole("button", { name: "HR复审提交委员会" }).some((button) => !button.disabled)).toBe(true);
-
-    fireEvent.change(screen.getByLabelText("状态"), {
-      target: { value: REVIEW_STATUS.committeeApproval },
-    });
-    expect(screen.getAllByRole("button", { name: "委员会审批" }).some((button) => !button.disabled)).toBe(true);
-  });
-
-  test("opens role-template metric detail in a modal", () => {
-    render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "绩效中心" }));
+    openPerformance();
     fireEvent.click(screen.getAllByRole("button", { name: "详情" })[0]);
-
-    expect(screen.getByText("岗位模板明细")).toBeInTheDocument();
-    expect(screen.getAllByText("剪辑中心").length).toBeGreaterThan(0);
-    expect(screen.getByText("初级剪辑师 / 中级剪辑师")).toBeInTheDocument();
-    expect(screen.getByText("剪辑产出总量")).toBeInTheDocument();
-    expect(screen.getByText("返修与一次通过率")).toBeInTheDocument();
-  });
-
-  test("opens issue modal and submits monthly performance assignment", () => {
-    render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "绩效中心" }));
-
-    fireEvent.click(screen.getAllByRole("button", { name: "下发月度OKR" })[0]);
-    expect(screen.getByText("快速下发月度 OKR")).toBeInTheDocument();
-    expect(screen.getByText("成员选择")).toBeInTheDocument();
-    expect(screen.getAllByText(/OKR 配置/).length).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByRole("button", { name: "全选可选成员" }));
-    fireEvent.click(screen.getByRole("button", { name: "校验并下发" }));
-
-    expect(screen.getAllByText("待人员OKR确认").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("已确认").length).toBeGreaterThan(0);
+    expect(screen.getByText("绩效目标版本")).toBeInTheDocument();
+    expect(screen.getByText("绩效结果版本")).toBeInTheDocument();
+    expect(screen.getByText("基础绩效分")).toBeInTheDocument();
+    expect(screen.getAllByText("加减分").length).toBeGreaterThan(0);
   });
 });

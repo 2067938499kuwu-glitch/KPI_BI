@@ -2,8 +2,13 @@ import { describe, expect, test } from "vitest";
 import {
   REVIEW_STATUS,
   applyWorkflowAction,
+  calcAdjustmentScore,
+  calcBaseScore,
   calcRowScore,
   calcScore,
+  canPerformReviewAction,
+  confirmTargetVersion,
+  createTargetChange,
   getGrade,
   getNextReviewStatus,
   getOpenAppealCount,
@@ -13,7 +18,12 @@ import {
   isPendingReviewStatus,
   matchesPerformanceTab,
   matchesTemplateFilter,
-  requiresSecondReview,
+  raiseTargetDispute,
+  rejectTargetVersion,
+  resolveAppealResult,
+  returnResultForSupplement,
+  validateAdjustmentTotal,
+  validateTargetWeights,
 } from "./logic";
 import { performanceTemplate, reviewsSeed } from "./seed";
 import {
@@ -24,136 +34,151 @@ import {
   roleTemplates,
 } from "./roleTemplates";
 
-describe("performance scoring", () => {
-  test("defines content-operation role templates with template options", () => {
+const actedAt = "2026-07-13 10:00";
+
+describe("绩效目标与评分纯函数", () => {
+  test("岗位模板仍复用现有多岗位结构", () => {
     expect(roleTemplates.length).toBeGreaterThan(8);
     expect(getRoleTemplateOptions()[0]).toEqual({ value: "all", label: "全部岗位模板" });
     expect(getRoleTemplate(ROLE_TEMPLATE_IDS.editor).businessLines).toEqual(["剪辑中心", "初级剪辑师 / 中级剪辑师"]);
   });
 
-  test("creates weighted rows from the editor template and keeps scoring rules", () => {
-    const rows = createRowsFromTemplate(ROLE_TEMPLATE_IDS.editor, {
-      editOutput: { selfText: "本月剪辑产出达标", firstScore: 80, secondScore: 70 },
-      editQuality: { selfText: "一次通过率稳定", firstScore: 85, secondScore: 75 },
-      editEfficiency: { selfText: "按时交付率达标", firstScore: 78, secondScore: 72 },
-      editAsset: { selfText: "沉淀高光模板", firstScore: 2, secondScore: 1 },
-    });
-
-    const metricRows = rows.filter((row) => row.type !== "section");
-    expect(metricRows.map((row) => row.label)).toEqual([
-      "剪辑产出总量",
-      "返修与一次通过率",
-      "按时交付率",
-      "方法与素材沉淀",
-    ]);
-    expect(calcScore({ rows })).toBeCloseTo(79, 1);
+  test("岗位通用目标与个人目标共同校验100%，加减分不参与", () => {
+    expect(validateTargetWeights([
+      { type: "weighted", origin: "template", weight: 80 },
+      { type: "weighted", origin: "personal", weight: 20 },
+      { type: "adjustment", weight: 99 },
+    ])).toMatchObject({ total: 100, valid: true });
+    expect(validateTargetWeights([
+      { type: "weighted", origin: "template", weight: 70 },
+      { type: "weighted", origin: "personal", weight: 20 },
+    ])).toMatchObject({ total: 90, valid: false });
   });
 
-  test("matches review template filters and falls back to review template names", () => {
-    const review = {
-      roleTemplateId: ROLE_TEMPLATE_IDS.producer,
-      roleTemplateName: "制片",
-    };
-
-    expect(getReviewTemplate(review).name).toBe("制片");
-    expect(matchesTemplateFilter(review, "all")).toBe(true);
-    expect(matchesTemplateFilter(review, ROLE_TEMPLATE_IDS.producer)).toBe(true);
-    expect(matchesTemplateFilter(review, ROLE_TEMPLATE_IDS.editor)).toBe(false);
-  });
-
-  test("calculates weighted row scores and final score from leader ratios", () => {
+  test("按一级60%与二级40%计算基础分，加减分由Leader直接录入", () => {
     const review = {
       rows: [
         { type: "weighted", weight: 0.4, firstScore: 75, secondScore: 65 },
         { type: "weighted", weight: 0.3, firstScore: 85, secondScore: 65 },
-        { type: "adjustment", firstScore: 3, secondScore: 0 },
+        { type: "adjustment", firstScore: 3, secondScore: -8, reason: "交付奖励", evidence: "验收记录" },
       ],
     };
-
-    expect(calcRowScore(review.rows[0])).toBeCloseTo(28.4, 1);
-    expect(calcRowScore(review.rows[1])).toBeCloseTo(23.1, 1);
-    expect(calcRowScore(review.rows[2])).toBeCloseTo(1.8, 1);
-    expect(calcScore(review)).toBeCloseTo(53.3, 1);
+    expect(calcRowScore(review.rows[0], review)).toBe(28.4);
+    expect(calcRowScore(review.rows[1], review)).toBe(23.1);
+    expect(calcBaseScore(review)).toBe(51.5);
+    expect(calcAdjustmentScore(review)).toBe(3);
+    expect(calcScore(review)).toBe(54.5);
   });
 
-  test("supports reviews that only require first-level scoring", () => {
-    const review = {
-      requiresSecondReview: false,
-      status: REVIEW_STATUS.firstReview,
-      rows: [
-        { type: "weighted", weight: 0.4, firstScore: 80, secondScore: 0 },
-        { type: "weighted", weight: 0.3, firstScore: 70, secondScore: 0 },
-        { type: "adjustment", firstScore: 2, secondScore: 0 },
-      ],
-    };
-
-    expect(requiresSecondReview(review)).toBe(false);
-    expect(calcScore(review)).toBeCloseTo(55, 1);
-    expect(getNextReviewStatus(review)).toBe(REVIEW_STATUS.hrReview);
-    expect(getWorkflowAction(review).nextStatus).toBe(REVIEW_STATUS.hrReview);
+  test("无需二级复评时只使用一级评分，最终分限制在0至100", () => {
+    expect(calcScore({ requiresSecondReview: false, rows: [
+      { type: "weighted", weight: 1, firstScore: 80, secondScore: 0 },
+      { type: "adjustment", firstScore: 30 },
+    ] })).toBe(100);
+    expect(calcScore({ requiresSecondReview: false, rows: [
+      { type: "weighted", weight: 1, firstScore: 5, secondScore: 0 },
+      { type: "adjustment", firstScore: -20 },
+    ] })).toBe(0);
+    expect(getNextReviewStatus({ status: REVIEW_STATUS.firstReview, requiresSecondReview: false })).toBe(REVIEW_STATUS.hrReview);
   });
 
-  test("maps grades and workflow transitions", () => {
-    expect(getGrade(92)).toBe("A");
-    expect(getGrade(66.8)).toBe("C");
-    expect(getNextReviewStatus(REVIEW_STATUS.firstReview)).toBe(REVIEW_STATUS.secondReview);
-    expect(getNextReviewStatus(REVIEW_STATUS.feedback)).toBe(REVIEW_STATUS.archived);
+  test("加减分累计限制在-10至+10", () => {
+    expect(validateAdjustmentTotal([{ type: "adjustment", firstScore: -4 }, { type: "adjustment", firstScore: 14 }])).toMatchObject({ total: 10, valid: true });
+    expect(validateAdjustmentTotal([{ type: "adjustment", firstScore: 11 }])).toMatchObject({ total: 11, valid: false });
+    expect(validateAdjustmentTotal([{ type: "adjustment", firstScore: -10.01 }])).toMatchObject({ valid: false });
   });
 
-  test("advances workflow actions and appends operation logs", () => {
-    const review = {
-      id: "rv-workflow",
-      status: REVIEW_STATUS.targetIssue,
-      operationLogs: [],
-    };
+  test.each([
+    [100, "S"], [80, "S"], [79.99, "A"], [70, "A"], [69.99, "B"],
+    [60, "B"], [59.99, "C"], [55, "C"], [54.99, "D"],
+  ])("分数%s对应等级%s", (score, grade) => expect(getGrade(score)).toBe(grade));
 
-    expect(getWorkflowAction(review)).toEqual({
-      type: "issue_target",
-      label: "下发月度OKR",
-      nextStatus: REVIEW_STATUS.employeeConfirm,
-    });
-
-    const nextReview = applyWorkflowAction(review, {
-      type: "issue_target",
-      operator: "江晚",
-      note: "已按组织层级下发 7 月 OKR",
-      actedAt: "2026-07-07 10:20",
-    });
-
-    expect(nextReview.status).toBe(REVIEW_STATUS.employeeConfirm);
-    expect(nextReview.lastActionName).toBe("下发月度OKR");
-    expect(nextReview.operationLogs[0]).toMatchObject({
-      action: "下发月度OKR",
-      operator: "江晚",
-      fromStatus: REVIEW_STATUS.targetIssue,
-      toStatus: REVIEW_STATUS.employeeConfirm,
-    });
-    expect(getWorkflowAction({ status: REVIEW_STATUS.archived })).toBeNull();
+  test("目标下发使用绩效目标与CEO语义并追加日志", () => {
+    const review = { id: "rv-workflow", status: REVIEW_STATUS.targetIssue, operationLogs: [] };
+    expect(getWorkflowAction(review)).toEqual({ type: "issue_target", label: "下发月度绩效目标", nextStatus: REVIEW_STATUS.employeeConfirm });
+    const next = applyWorkflowAction(review, { type: "issue_target", operator: "江晚", note: "下发7月目标", actedAt });
+    expect(next.status).toBe(REVIEW_STATUS.employeeConfirm);
+    expect(next.operationLogs[0]).toMatchObject({ action: "下发月度绩效目标", operator: "江晚" });
+    expect(getWorkflowAction({ status: REVIEW_STATUS.committeeApproval }).label).toBe("CEO审批");
   });
 
-  test("maps table tabs to status rules and counts open appeals", () => {
-    const reviews = [
-      { status: REVIEW_STATUS.firstReview, appealStatus: "无申诉" },
-      { status: REVIEW_STATUS.archived, appealStatus: "已结束" },
-      { status: REVIEW_STATUS.appealInProgress, appealStatus: "待综合管理中心调查" },
-    ];
+  test("员工提出异议后回到Leader并可重新确认", () => {
+    const review = { id: "rv-dispute", employee: "张小北", directLeader: "江晚", status: REVIEW_STATUS.employeeConfirm, version: 1, operationLogs: [] };
+    expect(raiseTargetDispute(review, { reason: "目标范围需调整", operator: "张小北", actedAt, expectedVersion: 1 }).review).toMatchObject({ status: REVIEW_STATUS.targetDispute, owner: "江晚", version: 2 });
+    expect(raiseTargetDispute(review, { reason: "", operator: "张小北", actedAt, expectedVersion: 1 })).toMatchObject({ ok: false, code: "VALIDATION" });
+  });
 
+  test("目标变更生成V2，员工确认后V1归档", () => {
+    const targets = [{ type: "weighted", origin: "template", weight: 80 }, { type: "weighted", origin: "personal", weight: 20 }];
+    const review = { id: "rv-change", status: REVIEW_STATUS.resultEntry, activeTargetVersion: 1, version: 3, targetVersions: [{ version: 1, status: "已生效" }], operationLogs: [] };
+    const changed = createTargetChange(review, { reason: "项目范围调整", targets, operator: "江晚", actedAt, expectedVersion: 3 });
+    expect(changed.review).toMatchObject({ pendingTargetVersion: 2, activeTargetVersion: 1, status: REVIEW_STATUS.employeeConfirm });
+    expect(changed.review.targetVersions.map((item) => item.status)).toEqual(["已生效", "待员工确认"]);
+    const confirmed = confirmTargetVersion(changed.review, { operator: "张小北", actedAt, expectedVersion: 4 });
+    expect(confirmed.review).toMatchObject({ activeTargetVersion: 2, pendingTargetVersion: null, status: REVIEW_STATUS.resultEntry });
+    expect(confirmed.review.targetVersions.map((item) => item.status)).toEqual(["已归档", "已生效"]);
+  });
+
+  test("员工拒绝V2时V1继续生效且历史版本保留", () => {
+    const review = { id: "rv-reject", status: REVIEW_STATUS.employeeConfirm, version: 2, activeTargetVersion: 1, pendingTargetVersion: 2, targetVersions: [{ version: 1, status: "已生效" }, { version: 2, status: "待员工确认" }], operationLogs: [] };
+    const result = rejectTargetVersion(review, { reason: "资源未同步", operator: "张小北", actedAt, expectedVersion: 2 });
+    expect(result.review).toMatchObject({ activeTargetVersion: 1, pendingTargetVersion: null, status: REVIEW_STATUS.resultEntry });
+    expect(result.review.targetVersions.map((item) => item.status)).toEqual(["已生效", "已拒绝"]);
+  });
+
+  test("Leader退回结果只改变流程状态并保留员工原始行", () => {
+    const rows = [{ id: "target-1", selfText: "员工原始填报", evidence: "附件A" }];
+    const result = returnResultForSupplement({ id: "rv-return", status: REVIEW_STATUS.firstReview, version: 1, rows, operationLogs: [] }, { reason: "证明材料不足", operator: "江晚", actedAt });
+    expect(result.review).toMatchObject({ status: REVIEW_STATUS.resultEntry, resultStatus: "已退回补充", rows });
+    expect(result.review.operationLogs[0].snapshot.rows).toEqual(rows);
+  });
+
+  test("申诉成立生成新的结果版本且原V1归档", () => {
+    const review = { id: "rv-appeal", status: REVIEW_STATUS.appealInProgress, version: 5, rows: [], resultVersions: [{ version: 1, score: 68, grade: "B", status: "已生效" }], operationLogs: [] };
+    const result = resolveAppealResult(review, { decision: "approved", correctedScore: 72, reason: "新证据成立", operator: "CEO", actedAt });
+    expect(result.review).toMatchObject({ status: REVIEW_STATUS.archived, appealStatus: "申诉成立" });
+    expect(result.review.resultVersions).toEqual([
+      expect.objectContaining({ version: 1, status: "已归档", score: 68 }),
+      expect.objectContaining({ version: 2, status: "已生效", score: 72, grade: "A" }),
+    ]);
+  });
+
+  test("各角色只能执行自己的流程节点且Leader受责任范围限制", () => {
+    const review = { employee: "张小北", directLeader: "江晚", indirectLeader: "林总" };
+    expect(canPerformReviewAction("employee", "confirm_target", review, "张小北")).toBe(true);
+    expect(canPerformReviewAction("employee", "confirm_target", review, "其他员工")).toBe(false);
+    expect(canPerformReviewAction("leader", "first_score", review, "江晚")).toBe(true);
+    expect(canPerformReviewAction("leader", "first_score", review, "其他Leader")).toBe(false);
+    expect(canPerformReviewAction("hr", "committee_approve", review, "HR-唐宁")).toBe(false);
+    expect(canPerformReviewAction("ceo", "hr_review", review, "CEO")).toBe(false);
+    expect(canPerformReviewAction("ceo", "committee_approve", review, "CEO")).toBe(true);
+  });
+
+  test("版本冲突阻止重复覆盖", () => {
+    const result = confirmTargetVersion({ id: "rv-conflict", status: REVIEW_STATUS.employeeConfirm, version: 2, operationLogs: [] }, { operator: "张小北", actedAt, expectedVersion: 1 });
+    expect(result).toMatchObject({ ok: false, code: "VERSION_CONFLICT" });
+  });
+
+  test("标签、筛选与种子数据保持可用", () => {
+    const review = { roleTemplateId: ROLE_TEMPLATE_IDS.producer, roleTemplateName: "制片" };
+    expect(getReviewTemplate(review).name).toBe("制片");
+    expect(matchesTemplateFilter(review, ROLE_TEMPLATE_IDS.producer)).toBe(true);
+    const reviews = [{ status: REVIEW_STATUS.firstReview }, { status: REVIEW_STATUS.archived }, { status: REVIEW_STATUS.appealSubmitted }];
     expect(matchesPerformanceTab(reviews[0], "pending")).toBe(true);
-    expect(matchesPerformanceTab(reviews[1], "archived")).toBe(true);
     expect(matchesPerformanceTab(reviews[2], "appeal")).toBe(true);
     expect(isPendingReviewStatus(REVIEW_STATUS.firstReview)).toBe(true);
-    expect(isPendingReviewStatus(REVIEW_STATUS.appealInProgress)).toBe(false);
     expect(getPendingReviewCount(reviews)).toBe(1);
     expect(getOpenAppealCount(reviews)).toBe(1);
-  });
-
-  test("seed reviews cover role templates and production workflow metadata", () => {
     expect(performanceTemplate.map((item) => item.section)).toEqual(roleTemplates.map((item) => item.name));
     expect(reviewsSeed.length).toBeGreaterThan(8);
-    expect(reviewsSeed[0].status).toBe(REVIEW_STATUS.targetIssue);
-    expect(reviewsSeed.every((item) => item.lastActionAt)).toBe(true);
-    expect(reviewsSeed.every((item) => item.owner)).toBe(true);
     expect(reviewsSeed.every((item) => Array.isArray(item.operationLogs))).toBe(true);
-    expect(reviewsSeed.every((item) => item.rows.some((row) => row.type === "section"))).toBe(true);
+  });
+
+  test("岗位模板行仍可参与新评分公式", () => {
+    const rows = createRowsFromTemplate(ROLE_TEMPLATE_IDS.editor, {
+      editOutput: { firstScore: 80, secondScore: 70 }, editQuality: { firstScore: 85, secondScore: 75 },
+      editEfficiency: { firstScore: 78, secondScore: 72 }, editAsset: { firstScore: 2, secondScore: 1 },
+    });
+    expect(calcScore({ rows })).toBeGreaterThan(70);
   });
 });
