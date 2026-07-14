@@ -172,6 +172,12 @@ describe("绩效目标与评分纯函数", () => {
     expect(performanceTemplate.map((item) => item.section)).toEqual(roleTemplates.map((item) => item.name));
     expect(reviewsSeed.length).toBeGreaterThan(8);
     expect(reviewsSeed.every((item) => Array.isArray(item.operationLogs))).toBe(true);
+    expect(reviewsSeed.map((item) => item.status)).toEqual(expect.arrayContaining([
+      REVIEW_STATUS.targetDispute,
+      REVIEW_STATUS.executing,
+      REVIEW_STATUS.appealInvestigation,
+      REVIEW_STATUS.appealInProgress,
+    ]));
   });
 
   test("岗位模板行仍可参与新评分公式", () => {

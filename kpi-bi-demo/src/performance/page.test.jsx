@@ -45,9 +45,19 @@ describe("绩效中心交互与权限", () => {
     render(<App />);
     openPerformance();
     const before = screen.getByText("绩效目标确认率").parentElement?.textContent;
-    fireEvent.change(screen.getByLabelText("等级"), { target: { value: "S" } });
+    fireEvent.change(screen.getByLabelText("等级筛选"), { target: { value: "S" } });
     fireEvent.click(screen.getByRole("button", { name: /已结束/ }));
     expect(screen.getByText("绩效目标确认率").parentElement?.textContent).toBe(before);
+  });
+
+  test("等级筛选支持正序和倒序展示", () => {
+    render(<App />);
+    openPerformance();
+    const gradeSelect = screen.getByLabelText("等级筛选");
+    expect(screen.getByRole("option", { name: "等级正序（D→S）" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "等级倒序（S→D）" })).toBeInTheDocument();
+    fireEvent.change(gradeSelect, { target: { value: "grade_desc" } });
+    expect(gradeSelect).toHaveValue("grade_desc");
   });
 
   test("HR和CEO不能互相代办审批节点", () => {
@@ -114,6 +124,7 @@ describe("绩效中心交互与权限", () => {
     render(<App />);
     openPerformance();
     fireEvent.click(screen.getAllByRole("button", { name: "详情" })[0]);
+    expect(screen.getByRole("button", { name: "导出Excel" })).toBeInTheDocument();
     expect(screen.getByText("绩效目标版本")).toBeInTheDocument();
     expect(screen.getByText("绩效结果版本")).toBeInTheDocument();
     expect(screen.getByText("基础绩效分")).toBeInTheDocument();

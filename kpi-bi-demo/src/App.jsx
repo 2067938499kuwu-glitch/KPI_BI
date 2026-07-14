@@ -561,6 +561,71 @@ function getHongguoProjectRecords(hongguoUploads) {
     .flatMap((upload) => upload.records.map((record) => ({ ...record, uploadName: upload.fileName, importedAt: upload.importedAt })));
 }
 
+function escapeExcelXml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function buildExcelWorksheet(name, headers, rows) {
+  const serializeRow = (cells) => `<Row>${cells.map((cell) => `<Cell><Data ss:Type="String">${escapeExcelXml(cell)}</Data></Cell>`).join("")}</Row>`;
+  return `<Worksheet ss:Name="${escapeExcelXml(name)}"><Table>${serializeRow(headers)}${rows.map(serializeRow).join("")}</Table></Worksheet>`;
+}
+
+function exportPerformanceDetailExcel(review, hongguoUploads = []) {
+  const projectData = getEmployeeReferenceData(review);
+  const weeklyReports = mergeWeeklyReports(
+    dashboardWeeklyReports,
+    readStoredWeeklyReports(window.localStorage),
+  );
+  const weeklyReference = buildWeeklyReference(review, dashboardPeople, weeklyReports);
+  const metricRows = getReviewMetricRows(review);
+  const hongguoRecords = getHongguoProjectRecords(hongguoUploads);
+  const targetVersions = review.targetVersions?.length ? review.targetVersions : [{ version: 1, status: "已生效", operator: review.directLeader, actedAt: review.lastActionAt, changeReason: "首次下发", targets: review.rows }];
+  const sheets = [
+    buildExcelWorksheet("基本信息", ["字段", "内容"], [
+      ["姓名", review.employee], ["部门", review.department], ["岗位", review.role], ["考核周期", review.cycle],
+      ["岗位模板", getReviewTemplate(review).name], ["流程状态", review.status], ["目标版本", `V${review.activeTargetVersion ?? 1}`],
+      ["申诉状态", review.appealStatus], ["基础绩效分", calcBaseScore(review)], ["加减分", calcAdjustmentScore(review)],
+      ["最终绩效分", calcScore(review)], ["绩效等级", getGrade(calcScore(review))], ["直属Leader", review.directLeader],
+      ["二级Leader", review.indirectLeader], ["最后操作时间", review.lastActionAt], ["导出时间", getActionTimestamp()],
+    ]),
+    buildExcelWorksheet("评分明细", ["分组", "指标", "类型", "权重", "评定标准", "数据来源", "完成结果", "完成说明", "证明材料", "一级评分", "一级评语", "二级评分", "二级评语", "综合得分", "计入结果"], metricRows.map((row) => [
+      row.section, row.label, row.type === "adjustment" ? "加减分" : "绩效目标", row.type === "adjustment" ? "--" : `${Number(row.weight || 0) * 100}%`, row.standard,
+      row.source, row.selfText, row.completionNote, row.evidence, row.firstScore, row.firstComment, row.secondScore, row.secondComment,
+      Number(calcRowComposite(row, review).toFixed(2)), calcRowScore(row, review),
+    ])),
+    buildExcelWorksheet("目标版本", ["版本", "状态", "变更原因", "操作人", "操作时间", "目标数量", "目标摘要"], targetVersions.map((version) => [
+      `V${version.version}`, version.status, version.changeReason || "首次下发", version.operator || review.directLeader, version.actedAt || review.lastActionAt,
+      version.targets?.filter((item) => item.type !== "section").length ?? 0,
+      (version.targets ?? []).filter((item) => item.type !== "section").map((item) => `${item.label || item.name}（${item.type === "adjustment" ? "加减分" : `${Number(item.weight || 0) * (Number(item.weight || 0) <= 1 ? 100 : 1)}%`}）`).join("；"),
+    ])),
+    buildExcelWorksheet("结果版本", ["版本", "最终分", "等级", "状态", "裁决/说明", "操作人", "操作时间"], (review.resultVersions?.length ? review.resultVersions : [["--", "--", "--", "未生成", "当前流程尚未生成正式绩效结果版本", "--", "--"]]).map((version) => Array.isArray(version) ? version : [
+      `V${version.version}`, version.score, version.grade, version.status, version.reason || version.appealDecision || "正式绩效结果", version.operator || "系统", version.actedAt || review.lastActionAt,
+    ])),
+    buildExcelWorksheet("周报参考", ["周次", "周期", "状态", "提交时间", "本周成果", "风险事项", "下周计划", "来源"], weeklyReference.weeks.map((week) => [
+      week.label, week.dateRange, week.status === "normal" ? "按时提交" : week.status === "late" ? "逾期提交" : "未提交", week.submittedAt || "--", week.achievement, week.risk, week.nextPlan || "--", weeklyReference.sourceLabel,
+    ])),
+    buildExcelWorksheet("项目参考数据", ["项目名称", "负责人", "状态", "剧本提交章数", "重复提交次数", "生成总次数", "生成总时长", "可用分镜数", "可用总时长", "消费金额", "提交总时长", "驳回1次", "驳回2次", "驳回3次及以上", "作品集数", "作品总时长", "累计点击率", "首集完播", "10分钟完播", "30分钟完播", "60分钟完播", "人均播放集数"], (projectData?.projectRows ?? []).map((project) => [
+      project.project, project.owner, project.status, project.scriptChapters, project.repeatSubmits, project.generationCount, project.generationDuration, project.usableStoryboards, project.usableDuration, project.cost, project.submitDuration, project.rejectedOnce, project.rejectedTwice, project.rejectedThird, project.workEpisodes, project.workDuration, project.clickRate, project.firstEpisodeCompletion, project.tenMinuteCompletion, project.thirtyMinuteCompletion, project.sixtyMinuteCompletion, project.averageEpisodesPlayed,
+    ])),
+    buildExcelWorksheet("红果数据", ["导入文件", "导入时间", ...HONGGUO_REQUIRED_COLUMNS], hongguoRecords.map((record) => [record.uploadName, record.importedAt, ...HONGGUO_REQUIRED_COLUMNS.map((column) => record[column] ?? "")])),
+    buildExcelWorksheet("操作日志", ["操作", "操作人", "操作时间", "原状态", "目标状态", "备注"], (review.operationLogs ?? []).map((log) => [log.action, log.operator, log.actedAt, log.fromStatus, log.toStatus, log.note || ""])),
+  ];
+  const workbook = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${sheets.join("")}</Workbook>`;
+  const blob = new Blob([`\uFEFF${workbook}`], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${review.employee}-${review.cycle}-绩效详情.xls`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+}
+
 function PerformanceReferencePanel({ review, hongguoUploads = [] }) {
   const [weeklyRevision, setWeeklyRevision] = useState(0);
   const data = getEmployeeReferenceData(review);
@@ -1621,6 +1686,7 @@ function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
             <span>{review.cycle}</span>
           </div>
         </div>
+        <button className="ghost-chip" onClick={() => exportPerformanceDetailExcel(review, hongguoUploads)} type="button"><FileCsv size={16} weight="bold" />导出Excel</button>
       </div>
       <div className="performance-detail-summary">
         <div><small>岗位模板</small><strong>{getReviewTemplate(review).name}</strong></div>
@@ -1767,14 +1833,29 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, active
     setPageIndex(0);
   };
 
-  const filteredReviews = useMemo(() => scopedReviews.filter((item) => {
-    if (!matchesStatusView(item, filters.status)) return false;
-    if (filters.cycle !== "all" && item.cycle !== filters.cycle) return false;
-    if (filters.department !== "all" && item.department !== filters.department) return false;
-    if (filters.grade !== "all" && getGrade(calcScore(item)) !== filters.grade) return false;
-    if (filters.employee.trim() && !item.employee.includes(filters.employee.trim())) return false;
-    return true;
-  }), [filters, scopedReviews]);
+  const filteredReviews = useMemo(() => {
+    const isGradeSort = ["grade_asc", "grade_desc"].includes(filters.grade);
+    const rankByGrade = { D: 1, C: 2, B: 3, A: 4, S: 5 };
+    const isResultEntered = (item) => ![REVIEW_STATUS.targetIssue, REVIEW_STATUS.employeeConfirm, REVIEW_STATUS.targetDispute, REVIEW_STATUS.executing, REVIEW_STATUS.resultEntry].includes(item.status);
+    const result = scopedReviews.filter((item) => {
+      if (!matchesStatusView(item, filters.status)) return false;
+      if (filters.cycle !== "all" && item.cycle !== filters.cycle) return false;
+      if (filters.department !== "all" && item.department !== filters.department) return false;
+      if (!isGradeSort && filters.grade !== "all" && getGrade(calcScore(item)) !== filters.grade) return false;
+      if (filters.employee.trim() && !item.employee.includes(filters.employee.trim())) return false;
+      return true;
+    });
+    if (!isGradeSort) return result;
+    return [...result].sort((left, right) => {
+      const leftRank = isResultEntered(left) ? rankByGrade[getGrade(calcScore(left))] : 0;
+      const rightRank = isResultEntered(right) ? rankByGrade[getGrade(calcScore(right))] : 0;
+      if (leftRank === 0 && rightRank !== 0) return 1;
+      if (rightRank === 0 && leftRank !== 0) return -1;
+      const direction = filters.grade === "grade_asc" ? 1 : -1;
+      if (leftRank !== rightRank) return (leftRank - rightRank) * direction;
+      return left.employee.localeCompare(right.employee, "zh-CN");
+    });
+  }, [filters, scopedReviews]);
 
   const metricScopeReviews = useMemo(() => scopedReviews.filter((item) => {
     const metricCycle = filters.cycle === "all" ? CURRENT_MONTH : filters.cycle;
@@ -2060,7 +2141,7 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, active
           <label><span>月份</span><select value={filters.cycle} onChange={(event) => updateFilter("cycle", event.target.value)}><option value="all">全部周期</option>{cycles.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label><span>归属部门</span><select value={filters.department} onChange={(event) => updateFilter("department", event.target.value)}><option value="all">全部</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label><span>人员</span><input value={filters.employee} onChange={(event) => updateFilter("employee", event.target.value)} placeholder="请输入人员姓名" /></label>
-          <label><span>等级</span><select value={filters.grade} onChange={(event) => updateFilter("grade", event.target.value)}><option value="all">全部</option><option value="S">S</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></label>
+          <label><span>等级筛选</span><select aria-label="等级筛选" value={filters.grade} onChange={(event) => updateFilter("grade", event.target.value)}><option value="all">全部</option><option value="S">S</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="grade_asc">等级正序（D→S）</option><option value="grade_desc">等级倒序（S→D）</option></select></label>
           <label><span>状态</span><select value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}><option value="all">全部流程</option><option value="targetIssue">绩效目标待下发</option><option value={REVIEW_STATUS.secondReview}>二级复评中</option><option value={REVIEW_STATUS.hrReview}>HR复审中</option><option value={REVIEW_STATUS.committeeApproval}>CEO审批中</option>{performanceFocusOptions.filter((option) => option.value !== "all").map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         </div>
         <div className="performance-filter-panel__actions">

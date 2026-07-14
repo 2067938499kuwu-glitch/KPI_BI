@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>绩效与周报管理系统 PRD</title>
+<style>
+@page { size: A4 landscape; margin: 13mm 14mm; }
+body { font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif; color:#172033; font-size:10.5pt; line-height:1.55; margin:0 auto; max-width:1120px; }
+h1 { color:#123a77; font-size:26pt; margin:8px 0 20px; padding-bottom:12px; border-bottom:3px solid #2f6fed; }
+h2 { color:#173b70; font-size:17pt; margin:24px 0 10px; padding-left:10px; border-left:4px solid #2f6fed; page-break-after:avoid; }
+h3 { color:#284b7a; font-size:13pt; margin:18px 0 8px; page-break-after:avoid; }
+p { margin:5px 0; }
+.bullet { margin:3px 0 3px 18px; text-indent:-12px; }
+.numbered { margin:3px 0 3px 18px; }
+table { border-collapse:collapse; width:100%; margin:9px 0 14px; font-size:9pt; page-break-inside:auto; }
+th, td { border:1px solid #ccd5e3; padding:6px 7px; vertical-align:top; }
+th { background:#eaf1ff; color:#193d73; font-weight:700; }
+tr { page-break-inside:avoid; }
+pre { background:#f5f7fb; border:1px solid #d9e0ea; border-left:4px solid #6b8fdc; border-radius:4px; padding:10px 12px; white-space:pre-wrap; font-family:Consolas, "Microsoft YaHei"; font-size:9pt; page-break-inside:avoid; }
+code { background:#f1f4f8; color:#24466f; padding:1px 4px; border-radius:3px; }
+figure { margin:10px 0 18px; page-break-inside:avoid; text-align:center; }
+figure img { max-width:100%; max-height:500px; border:1px solid #d7deea; box-shadow:0 2px 8px rgba(20,40,80,.10); }
+figcaption { margin-top:5px; color:#5f6b7a; font-size:9pt; }
+.note { color:#5f6b7a; }
+</style>
+</head><body>
+<h1>绩效与周报管理系统 PRD</h1>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>项目</th>
+<th>内容</th>
+</tr></thead><tbody>
+<tr>
+<td>产品名称</td>
+<td>光影未来&#183;绩效与周报管理系统</td>
+</tr>
+<tr>
+<td>文档版本</td>
+<td>V1.0</td>
+</tr>
+<tr>
+<td>基线日期</td>
+<td>2026-07-13</td>
+</tr>
+<tr>
+<td>目标读者</td>
+<td>产品、前后端开发、测试、数据、运维</td>
+</tr>
+<tr>
+<td>页面基线</td>
+<td>当前 <code>kpi-bi-demo</code> 已实现页面；本文不重新设计界面</td>
+</tr>
+<tr>
+<td>实现说明</td>
+<td>当前为 React + 静态 HTML Demo；生产版本需补齐后端、数据库、鉴权、附件、消息和审计能力</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<h2>1. 产品目标与范围</h2>
+<p>&nbsp;</p>
+<h3>1.1 产品目标</h3>
+<p>&nbsp;</p>
+<p>建立“周报记录过程、绩效管理结果、数据看板辅助决策”的组织管理闭环：</p>
+<p>&nbsp;</p>
+<p class="numbered">1. 统一月度绩效目标、结果填报、逐级评分、审批、面谈、申诉和归档；</p>
+<p class="numbered">2. 统一个人周报、团队周报和领导经营简报；</p>
+<p class="numbered">3. 在权限范围内查看最终绩效排名、趋势、人员对比和周报异常；</p>
+<p class="numbered">4. 保证关键动作有权限校验、版本控制、操作日志和可追溯历史。</p>
+<p>&nbsp;</p>
+<h3>1.2 本期范围（P0）</h3>
+<p>&nbsp;</p>
+<p class="bullet">• 统一身份、组织、岗位、上下级关系和角色权限；</p>
+<p class="bullet">• 数据看板：统计卡、筛选、排名、人员详情、2–5 人对比、周报参考；</p>
+<p class="bullet">• 绩效中心：模板、目标下发/确认/变更、结果填报、两级评分、HR 复审、CEO 审批、面谈、申诉、归档；</p>
+<p class="bullet">• 周报中心：草稿自动保存、AI 提取、提交/更新/锁定/补交、历史周报、团队查看、提醒、重新开放、领导概览；</p>
+<p class="bullet">• 红果作品数据 CSV 导入；</p>
+<p class="bullet">• 附件、消息待办、操作日志、版本与并发控制。</p>
+<p>&nbsp;</p>
+<h3>1.3 非本期范围</h3>
+<p>&nbsp;</p>
+<p class="bullet">• 周报内容自动改变绩效得分；</p>
+<p class="bullet">• 薪酬、奖金、调薪和薪资核算；</p>
+<p class="bullet">• 独立移动 App；</p>
+<p class="bullet">• 在本 PRD 中重新设计现有页面或调整视觉规范。</p>
+<p>&nbsp;</p>
+<h2>2. 用户与权限</h2>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>角色</th>
+<th>数据范围</th>
+<th>主要权限</th>
+<th>禁止事项</th>
+</tr></thead><tbody>
+<tr>
+<td>员工</td>
+<td>仅本人</td>
+<td>确认/异议目标、填报结果、提交周报、发起申诉、查看本人看板</td>
+<td>查看或处理他人记录、人员对比</td>
+</tr>
+<tr>
+<td>Leader</td>
+<td>本人及管理责任范围</td>
+<td>下发/变更目标、一级或二级评分、加减分、面谈归档、查看团队周报、提醒/重新开放</td>
+<td>处理责任范围外人员、代替 HR/CEO</td>
+</tr>
+<tr>
+<td>HR</td>
+<td>全公司</td>
+<td>维护岗位模板、HR 复审、申诉调查、异常管理、全员看板、重新开放周报</td>
+<td>代替 Leader 评分或 CEO 裁决</td>
+</tr>
+<tr>
+<td>CEO</td>
+<td>全公司</td>
+<td>最终审批、申诉最终裁决、经营看板</td>
+<td>代替 Leader/HR 的前置节点</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<p>权限必须同时控制：页面入口、按钮可见/可用、服务端动作、数据行范围和导出范围。前端隐藏按钮不能代替服务端鉴权。</p>
+<p>&nbsp;</p>
+<h2>3. 信息架构</h2>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>一级模块</th>
+<th>页面/功能</th>
+</tr></thead><tbody>
+<tr>
+<td>数据看板</td>
+<td>筛选与统计、全公司排名、人员详情、多人对比、统计口径</td>
+</tr>
+<tr>
+<td>绩效中心</td>
+<td>绩效列表、制度规则、红果导入、岗位模板、目标下发、目标/结果详情、评分、HR 复审、CEO 审批、面谈、申诉</td>
+</tr>
+<tr>
+<td>周报</td>
+<td>我的周报、历史周报、团队周报、领导概览、提交确认、重新开放</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<p>外层身份与周报身份在生产版本必须来自同一登录上下文；当前 Demo 的周报 iframe 使用固定员工数据，仅用于演示。</p>
+<p>&nbsp;</p>
+<h2>4. 核心业务流程</h2>
+<p>&nbsp;</p>
+<h3>4.1 绩效主流程</h3>
+<p>&nbsp;</p>
+<pre>
+HR维护部门岗位模板
+→ Leader下发月度绩效目标
+→ 员工确认（或提出异议后重新下发）
+→ 员工填报完成结果与证明
+→ 一级Leader评分
+→ [按配置可选] 二级Leader复评
+→ HR复审
+→ CEO审批
+→ Leader反馈与面谈
+→ 归档结束
+</pre>
+<p>&nbsp;</p>
+<p>关键退回：证明不足退回员工；评分/评语问题退回 Leader；CEO 不通过时退回 Leader，并重新经过 HR 与 CEO。</p>
+<p>&nbsp;</p>
+<h3>4.2 目标版本流程</h3>
+<p>&nbsp;</p>
+<pre>
+首次下发：待下发 → 待员工确认 → 已确认/进入结果填报
+目标异议：待确认 → 异议处理中 → Leader调整重发 → 待确认
+生效后变更：V1生效 → 生成待确认V2 → 员工确认后V2生效
+                                      └→ 员工拒绝则V1继续生效
+</pre>
+<p>&nbsp;</p>
+<p>所有提交携带 <code>expectedVersion</code>；旧版本提交返回版本冲突，不得覆盖新数据。</p>
+<p>&nbsp;</p>
+<h3>4.3 申诉流程</h3>
+<p>&nbsp;</p>
+<pre>
+员工提交申诉与证据 → HR调查 → Leader补充评分依据 → CEO裁决
+→ 驳回：原结果保留
+→ 部分成立/成立：生成结果V2，V1归档保留
+</pre>
+<p>&nbsp;</p>
+<h3>4.4 周报流程</h3>
+<p>&nbsp;</p>
+<pre>
+编辑草稿（自动保存）
+→ 截止前提交V1 / 截止前更新V2+
+→ 截止后自动锁定
+→ Leader或HR填写原因重新开放
+→ 员工提交新版本（逾期已提交）
+</pre>
+<p>&nbsp;</p>
+<p>未提交且超过截止时间为“逾期未交”；团队管理者只能看到草稿/未交状态，不能查看草稿正文。</p>
+<p>&nbsp;</p>
+<h2>5. 功能需求</h2>
+<p>&nbsp;</p>
+<h3>5.1 数据看板（DB）</h3>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/02-dashboard-overview.png" alt="当前已实现：人员绩效与周报数据看板"><figcaption>当前已实现：人员绩效与周报数据看板</figcaption></figure>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>ID</th>
+<th>需求</th>
+<th>验收重点</th>
+</tr></thead><tbody>
+<tr>
+<td>DB-01</td>
+<td>按月份、部门、岗位、姓名、最终评分状态、周报状态筛选</td>
+<td>重置恢复默认；切换角色后自动应用数据范围</td>
+</tr>
+<tr>
+<td>DB-02</td>
+<td>展示已完成/未完成、平均分、最高/最低、周报按时率、未交人数、逾期人数</td>
+<td>绩效统计只使用最终已生效分数</td>
+</tr>
+<tr>
+<td>DB-03</td>
+<td>展示全公司排名、最终分、环比、周报按时率和异常数</td>
+<td>筛选不重新排名；未生效人员置后且无正式名次</td>
+</tr>
+<tr>
+<td>DB-04</td>
+<td>打开人员详情</td>
+<td>展示月度趋势、维度得分、周报成果/风险与数据状态</td>
+</tr>
+<tr>
+<td>DB-05</td>
+<td>选择 2–5 人进行横向对比</td>
+<td>员工不可对比；角色/月度变化清理无权或失效选择</td>
+</tr>
+<tr>
+<td>DB-06</td>
+<td>展示统计口径和数据更新时间</td>
+<td>无数据、部分数据、数据延迟必须有明确提示</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<p>排名采用竞赛排名：同分同名次，下一名次跳号（如 1、2、2、4）。Leader 看到的仍是全公司名次，不在团队内重排。</p>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/03-dashboard-compare.png" alt="当前已实现：多人绩效对比"><figcaption>当前已实现：多人绩效对比</figcaption></figure>
+<p>&nbsp;</p>
+<h3>5.2 绩效中心列表（PF）</h3>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/04-performance-center-leader.png" alt="当前已实现：Leader 绩效中心"><figcaption>当前已实现：Leader 绩效中心</figcaption></figure>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>ID</th>
+<th>需求</th>
+<th>验收重点</th>
+</tr></thead><tbody>
+<tr>
+<td>PF-01</td>
+<td>按月份、部门、人员、等级、流程状态筛选并分页</td>
+<td>列表仅返回当前角色有权数据</td>
+</tr>
+<tr>
+<td>PF-02</td>
+<td>展示目标确认、结果填报、两级评分、加减分、最终分、等级、流程和申诉状态</td>
+<td>未生成数据使用“--”，不得伪造 0 分</td>
+</tr>
+<tr>
+<td>PF-03</td>
+<td>提供全部、待下发、待处理、HR复审、CEO审批、申诉中、已结束页签</td>
+<td>页签计数与筛选结果一致</td>
+</tr>
+<tr>
+<td>PF-04</td>
+<td>展示四张指标卡</td>
+<td>仅展示，不可点击；统计口径不受状态页签/等级/流程状态影响</td>
+</tr>
+<tr>
+<td>PF-05</td>
+<td>打开详情</td>
+<td>展示当前版本、历史版本、评分、申诉、操作日志和附件</td>
+</tr>
+<tr>
+<td>PF-06</td>
+<td>上传红果 CSV</td>
+<td>校验必填列、空文件、有效行；按作品名称/作品ID关联项目并反馈成功/失败明细</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<p>指标卡口径：当前周期 &#215; 当前角色范围 &#215; 部门 &#215; 人员。确认率排除“待下发/待确认/异议中”；评分复审完成率包括“待HR复审/待CEO审批/待面谈/已结束”。</p>
+<p>&nbsp;</p>
+<h3>5.3 岗位模板与目标下发（TM）</h3>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/08-performance-template-hr.png" alt="当前已实现：HR 维护部门岗位绩效模板"><figcaption>当前已实现：HR 维护部门岗位绩效模板</figcaption></figure>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>ID</th>
+<th>需求</th>
+<th>验收重点</th>
+</tr></thead><tbody>
+<tr>
+<td>TM-01</td>
+<td>HR 按“部门 + 岗位”新建、编辑模板</td>
+<td>保存仅影响模板后续使用，不覆盖已下发历史目标</td>
+</tr>
+<tr>
+<td>TM-02</td>
+<td>模板包含必选目标名称、默认权重、目标要求和独立加减分项</td>
+<td>必选目标下发后不可删除</td>
+</tr>
+<tr>
+<td>TM-03</td>
+<td>Leader 按组织/成员批量下发，支持包含下级/仅直属、搜索、全选、跳过已下发/停用人员</td>
+<td>服务端再次校验责任范围和人员状态</td>
+</tr>
+<tr>
+<td>TM-04</td>
+<td>系统按人员部门岗位带出模板；Leader 可调整本次要求/权重并增删个人月度目标</td>
+<td>本次草案不回写 HR 原模板</td>
+</tr>
+<tr>
+<td>TM-05</td>
+<td>岗位通用目标 + 个人目标权重必须等于 100%</td>
+<td>不满足时禁止下发并展示当前合计</td>
+</tr>
+<tr>
+<td>TM-06</td>
+<td>支持保存草稿、校验并下发</td>
+<td>防重复提交；批量操作返回逐人结果</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/05-performance-target-issue.png" alt="当前已实现：月度绩效目标下发"><figcaption>当前已实现：月度绩效目标下发</figcaption></figure>
+<p>&nbsp;</p>
+<h3>5.4 结果、评分与审批（SC）</h3>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>ID</th>
+<th>需求</th>
+<th>验收重点</th>
+</tr></thead><tbody>
+<tr>
+<td>SC-01</td>
+<td>员工逐项目标填写完成结果、说明、证明材料及项目/任务/周报引用</td>
+<td>必填和附件校验；失败不清空输入</td>
+</tr>
+<tr>
+<td>SC-02</td>
+<td>Leader 审核结果；证明不足时填写原因退回员工</td>
+<td>Leader 不得静默改写员工原文；保留退回快照</td>
+</tr>
+<tr>
+<td>SC-03</td>
+<td>一级/二级 Leader 按指标评分并填写评语</td>
+<td>仅对应评价人可提交；分数边界 0–100</td>
+</tr>
+<tr>
+<td>SC-04</td>
+<td>直属 Leader 录入加减分</td>
+<td>累计 -10 至 +10；每条原因和证明必填</td>
+</tr>
+<tr>
+<td>SC-05</td>
+<td>HR 复审并提交 CEO，或退回 Leader</td>
+<td>记录意见、前后状态与快照</td>
+</tr>
+<tr>
+<td>SC-06</td>
+<td>CEO 审批通过或退回 Leader</td>
+<td>退回原因必填；通过后进入面谈</td>
+</tr>
+<tr>
+<td>SC-07</td>
+<td>Leader 提交面谈记录与改进计划后归档</td>
+<td>归档后普通流程字段只读</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/06-performance-first-review.png" alt="当前已实现：一级评分与评语处理"><figcaption>当前已实现：一级评分与评语处理</figcaption></figure>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/09-performance-ceo-approval.png" alt="当前已实现：CEO 审批处理"><figcaption>当前已实现：CEO 审批处理</figcaption></figure>
+<p>&nbsp;</p>
+<p>评分规则：</p>
+<p>&nbsp;</p>
+<pre>
+需要二级复评：单项目标分 = 一级评分 &#215; 60% + 二级评分 &#215; 40%
+无需二级复评：单项目标分 = 一级评分
+基础分 = Σ（单项目标分 &#215; 权重）
+最终分 = clamp（基础分 + 加减分，0，100）
+</pre>
+<p>&nbsp;</p>
+<p>计算保留两位小数，并以未取整分数判级：S=80–100，A=70–不足80，B=60–不足70，C=55–不足60，D=不足55。</p>
+<p>&nbsp;</p>
+<h3>5.5 申诉（AP）</h3>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>ID</th>
+<th>需求</th>
+<th>验收重点</th>
+</tr></thead><tbody>
+<tr>
+<td>AP-01</td>
+<td>员工提交申诉原因与证据</td>
+<td>仅本人且满足可申诉状态</td>
+</tr>
+<tr>
+<td>AP-02</td>
+<td>HR 记录调查结论，Leader 可补充原评分依据</td>
+<td>过程材料仅相关角色可见</td>
+</tr>
+<tr>
+<td>AP-03</td>
+<td>CEO 选择驳回/部分成立/成立并填写理由</td>
+<td>成立或部分成立必须填写修正分数</td>
+</tr>
+<tr>
+<td>AP-04</td>
+<td>调整后生成结果 V2</td>
+<td>V1 不删除；详情展示前后分数、等级、操作人和时间</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<h3>5.6 周报中心（WR）</h3>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/10-weekly-personal.png" alt="当前已实现：个人周报填写与 AI 提取"><figcaption>当前已实现：个人周报填写与 AI 提取</figcaption></figure>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>ID</th>
+<th>需求</th>
+<th>验收重点</th>
+</tr></thead><tbody>
+<tr>
+<td>WR-01</td>
+<td>按周填写周报正文和“本周 AI 使用情况”</td>
+<td>两项均必填；内容变化自动保存草稿</td>
+</tr>
+<tr>
+<td>WR-02</td>
+<td>AI 提取关键成果、风险、下周重点、需支持事项</td>
+<td>仅辅助提炼；提交前由员工确认，可编辑原文</td>
+</tr>
+<tr>
+<td>WR-03</td>
+<td>截止前提交或更新周报</td>
+<td>每次形成新版本；幂等、防重复、版本冲突提示</td>
+</tr>
+<tr>
+<td>WR-04</td>
+<td>截止后锁定、逾期未交和逾期补交</td>
+<td>状态按服务端时钟和 Asia/Shanghai 时区计算</td>
+</tr>
+<tr>
+<td>WR-05</td>
+<td>历史周报</td>
+<td>同时展示提交原文、AI 提炼、版本和时间，可带入历史下周计划</td>
+</tr>
+<tr>
+<td>WR-06</td>
+<td>团队周报</td>
+<td>支持搜索/状态筛选、查看正式内容、导出、提醒</td>
+</tr>
+<tr>
+<td>WR-07</td>
+<td>重新开放</td>
+<td>仅 Leader/HR；原因必填；旧版本保留，新提交生成 V2+</td>
+</tr>
+<tr>
+<td>WR-08</td>
+<td>领导概览</td>
+<td>按部门/团队聚合提交率、项目、风险、需决策事项和 AI 使用洞察</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<p>Leader 可看到“草稿/逾期未交”状态并发送提醒，但不得读取草稿正文、AI 摘要、成果、风险和计划。</p>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/11-weekly-team.png" alt="当前已实现：团队周报"><figcaption>当前已实现：团队周报</figcaption></figure>
+<p>&nbsp;</p>
+<figure><img src="file:///C:/Users/User/Desktop/KPI_BI/deliverables/prd-assets/12-weekly-leader-overview.png" alt="当前已实现：领导周报概览"><figcaption>当前已实现：领导周报概览</figcaption></figure>
+<p>&nbsp;</p>
+<h3>5.7 日志、通知与反馈（OP）</h3>
+<p>&nbsp;</p>
+<p class="bullet">• 目标下发/确认/异议/变更、结果提交/退回、评分、加减分、HR/CEO处理、面谈、申诉、周报提交/更新/重开/补交必须写操作日志；</p>
+<p class="bullet">• 日志至少记录业务ID、动作、操作者、角色、时间、前后状态、版本、原因、请求追踪号；日志不可由普通用户修改；</p>
+<p class="bullet">• 待确认、待评分、退回、审批、申诉、周报提醒/逾期/重开产生站内待办；具体短信/企微/邮件渠道由实施方确认；</p>
+<p class="bullet">• 所有关键提交提供：提交中、成功、校验失败、无权限、重复提交、版本冲突、超时和重试反馈。</p>
+<p>&nbsp;</p>
+<h2>6. 状态与数据规则</h2>
+<p>&nbsp;</p>
+<h3>6.1 绩效状态</h3>
+<p>&nbsp;</p>
+<p><code>绩效目标待下发</code>、<code>待员工确认绩效目标</code>、<code>目标异议处理中</code>、<code>绩效目标已生效</code>、<code>待员工填报结果</code>、<code>待一级领导评分</code>、<code>待二级领导复评</code>、<code>待HR复审</code>、<code>待CEO审批</code>、<code>待反馈与面谈</code>、<code>申诉已提交</code>、<code>HR调查中</code>、<code>待CEO裁决</code>、<code>已结束</code>。</p>
+<p>&nbsp;</p>
+<h3>6.2 周报状态</h3>
+<p>&nbsp;</p>
+<p><code>草稿</code>、<code>已提交</code>、<code>已锁定</code>、<code>逾期未交</code>、<code>逾期已提交</code>、<code>待修改</code>。</p>
+<p>&nbsp;</p>
+<h3>6.3 看板口径</h3>
+<p>&nbsp;</p>
+<p class="bullet">• 只有最终节点已批准且未被退回的分数进入正式排名；</p>
+<p class="bullet">• 平均、最高、最低仅统计已生效分数；</p>
+<p class="bullet">• 周报按时率 = 按时提交周数 &#247; 应提交周数；异常数 = 逾期 + 未提交；</p>
+<p class="bullet">• “未交人数/逾期人数”为至少发生 1 周对应异常的去重人数；</p>
+<p class="bullet">• 不同岗位缺失的绩效维度显示“不适用”，不得按 0 分处理；</p>
+<p class="bullet">• 周报只作参考，不参与绩效公式。</p>
+<p>&nbsp;</p>
+<h2>7. 核心数据对象</h2>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>对象</th>
+<th>关键字段</th>
+</tr></thead><tbody>
+<tr>
+<td>用户/组织</td>
+<td>userId、employeeId、姓名、部门、岗位、在职状态、上下级关系、角色</td>
+</tr>
+<tr>
+<td>绩效模板</td>
+<td>templateId、部门、岗位、指标、权重、要求、版本、启停状态</td>
+</tr>
+<tr>
+<td>绩效周期</td>
+<td>cycleId、月份、开始/截止时间、状态、适用组织</td>
+</tr>
+<tr>
+<td>绩效记录</td>
+<td>recordId、员工、周期、评价关系、当前状态、版本、最终分/等级</td>
+</tr>
+<tr>
+<td>目标版本</td>
+<td>targetVersion、目标项、权重、变更原因、确认状态、操作人/时间</td>
+</tr>
+<tr>
+<td>评分项</td>
+<td>指标、权重、自评结果、两级分数/评语、综合分、数据来源</td>
+</tr>
+<tr>
+<td>加减分</td>
+<td>分值、原因、证明附件、录入人、时间</td>
+</tr>
+<tr>
+<td>申诉</td>
+<td>appealId、原因、证据、调查、裁决、修正结果、版本</td>
+</tr>
+<tr>
+<td>周报</td>
+<td>employeeId + 周期唯一键、截止时间、状态、当前版本、原文、AI使用</td>
+</tr>
+<tr>
+<td>周报版本</td>
+<td>reportVersion、提交时间、成果、风险、计划、AI提炼、逾期时长</td>
+</tr>
+<tr>
+<td>操作日志</td>
+<td>业务类型/ID、动作、操作者、前后状态、版本、原因、追踪号</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<p>附件需存储文件名、类型、大小、哈希、上传人、上传时间、访问权限和对象关联；敏感导出应记录审计并支持水印。</p>
+<p>&nbsp;</p>
+<h2>8. 服务与集成要求</h2>
+<p>&nbsp;</p>
+<p>生产开发至少拆分以下服务能力（接口形式由技术方案确定）：</p>
+<p>&nbsp;</p>
+<p class="numbered">1. 统一认证、组织架构、岗位、上下级关系和数据范围；</p>
+<p class="numbered">2. 绩效模板、周期、目标版本、评分、申诉和工作流命令；</p>
+<p class="numbered">3. 周报草稿、版本、截止锁定、重开、AI 提取和领导聚合；</p>
+<p class="numbered">4. 看板查询、公司排名、人员详情和多人对比；</p>
+<p class="numbered">5. 附件上传/下载、CSV 导入任务和失败明细；</p>
+<p class="numbered">6. 待办/通知、审计日志和数据质量监控。</p>
+<p>&nbsp;</p>
+<p>所有写接口必须支持：服务端权限校验、<code>expectedVersion</code> 乐观锁、<code>requestId</code> 幂等、事务、统一错误码和追踪号。批量下发/导入应异步执行并可查询任务状态。</p>
+<p>&nbsp;</p>
+<p>红果 CSV 必填列：作品名称、剧目类型、剧目体裁、作品封面、作品集数、作品ID、发布时间、作品总时长、累计点击率、首集完播进度、10/30/60分钟完播率、人均播放集数。</p>
+<p>&nbsp;</p>
+<h2>9. 非功能要求</h2>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>类别</th>
+<th>P0 要求</th>
+</tr></thead><tbody>
+<tr>
+<td>安全</td>
+<td>SSO、最小权限、行级数据权限、附件鉴权、敏感字段脱敏、服务端防越权</td>
+</tr>
+<tr>
+<td>一致性</td>
+<td>服务端状态机；评分/版本/审批事务一致；禁止前端单方面推进状态</td>
+</tr>
+<tr>
+<td>审计</td>
+<td>关键日志不可篡改；支持按人、业务ID、时间和动作查询</td>
+</tr>
+<tr>
+<td>性能建议基线</td>
+<td>常规列表/详情 P95 ≤ 2s；普通提交 P95 ≤ 3s；长任务异步化并展示进度</td>
+</tr>
+<tr>
+<td>可用性</td>
+<td>写操作失败可安全重试；不得丢失已填写内容；提供空、错、无权、延迟状态</td>
+</tr>
+<tr>
+<td>兼容性</td>
+<td>桌面 Web，支持企业统一要求的最新版 Chrome/Edge；表格支持横向滚动</td>
+</tr>
+<tr>
+<td>时间</td>
+<td>统一使用 Asia/Shanghai；截止与逾期由服务端计算</td>
+</tr>
+<tr>
+<td>可观测性</td>
+<td>请求追踪、错误率、工作流积压、数据延迟、AI失败率、导入失败率告警</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<h2>10. 验收清单</h2>
+<p>&nbsp;</p>
+<p class="numbered">1. 分别以员工、Leader、HR、CEO 登录，入口、按钮、数据范围与服务端鉴权一致；</p>
+<p class="numbered">2. 目标权重不等于 100% 时禁止下发；加减分超出 -10～+10 时禁止提交；</p>
+<p class="numbered">3. 员工目标异议、生效后 V2 变更、拒绝 V2 保留 V1 均可闭环；</p>
+<p class="numbered">4. 需要/无需二级复评两条路径均按正确公式和节点流转；</p>
+<p class="numbered">5. 所有退回原因必填，退回后原内容与快照可追溯；</p>
+<p class="numbered">6. S/A/B/C/D 边界值和两位小数计算正确；</p>
+<p class="numbered">7. 旧版本/重复请求不覆盖新数据，返回明确错误；</p>
+<p class="numbered">8. 申诉成立/部分成立生成结果 V2，V1 仍可查看；</p>
+<p class="numbered">9. 周报截止前更新、截止后锁定、重新开放、逾期补交及版本日志正确；</p>
+<p class="numbered">10. Leader 无法查看草稿正文；员工无法查看他人周报或发起人员对比；</p>
+<p class="numbered">11. 公司排名、并列名次、环比、周报异常口径正确，筛选不重新排名；</p>
+<p class="numbered">12. 周报提交不会改变任何绩效分数；</p>
+<p class="numbered">13. CSV 缺列、空文件、坏行、重复作品和部分失败均有反馈；</p>
+<p class="numbered">14. 无数据、数据延迟、无权限、网络失败、超时和重复点击状态可恢复；</p>
+<p class="numbered">15. 关键动作均产生操作日志、待办/通知和请求追踪号。</p>
+<p>&nbsp;</p>
+<h2>11. 当前实现边界与开发补齐项</h2>
+<p>&nbsp;</p>
+<table><thead><tr>
+<th>当前 Demo</th>
+<th>生产版本必须补齐</th>
+</tr></thead><tbody>
+<tr>
+<td>绩效数据为前端种子与 React 内存，刷新恢复</td>
+<td>数据库持久化、事务、备份、历史迁移</td>
+</tr>
+<tr>
+<td>周报保存在浏览器 localStorage</td>
+<td>服务端存储、跨设备/跨用户同步、草稿安全</td>
+</tr>
+<tr>
+<td>身份切换为页面模拟，周报使用固定身份</td>
+<td>SSO、统一身份上下文、组织/岗位/上下级同步</td>
+</tr>
+<tr>
+<td>权限与工作流主要为前端逻辑</td>
+<td>服务端 RBAC/数据范围与状态机</td>
+</tr>
+<tr>
+<td>附件、消息、审计为展示或占位</td>
+<td>对象存储、消息待办、不可篡改审计</td>
+</tr>
+<tr>
+<td>AI 提取/领导简报为演示内容</td>
+<td>模型服务、提示词版本、超时降级、人工确认和内容安全</td>
+</tr>
+<tr>
+<td>看板为稳定 Mock</td>
+<td>指标层、刷新调度、数据质量、延迟/缺失提示</td>
+</tr>
+</tbody></table>
+<p>&nbsp;</p>
+<h2>12. 待项目确认（不阻塞前端按现页面开发）</h2>
+<p>&nbsp;</p>
+<p class="bullet">• 周报和绩效通知采用站内、企业微信、邮件中的哪些渠道；</p>
+<p class="bullet">• 附件类型、单文件大小、保留年限和导出水印规则；</p>
+<p class="bullet">• AI 模型供应方、提示词管理权限、生成超时和费用上限；</p>
+<p class="bullet">• 组织数据源、人员离职/调岗后的在途流程处理规则；</p>
+<p class="bullet">• 绩效归档后的申诉有效期及管理员纠错授权。</p>
+<p>&nbsp;</p>
+<p>以上事项需在后端联调前确认并写入配置或业务规则，不应由前端写死。</p>
+</body></html>
