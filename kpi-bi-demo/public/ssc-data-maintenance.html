@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SSC服务中心</title>
+<style>
+:root{
+  --nav:#10213f;
+  --nav-deep:#0a1730;
+  --primary:#315efb;
+  --primary-hover:#244ee7;
+  --primary-soft:#eef3ff;
+  --bg:#f4f7fb;
+  --card:#ffffff;
+  --text:#1f2a44;
+  --muted:#758196;
+  --line:#e5eaf1;
+  --line-dark:#d5dce7;
+  --success:#18a36d;
+  --warning:#e89622;
+  --danger:#dc5065;
+  --purple:#7357d9;
+  --shadow:0 8px 26px rgba(27,45,83,.08);
+  --radius:12px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;
+  color:var(--text);background:var(--bg);font-size:14px;
+}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{
+  width:232px;flex:0 0 232px;color:#fff;
+  background:linear-gradient(180deg,var(--nav),var(--nav-deep));
+  display:flex;flex-direction:column;box-shadow:5px 0 22px rgba(8,22,48,.14);
+}
+.logo{
+  height:72px;display:flex;align-items:center;padding:0 20px;
+  border-bottom:1px solid rgba(255,255,255,.08)
+}
+.logo-mark{
+  width:39px;height:39px;border-radius:11px;
+  display:grid;place-items:center;margin-right:12px;font-size:14px;font-weight:800;
+  background:linear-gradient(135deg,#5778ff,#20c6aa)
+}
+.logo-title{font-size:16px;font-weight:700}
+.logo-sub{font-size:11px;color:rgba(255,255,255,.5);margin-top:4px}
+.menu{padding:18px 12px;flex:1}
+.menu-title{padding:0 12px 9px;font-size:11px;color:rgba(255,255,255,.38);letter-spacing:1px}
+.menu-parent{
+  height:46px;border-radius:9px;padding:0 13px;margin-bottom:6px;
+  display:flex;align-items:center;gap:11px;color:#fff;
+  background:rgba(255,255,255,.055);font-weight:650;cursor:pointer
+}
+.menu-parent .arrow{margin-left:auto;font-size:12px;color:rgba(255,255,255,.58);transition:.18s}
+.menu-parent.collapsed .arrow{transform:rotate(-90deg)}
+.submenu{padding-left:12px}
+.submenu.collapsed{display:none}
+.menu-item{
+  height:42px;border-radius:9px;padding:0 13px 0 20px;margin-bottom:5px;
+  display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.68);
+  transition:.18s;position:relative
+}
+.menu-item:before{
+  content:"";position:absolute;left:7px;top:50%;width:5px;height:5px;
+  margin-top:-2.5px;border-radius:50%;background:rgba(255,255,255,.26)
+}
+.menu-item:hover{color:#fff;background:rgba(255,255,255,.06)}
+.menu-item.active{
+  color:#fff;background:linear-gradient(90deg,rgba(83,117,255,.35),rgba(83,117,255,.12));
+}
+.menu-item.active:before{
+  width:3px;height:26px;left:0;top:8px;margin-top:0;border-radius:0 3px 3px 0;background:#6f8cff
+}
+.menu-icon{width:20px;text-align:center;font-size:16px}
+.side-foot{padding:15px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:rgba(255,255,255,.45);line-height:1.6}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{
+  height:72px;background:#fff;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;padding:0 25px
+}
+.page-title{font-size:20px;font-weight:750}
+.page-desc{font-size:12px;color:var(--muted);margin-top:5px}
+.top-right{display:flex;align-items:center;gap:11px}
+.avatar{width:37px;height:37px;border-radius:50%;display:grid;place-items:center;background:#e7edff;color:var(--primary);font-weight:700}
+.content{flex:1;overflow:auto;padding:20px 23px 34px}
+.view{display:none}
+.view.active{display:block}
+.btn{
+  height:36px;border-radius:8px;border:1px solid var(--line-dark);background:#fff;
+  color:var(--text);padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:6px
+}
+.btn:hover{border-color:#aebdff;color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-hover);color:#fff}
+.btn.ghost{background:#f8f9fc}
+.btn.danger{border-color:#f1c6cf;color:var(--danger)}
+.btn.small{height:30px;padding:0 10px;font-size:12px}
+.input,.select{
+  height:36px;border:1px solid var(--line-dark);border-radius:8px;padding:0 11px;background:#fff;color:var(--text);outline:none
+}
+.input:focus,.select:focus,textarea:focus{border-color:#91a7ff;box-shadow:0 0 0 3px rgba(49,94,251,.08)}
+.search{width:230px}
+.toolbar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:14px
+}
+.spacer{flex:1}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.section-head{
+  min-height:62px;padding:13px 17px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;gap:14px
+}
+.section-title{font-weight:700;font-size:15px}
+.section-desc{font-size:12px;color:var(--muted);margin-top:4px}
+.split-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:14px;min-height:calc(100vh - 178px)}
+.left-panel{min-height:100%;overflow:hidden}
+.panel-search{padding:13px;border-bottom:1px solid var(--line)}
+.panel-search .input{width:100%}
+.tree{padding:9px}
+.tree-row{
+  min-height:40px;border-radius:8px;padding:8px 9px;display:flex;align-items:center;gap:7px;cursor:pointer;color:#44516a
+}
+.tree-row:hover{background:#f5f7fb}
+.tree-row.active{background:var(--primary-soft);color:var(--primary);font-weight:650}
+.tree-row .count{margin-left:auto;font-size:11px;color:#929caf}
+.tree-child{padding-left:20px}
+.tree-foot{padding:12px;border-top:1px solid var(--line)}
+.table-directory{padding:8px}
+.directory-item{
+  border:1px solid transparent;border-radius:9px;padding:11px;margin-bottom:6px;cursor:pointer
+}
+.directory-item:hover{background:#f6f8fb}
+.directory-item.active{background:#eef3ff;border-color:#cfd9ff}
+.directory-name{font-weight:650;font-size:13px}
+.directory-meta{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:6px}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:940px}
+th,td{padding:12px 13px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left;font-size:13px}
+th{background:#f8fafd;color:#526079;font-weight:650;position:sticky;top:0;z-index:2}
+tbody tr:hover{background:#fafbfe}
+.roster-card{min-width:0;overflow:hidden}
+.roster-ledger-wrap{
+  overflow:auto;min-height:320px;max-height:calc(100vh - 350px);background:#fff;
+  scrollbar-color:#a9b8c9 #edf1f5;scrollbar-width:thin
+}
+.roster-ledger{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;table-layout:auto}
+.roster-ledger th,.roster-ledger td{
+  min-width:98px;height:38px;padding:6px 9px;border-right:1px solid #d5dee8;border-bottom:1px solid #d9e1ea;
+  text-align:center;white-space:nowrap;font-size:12px
+}
+.roster-ledger th{
+  top:0;z-index:5;background:#1f4d78;color:#fff;border-color:#173d61;font-weight:650;
+  white-space:normal;line-height:1.25
+}
+.roster-ledger tbody tr{transition:background-color .15s ease}
+.roster-ledger tbody tr:hover td{background:#f2f7fc}
+.roster-ledger th:nth-child(1),.roster-ledger td:nth-child(1){position:sticky;left:0;min-width:138px;max-width:138px}
+.roster-ledger th:nth-child(2),.roster-ledger td:nth-child(2){position:sticky;left:138px;min-width:112px;max-width:112px}
+.roster-ledger th:nth-child(1),.roster-ledger th:nth-child(2){z-index:7;background:#183f66}
+.roster-ledger td:nth-child(1),.roster-ledger td:nth-child(2){z-index:3;background:#fff}
+.roster-ledger tbody tr:hover td:nth-child(1),.roster-ledger tbody tr:hover td:nth-child(2){background:#f2f7fc}
+.roster-ledger th:nth-child(3),.roster-ledger td:nth-child(3){min-width:150px}
+.roster-ledger th:nth-child(23),.roster-ledger td:nth-child(23),
+.roster-ledger th:nth-child(33),.roster-ledger td:nth-child(33){min-width:190px;text-align:left}
+.ledger-name{
+  border:0;background:transparent;color:#315efb;padding:2px 4px;font-weight:650;cursor:pointer;border-radius:4px
+}
+.ledger-name:hover{background:#e8efff}.ledger-name:focus-visible{outline:2px solid rgba(49,94,251,.28);outline-offset:2px}
+.check{width:16px;height:16px}
+.badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:99px;font-size:12px}
+.badge.success{color:var(--success);background:#eaf8f2}
+.badge.warning{color:var(--warning);background:#fff4e5}
+.badge.danger{color:var(--danger);background:#fff0f2}
+.badge.info{color:var(--primary);background:#eef3ff}
+.badge.gray{color:#6f7887;background:#f1f3f6}
+.badge.purple{color:var(--purple);background:#f1edff}
+.link{color:var(--primary);cursor:pointer;margin-right:10px}
+.link.danger{color:var(--danger)}
+.summary-bar{
+  padding:12px 16px;background:#fbfcff;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:24px;font-size:12px;color:var(--muted)
+}
+.summary-bar b{font-size:16px;color:var(--text);margin-left:5px}
+.data-source-strip{
+  min-height:44px;padding:9px 14px;border:1px solid #dbe4ff;background:#f7f9ff;
+  border-radius:10px;margin-bottom:14px;display:flex;align-items:center;gap:10px;color:#5d6980;font-size:12px
+}
+.data-source-strip .source-dot{width:8px;height:8px;border-radius:50%;background:var(--success);box-shadow:0 0 0 4px rgba(24,163,109,.1)}
+.data-source-strip strong{color:var(--text)}
+.data-source-strip .source-detail{color:var(--muted)}
+.data-source-strip .source-tip{margin-left:auto;color:#68758c}
+.btn:focus-visible,.input:focus-visible,.select:focus-visible,.tree-row:focus-visible,.directory-item:focus-visible{
+  outline:3px solid rgba(49,94,251,.2);outline-offset:2px
+}
+.btn:active{transform:scale(.97)}
+.btn[disabled]{cursor:not-allowed;opacity:.58;transform:none}
+.btn.loading{pointer-events:none;position:relative;color:transparent!important}
+.btn.loading:after{content:"";position:absolute;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .65s linear infinite;color:#fff}
+@keyframes spin{to{transform:rotate(360deg)}}
+.month-control{
+  height:36px;display:inline-flex;align-items:center;gap:7px;padding:0 9px;border:1px solid var(--line-dark);
+  border-radius:8px;background:#fff;color:#647087;font-size:12px
+}
+.month-control input{width:118px;border:0;outline:0;background:transparent;color:var(--text);font-size:13px}
+#view-org .toolbar{gap:8px}
+#view-org .toolbar .search{width:170px}
+#view-org .toolbar .select{width:115px;padding:0 8px}
+#view-org .toolbar .month-control{padding:0 7px}
+#view-org .toolbar .month-control input{width:96px}
+#view-org .toolbar .btn{padding:0 9px}
+.editing-indicator{display:none;align-items:center;gap:7px;color:#315efb;font-size:12px;font-weight:650}
+.editing-indicator.show{display:inline-flex}.editing-indicator:before{content:"";width:7px;height:7px;border-radius:50%;background:#315efb;box-shadow:0 0 0 4px rgba(49,94,251,.1)}
+.editable-cell[contenteditable="true"]{background:#fffbe9!important;box-shadow:inset 0 0 0 1px #e7c85b;cursor:text}
+.editable-cell[contenteditable="true"]:focus{outline:2px solid #5f7df0;outline-offset:-2px;background:#fff!important}
+.editable-cell[contenteditable="true"]:empty:before{content:"点击填写";color:#a48e46}
+.tabs{height:48px;display:flex;align-items:flex-end;padding:0 16px;border-bottom:1px solid var(--line)}
+.tab{
+  height:48px;display:flex;align-items:center;margin-right:25px;color:var(--muted);
+  border-bottom:2px solid transparent;cursor:pointer;font-size:13px
+}
+.tab.active{color:var(--primary);border-color:var(--primary);font-weight:650}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+.template-card-list{padding:14px;display:grid;grid-template-columns:repeat(2,minmax(320px,1fr));gap:12px}
+.template-card{border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff}
+.template-top{display:flex;gap:11px}
+.file-icon{
+  flex:0 0 44px;width:44px;height:44px;border-radius:10px;background:#edf3ff;color:var(--primary);
+  display:grid;place-items:center;font-size:11px;font-weight:800
+}
+.template-name{font-size:14px;font-weight:700}
+.template-version{font-size:11px;color:var(--muted);margin-top:5px}
+.template-desc{font-size:12px;color:var(--muted);line-height:1.6;margin:11px 0}
+.template-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tag{font-size:11px;color:#63708a;background:#f4f6fa;border-radius:5px;padding:4px 7px}
+.template-bottom{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:11px}
+.template-actions{display:flex;gap:5px}
+.drawer-mask,.modal-mask{
+  position:fixed;inset:0;background:rgba(8,18,36,.42);display:none;z-index:100
+}
+.drawer-mask.show,.modal-mask.show{display:block}
+.drawer{
+  position:absolute;right:0;top:0;height:100%;width:520px;background:#fff;
+  box-shadow:-18px 0 46px rgba(8,18,36,.18);display:flex;flex-direction:column
+}
+.drawer-head,.modal-head{
+  min-height:60px;padding:0 20px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between
+}
+.drawer-title,.modal-title{font-size:16px;font-weight:700}
+.close{border:0;background:transparent;font-size:23px;color:#7e899b}
+.drawer-body{padding:18px 20px;overflow:auto;flex:1}
+.drawer-foot,.modal-foot{
+  padding:13px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:9px
+}
+.profile{
+  display:flex;align-items:center;gap:13px;padding:14px;background:#f7f9fe;border-radius:10px;margin-bottom:15px
+}
+.profile-avatar{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:#dfe8ff;color:var(--primary);font-size:18px;font-weight:700}
+.profile-name{font-size:16px;font-weight:700}
+.profile-sub{font-size:12px;color:var(--muted);margin-top:5px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.info-cell{padding:12px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.info-label{font-size:11px;color:var(--muted)}
+.info-value{font-size:13px;margin-top:5px}
+.modal-mask{display:none;align-items:center;justify-content:center}
+.modal-mask.show{display:flex}
+.modal{
+  width:620px;max-width:calc(100vw - 28px);max-height:86vh;background:#fff;border-radius:14px;box-shadow:0 28px 70px rgba(8,17,34,.28);overflow:hidden;display:flex;flex-direction:column
+}
+.modal.large{width:790px}
+.modal.small{width:500px}
+.modal.employee-create-modal{width:760px}
+.modal-body{padding:18px 20px;overflow:auto}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-item{display:flex;flex-direction:column;gap:7px}
+.form-item.full{grid-column:1/-1}
+.form-item label{font-size:13px;color:#536078}
+textarea{min-height:82px;border:1px solid var(--line-dark);border-radius:8px;padding:10px;outline:none;resize:vertical}
+.field-builder-row{
+  display:grid;grid-template-columns:1.4fr 1fr .85fr 36px;gap:8px;margin-bottom:8px
+}
+.remove-btn{height:36px;border:1px solid #efc6cf;border-radius:8px;background:#fff;color:var(--danger)}
+.notice{padding:11px 13px;border:1px solid #dbe4ff;background:#f6f8ff;border-radius:8px;color:#56637d;font-size:12px;line-height:1.6}
+.recruitment-arrival-picker{border:1px solid #dbe4ff;background:#f8faff;border-radius:10px;padding:13px;margin-bottom:16px}
+.recruitment-arrival-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.recruitment-arrival-head strong{display:block;font-size:14px}
+.recruitment-arrival-head p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.55}
+.recruitment-arrival-count{flex:0 0 auto;padding:4px 9px;border-radius:99px;background:#e8efff;color:var(--primary);font-size:11px;font-weight:700}
+.recruitment-arrival-list{display:grid;gap:8px;max-height:188px;overflow:auto}
+.recruitment-arrival-option{width:100%;min-height:56px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:10px 12px;display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:10px;text-align:left;color:var(--text);transition:border-color .15s,background-color .15s,transform .15s}
+.recruitment-arrival-option:hover{border-color:#aebdff;background:#fbfcff;transform:translateY(-1px)}
+.recruitment-arrival-option:active{transform:scale(.99)}
+.recruitment-arrival-option:focus-visible{outline:3px solid rgba(49,94,251,.15);outline-offset:2px}
+.recruitment-arrival-option.selected{border-color:#8da4ff;background:#eef3ff}
+.recruitment-arrival-option input{margin:0;accent-color:var(--primary)}
+.recruitment-arrival-person strong{display:block;font-size:13px}
+.recruitment-arrival-person span,.recruitment-arrival-meta{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.recruitment-arrival-meta{text-align:right;margin-top:0}
+.recruitment-arrival-empty{padding:16px;border:1px dashed #cfd8e8;border-radius:8px;text-align:center;color:var(--muted);font-size:12px;background:#fff}
+.employee-link-summary{display:none;align-items:center;justify-content:space-between;gap:12px;margin:-3px 0 14px;padding:10px 12px;border-radius:8px;background:#edf8f4;color:#28755d;font-size:12px}
+.employee-link-summary.show{display:flex}
+.employee-link-summary button{border:0;background:transparent;color:var(--primary);font-weight:650;padding:4px;cursor:pointer}
+.employee-form-title{display:flex;align-items:center;gap:8px;margin:2px 0 12px;font-size:13px;font-weight:700;color:#3d4a62}
+.employee-form-title:after{content:"";height:1px;background:var(--line);flex:1}
+.permission-box{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.check-card{border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px}
+.empty{padding:55px 20px;text-align:center;color:var(--muted)}
+.toast{
+  position:fixed;right:24px;bottom:24px;z-index:200;background:#1f2a44;color:#fff;border-radius:9px;
+  padding:12px 16px;box-shadow:var(--shadow);opacity:0;transform:translateY(10px);transition:.2s;pointer-events:none
+}
+.toast.show{opacity:1;transform:translateY(0)}
+@media(max-width:1100px){
+  .split-layout{grid-template-columns:235px minmax(0,1fr)}
+  .template-card-list{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  .content{padding:14px}.toolbar{align-items:stretch}.toolbar .input,.toolbar .select,.toolbar .btn{width:100%}
+  .split-layout{grid-template-columns:1fr}.left-panel{min-height:auto}.data-source-strip{align-items:flex-start;flex-wrap:wrap}
+  .data-source-strip .source-tip{width:100%;margin-left:18px}.form-grid{grid-template-columns:1fr}
+}
+html.is-embedded .sidebar{display:none}
+</style>
+<script>
+if(new URLSearchParams(window.location.search).get('embed')==='1'){
+  document.documentElement.classList.add('is-embedded');
+}
+</script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">SSC</div>
+      <div><div class="logo-title">SSC服务中心</div><div class="logo-sub">基础数据统一管理</div></div>
+    </div>
+    <div class="menu">
+      <div class="menu-title">功能目录</div>
+      <div class="menu-parent" id="sscMenuParent">
+        <span class="menu-icon">▦</span><span>SSC服务中心</span><span class="arrow">⌄</span>
+      </div>
+      <div class="submenu" id="sscSubmenu">
+        <div class="menu-item active" data-view="org">
+          <span class="menu-icon">◫</span><span>组织架构与花名册</span>
+        </div>
+        <div class="menu-item" data-view="tables">
+          <span class="menu-icon">▥</span><span>表格管理</span>
+        </div>
+        <div class="menu-item" data-view="templates">
+          <span class="menu-icon">▤</span><span>模板管理</span>
+        </div>
+      </div>
+    </div>
+    <div class="side-foot">当前仅维护组织人员、业务表格与公共模板，不承载其他审批或统计模块。</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <div class="page-title" id="pageTitle">组织架构与花名册</div>
+        <div class="page-desc" id="pageDesc">在同一页面维护公司组织节点和员工花名册</div>
+      </div>
+      <div class="top-right">
+        <button class="btn ghost" onclick="toast('已打开操作记录')">操作记录</button>
+        <div class="avatar">管</div>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- 组织架构与花名册 -->
+      <section class="view active" id="view-org">
+        <div class="toolbar">
+          <input class="input search" id="rosterSearch" placeholder="搜索姓名、花名、员工编号" />
+          <select class="select" id="employmentStatus">
+            <option value="">全部员工状态</option>
+            <option>在职</option><option>实习期</option><option>已离职</option>
+          </select>
+          <select class="select" id="regularStatus">
+            <option value="">全部转正状态</option>
+            <option>已转正</option><option>实习期</option>
+          </select>
+          <label class="month-control"><span>数据月份</span><input id="rosterMonth" type="month" /></label>
+          <div class="spacer"></div>
+          <button class="btn" onclick="downloadRosterTemplate()">下载模板</button>
+          <button class="btn" id="rosterImportButton" onclick="document.getElementById('rosterFileInput').click()">导入花名册</button>
+          <button class="btn" onclick="exportRoster()">导出</button>
+          <button class="btn primary" onclick="openEmployeeModal()">＋ 新增员工</button>
+          <input id="rosterFileInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+        </div>
+
+        <div class="data-source-strip" id="rosterSourceStrip">
+          <span class="source-dot"></span><strong>浏览器本地数据</strong>
+          <span class="source-detail" id="rosterSourceDetail">当前为演示花名册，可导入 XLSX、XLS 或 CSV 替换</span>
+          <span class="source-tip">支持自动识别多行标题与旧/新花名册字段</span>
+        </div>
+
+        <div class="split-layout">
+          <div class="card left-panel">
+            <div class="panel-search"><input class="input" placeholder="搜索组织节点" /></div>
+            <div class="tree">
+              <div class="tree-row active" data-dept="全部公司"><span>▾</span><span>杭州智影引擎科技有限公司</span><span class="count">126</span></div>
+              <div class="tree-child">
+                <div class="tree-row" data-dept="平台与中台研发部"><span>▸</span><span>平台与中台研发部</span><span class="count">18</span></div>
+                <div class="tree-row" data-dept="内容经营中心"><span>▸</span><span>内容经营中心</span><span class="count">62</span></div>
+                <div class="tree-row" data-dept="综合管理中心"><span>▸</span><span>综合管理中心</span><span class="count">12</span></div>
+                <div class="tree-row" data-dept="商务中心"><span>▸</span><span>商务中心</span><span class="count">19</span></div>
+                <div class="tree-row" data-dept="AIGC部门"><span>▸</span><span>AIGC部门</span><span class="count">15</span></div>
+              </div>
+            </div>
+            <div class="tree-foot">
+              <button class="btn ghost" style="width:100%" onclick="openModal('orgModal')">⚙ 维护组织架构</button>
+            </div>
+          </div>
+
+          <div class="card roster-card">
+            <div class="section-head">
+              <div>
+                <div class="section-title" id="rosterTitle">全部员工</div>
+                <div class="section-desc">按原表顺序展示完整字段，支持横向滚动与冻结关键列</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="editing-indicator" id="rosterEditingIndicator">正在编辑本月</span>
+                <button class="btn" id="rosterEditButton" onclick="toggleRosterEdit()">编辑本月</button>
+                <button class="btn" onclick="toast('当前已按原花名册表头完整展示')">原表字段</button>
+              </div>
+            </div>
+            <div class="summary-bar">
+              <span>员工总数 <b id="rosterTotal">0</b></span>
+              <span>在职 <b id="rosterActive">0</b></span>
+              <span>实习期 <b id="rosterProbation">0</b></span>
+              <span>资料待补全 <b id="rosterIncomplete" style="color:var(--warning)">0</b></span>
+            </div>
+            <div class="roster-ledger-wrap" aria-label="完整员工花名册">
+              <table class="roster-ledger">
+                <thead id="rosterHead"></thead>
+                <tbody id="rosterBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 表格管理 -->
+      <section class="view" id="view-tables">
+        <div class="toolbar">
+          <input class="input search" id="tableSearch" placeholder="搜索表格名称" />
+          <select class="select" id="tableCategory">
+            <option value="">全部分类</option><option>账号类</option><option>人事类</option><option>行政类</option><option>业务类</option>
+          </select>
+          <label class="month-control"><span>数据月份</span><input id="tableMonth" type="month" /></label>
+          <div class="spacer"></div>
+          <button class="btn" onclick="exportReportingWorkbook()">导出汇报工作簿</button>
+          <button class="btn primary" onclick="openModal('newTableModal')">＋ 新增表格</button>
+        </div>
+
+        <div class="split-layout">
+          <div class="card left-panel">
+            <div class="panel-search"><input class="input" id="directorySearch" placeholder="搜索表格目录" /></div>
+            <div class="table-directory" id="tableDirectory"></div>
+          </div>
+
+          <div class="card">
+            <div class="section-head">
+              <div>
+                <div class="section-title" id="activeTableTitle">账号管理表</div>
+                <div class="section-desc" id="activeTableDesc">维护员工在各系统中的账号、等级、权限范围和有效期</div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn" id="tableEditButton" onclick="toggleTableEdit()">编辑本月</button>
+                <button class="btn" onclick="openFieldConfig()">字段配置</button>
+                <button class="btn" onclick="downloadActiveTableTemplate()">下载模板</button>
+                <button class="btn" id="tableImportButton" onclick="document.getElementById('tableFileInput').click()">导入</button>
+                <button class="btn" onclick="exportActiveTable()">导出</button>
+                <button class="btn primary" onclick="openAddRow()">＋ 新增数据</button>
+                <input id="tableFileInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+              </div>
+            </div>
+            <div class="summary-bar" id="tableSummary"></div>
+            <div class="table-wrap" id="dynamicTable"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 模板管理 -->
+      <section class="view" id="view-templates">
+        <div class="toolbar">
+          <input class="input search" id="templateSearch" placeholder="搜索模板名称或用途" />
+          <select class="select" id="templateStatus"><option value="">全部状态</option><option>启用</option><option>停用</option></select>
+          <div class="spacer"></div>
+          <button class="btn" onclick="toast('已导出模板目录')">导出模板目录</button>
+          <button class="btn primary" onclick="openModal('uploadTemplateModal')">＋ 上传模板</button>
+        </div>
+
+        <div class="split-layout">
+          <div class="card left-panel">
+            <div class="panel-search"><input class="input" placeholder="搜索模板分类" /></div>
+            <div class="tree" id="templateCategoryTree">
+              <div class="tree-row active" data-category="全部模板"><span>▾</span><span>全部模板</span><span class="count">6</span></div>
+              <div class="tree-row" data-category="人事行政"><span>▸</span><span>人事行政</span><span class="count">2</span></div>
+              <div class="tree-row" data-category="财务报销"><span>▸</span><span>财务报销</span><span class="count">1</span></div>
+              <div class="tree-row" data-category="账号申请"><span>▸</span><span>账号申请</span><span class="count">1</span></div>
+              <div class="tree-row" data-category="项目管理"><span>▸</span><span>项目管理</span><span class="count">1</span></div>
+              <div class="tree-row" data-category="通用表格"><span>▸</span><span>通用表格</span><span class="count">1</span></div>
+            </div>
+            <div class="tree-foot">
+              <button class="btn ghost" style="width:100%" onclick="toast('已打开模板分类维护')">⚙ 维护模板分类</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-head">
+              <div>
+                <div class="section-title" id="templateSectionTitle">全部模板</div>
+                <div class="section-desc">统一维护模板文件、版本、适用部门、权限和下载记录</div>
+              </div>
+            </div>
+            <div class="tabs">
+              <div class="tab active" data-tab="files">模板文件</div>
+              <div class="tab" data-tab="versions">版本管理</div>
+              <div class="tab" data-tab="downloads">下载记录</div>
+            </div>
+            <div class="tab-pane active" id="tab-files">
+              <div class="template-card-list" id="templateCardList"></div>
+            </div>
+            <div class="tab-pane" id="tab-versions">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>模板名称</th><th>版本号</th><th>版本状态</th><th>修改说明</th><th>上传人</th><th>上传时间</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>员工信息采集表</td><td>V3.1</td><td><span class="badge success">当前版本</span></td><td>新增紧急联系人字段</td><td>王敏</td><td>2026-07-12 16:20</td><td><span class="link">下载</span><span class="link">详情</span></td></tr>
+                    <tr><td>员工信息采集表</td><td>V3.0</td><td><span class="badge gray">历史版本</span></td><td>调整部门字段格式</td><td>王敏</td><td>2026-06-02 10:15</td><td><span class="link">下载</span><span class="link">恢复为当前版本</span></td></tr>
+                    <tr><td>账号开通申请单</td><td>V2.0</td><td><span class="badge success">当前版本</span></td><td>增加账号有效期和等级</td><td>李哲</td><td>2026-07-09 11:30</td><td><span class="link">下载</span><span class="link">详情</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="tab-pane" id="tab-downloads">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>下载时间</th><th>模板名称</th><th>版本</th><th>下载人员</th><th>所属部门</th><th>下载用途</th><th>结果</th></tr></thead>
+                  <tbody id="downloadRecordBody">
+                    <tr><td>2026-07-15 14:21</td><td>员工信息采集表</td><td>V3.1</td><td>张璐</td><td>内容经营中心</td><td>新员工资料收集</td><td><span class="badge success">成功</span></td></tr>
+                    <tr><td>2026-07-15 10:08</td><td>账号开通申请单</td><td>V2.0</td><td>陈雨</td><td>平台与中台研发部</td><td>申请项目账号</td><td><span class="badge success">成功</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- 员工详情 -->
+<div class="drawer-mask" id="employeeDrawer">
+  <div class="drawer">
+    <div class="drawer-head"><div class="drawer-title">员工详情</div><button class="close" onclick="closeDrawer('employeeDrawer')">×</button></div>
+    <div class="drawer-body" id="employeeDrawerBody"></div>
+    <div class="drawer-foot"><button class="btn" onclick="toast('已打开人员异动记录')">异动记录</button><button class="btn primary" onclick="toast('已进入员工编辑')">编辑资料</button></div>
+  </div>
+</div>
+
+<!-- 新增员工 -->
+<div class="modal-mask" id="employeeModal">
+  <div class="modal employee-create-modal">
+    <div class="modal-head"><div class="modal-title">新增员工</div><button class="close" onclick="closeModal('employeeModal')">×</button></div>
+    <div class="modal-body">
+      <section class="recruitment-arrival-picker" aria-label="招聘到岗人员">
+        <div class="recruitment-arrival-head">
+          <div><strong>从招聘到岗人员中选择</strong><p>仅展示招聘模块中已确认到岗、等待 SSC 建档的人员。选择后自动带入基础信息。</p></div>
+          <span class="recruitment-arrival-count" id="recruitmentArrivalCount">0 人待建档</span>
+        </div>
+        <div class="recruitment-arrival-list" id="recruitmentArrivalList"></div>
+      </section>
+      <div class="employee-link-summary" id="employeeLinkSummary"><span id="employeeLinkSummaryText"></span><button type="button" onclick="clearRecruitmentArrivalSelection()">取消关联</button></div>
+      <div class="employee-form-title">员工建档信息</div>
+      <div class="form-grid">
+        <div class="form-item"><label>员工编号</label><input class="input" id="empNo" /></div>
+        <div class="form-item"><label>姓名</label><input class="input" id="empName" placeholder="请输入姓名" /></div>
+        <div class="form-item"><label>花名</label><input class="input" id="empAlias" placeholder="请输入花名" /></div>
+        <div class="form-item"><label>所属部门</label><select class="select" id="empDept"><option>平台与中台研发部</option><option>内容经营中心</option><option>综合管理中心</option><option>商务中心</option><option>AIGC部门</option></select></div>
+        <div class="form-item"><label>职务</label><input class="input" id="empRole" placeholder="请输入职务" /></div>
+        <div class="form-item"><label>入职日期</label><input class="input" type="date" id="empDate" value="2026-07-15" /></div>
+        <div class="form-item"><label>员工状态</label><select class="select" id="empStatus"><option>实习期</option><option>在职</option><option>已离职</option></select></div>
+        <div class="form-item"><label>联系电话</label><input class="input" id="empPhone" placeholder="请输入联系电话" /></div>
+        <div class="form-item"><label>直属负责人</label><input class="input" id="empLeader" placeholder="请选择负责人" /></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal('employeeModal')">取消</button><button class="btn primary" onclick="addEmployee()">确认新增</button></div>
+  </div>
+</div>
+
+<!-- 组织维护 -->
+<div class="modal-mask" id="orgModal">
+  <div class="modal small">
+    <div class="modal-head"><div class="modal-title">维护组织架构</div><button class="close" onclick="closeModal('orgModal')">×</button></div>
+    <div class="modal-body">
+      <div class="notice">组织节点调整后，员工所属部门将同步更新。已产生的历史数据保留原组织快照。</div>
+      <div class="form-grid" style="grid-template-columns:1fr;margin-top:14px">
+        <div class="form-item"><label>操作类型</label><select class="select"><option>新增部门</option><option>修改部门</option><option>调整上级部门</option><option>停用部门</option></select></div>
+        <div class="form-item"><label>上级组织</label><select class="select"><option>杭州智影引擎科技有限公司</option><option>平台与中台研发部</option><option>内容经营中心</option></select></div>
+        <div class="form-item"><label>组织名称</label><input class="input" placeholder="请输入组织名称" /></div>
+        <div class="form-item"><label>组织负责人</label><input class="input" placeholder="请选择负责人" /></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal('orgModal')">取消</button><button class="btn primary" onclick="closeModal('orgModal');toast('组织架构已保存')">保存</button></div>
+  </div>
+</div>
+
+<!-- 新增表格 -->
+<div class="modal-mask" id="newTableModal">
+  <div class="modal large">
+    <div class="modal-head"><div class="modal-title">新增表格</div><button class="close" onclick="closeModal('newTableModal')">×</button></div>
+    <div class="modal-body">
+      <div class="notice">创建后，该表格会出现在左侧表格目录中。字段可继续新增、删除、调整顺序和配置权限。</div>
+      <div class="form-grid" style="margin-top:14px">
+        <div class="form-item"><label>表格名称</label><input class="input" id="newTableName" placeholder="请输入表格名称" /></div>
+        <div class="form-item"><label>表格分类</label><select class="select" id="newTableCategory"><option>账号类</option><option>人事类</option><option>行政类</option><option>业务类</option></select></div>
+        <div class="form-item full"><label>表格说明</label><textarea id="newTableDesc" placeholder="说明该表格维护的内容"></textarea></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 9px"><b>初始字段</b><button class="btn small" onclick="appendNewField()">＋ 添加字段</button></div>
+      <div id="newFieldBuilder">
+        <div class="field-builder-row">
+          <input class="input field-name" value="名称" />
+          <select class="select"><option>文本</option><option>数字</option><option>日期</option><option>金额</option><option>单选</option></select>
+          <select class="select"><option>必填</option><option>非必填</option></select>
+          <button class="remove-btn" onclick="removeField(this)">×</button>
+        </div>
+        <div class="field-builder-row">
+          <input class="input field-name" value="状态" />
+          <select class="select"><option>单选</option><option>文本</option><option>数字</option><option>日期</option></select>
+          <select class="select"><option>非必填</option><option>必填</option></select>
+          <button class="remove-btn" onclick="removeField(this)">×</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal('newTableModal')">取消</button><button class="btn primary" onclick="createTable()">创建表格</button></div>
+  </div>
+</div>
+
+<!-- 字段配置 -->
+<div class="modal-mask" id="fieldModal">
+  <div class="modal large">
+    <div class="modal-head"><div class="modal-title">字段配置</div><button class="close" onclick="closeModal('fieldModal')">×</button></div>
+    <div class="modal-body">
+      <div class="notice">字段配置修改后只影响当前表格。删除已有字段前，应确认该字段是否存在历史数据。</div>
+      <div id="fieldConfigList" style="margin-top:14px"></div>
+      <button class="btn small" onclick="appendConfigField()">＋ 新增字段</button>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal('fieldModal')">取消</button><button class="btn primary" onclick="saveFieldConfig()">保存配置</button></div>
+  </div>
+</div>
+
+<!-- 新增表格数据 -->
+<div class="modal-mask" id="rowModal">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title">新增表格数据</div><button class="close" onclick="closeModal('rowModal')">×</button></div>
+    <div class="modal-body"><div class="form-grid" id="rowForm"></div></div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal('rowModal')">取消</button><button class="btn primary" onclick="saveRow()">确认新增</button></div>
+  </div>
+</div>
+
+<!-- 上传模板 -->
+<div class="modal-mask" id="uploadTemplateModal">
+  <div class="modal large">
+    <div class="modal-head"><div class="modal-title">上传模板</div><button class="close" onclick="closeModal('uploadTemplateModal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-item"><label>模板名称</label><input class="input" placeholder="请输入模板名称" /></div>
+        <div class="form-item"><label>模板分类</label><select class="select"><option>人事行政</option><option>财务报销</option><option>账号申请</option><option>项目管理</option><option>通用表格</option></select></div>
+        <div class="form-item"><label>版本号</label><input class="input" value="V1.0" /></div>
+        <div class="form-item"><label>模板状态</label><select class="select"><option>启用</option><option>停用</option></select></div>
+        <div class="form-item full"><label>上传文件</label><input class="input" type="file" /></div>
+        <div class="form-item full"><label>使用说明</label><textarea placeholder="填写模板用途及填写要求"></textarea></div>
+        <div class="form-item full"><label>适用部门</label>
+          <div class="permission-box">
+            <label class="check-card"><input type="checkbox" checked> 全部部门</label>
+            <label class="check-card"><input type="checkbox"> 平台与中台研发部</label>
+            <label class="check-card"><input type="checkbox"> 内容经营中心</label>
+            <label class="check-card"><input type="checkbox"> 综合管理中心</label>
+          </div>
+        </div>
+        <div class="form-item"><label>下载权限</label><select class="select"><option>登录即可下载</option><option>指定部门可下载</option><option>指定人员可下载</option><option>申请后下载</option><option>仅预览</option></select></div>
+        <div class="form-item"><label>是否记录下载用途</label><select class="select"><option>必须填写</option><option>无需填写</option></select></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal('uploadTemplateModal')">取消</button><button class="btn primary" onclick="closeModal('uploadTemplateModal');toast('模板已上传并创建V1.0版本')">确认上传</button></div>
+  </div>
+</div>
+
+<!-- 下载模板 -->
+<div class="modal-mask" id="downloadModal">
+  <div class="modal small">
+    <div class="modal-head"><div class="modal-title">下载模板</div><button class="close" onclick="closeModal('downloadModal')">×</button></div>
+    <div class="modal-body">
+      <div class="notice" id="downloadInfo"></div>
+      <div class="form-item" style="margin-top:14px"><label>下载用途</label><textarea id="downloadPurpose" placeholder="请填写模板的使用场景"></textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal('downloadModal')">取消</button><button class="btn primary" onclick="confirmDownload()">确认下载</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const meta={
+  org:['组织架构与花名册','在同一页面维护公司组织节点和员工花名册'],
+  tables:['表格管理','通过左侧目录切换并维护账号表及其他业务表格'],
+  templates:['模板管理','在同一页面维护分类、文件、版本、权限和下载记录']
+};
+
+document.getElementById('sscMenuParent').addEventListener('click',()=>{
+  document.getElementById('sscMenuParent').classList.toggle('collapsed');
+  document.getElementById('sscSubmenu').classList.toggle('collapsed');
+});
+
+function activateView(requestedView){
+  const view=Object.prototype.hasOwnProperty.call(meta,requestedView)?requestedView:'org';
+  document.querySelectorAll('.menu-item').forEach(item=>item.classList.toggle('active',item.dataset.view===view));
+  document.querySelectorAll('.view').forEach(item=>item.classList.toggle('active',item.id==='view-'+view));
+  document.getElementById('pageTitle').textContent=meta[view][0];
+  document.getElementById('pageDesc').textContent=meta[view][1];
+  document.title='SSC服务中心 - '+meta[view][0];
+}
+
+document.querySelectorAll('.menu-item').forEach(item=>item.addEventListener('click',()=>activateView(item.dataset.view)));
+activateView(new URLSearchParams(window.location.search).get('view'));
+
+function openModal(id){document.getElementById(id).classList.add('show')}
+function closeModal(id){document.getElementById(id).classList.remove('show')}
+function closeDrawer(id){document.getElementById(id).classList.remove('show')}
+document.querySelectorAll('.modal-mask').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));
+document.querySelectorAll('.drawer-mask').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeDrawer(m.id)}));
+function toast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>t.classList.remove('show'),2100)
+}
+
+/* Excel 导入与汇报导出 */
+const REPORT_DATE=new Date().toISOString().slice(0,10);
+const CURRENT_MONTH=`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+function cloneData(value){return JSON.parse(JSON.stringify(value))}
+function inheritMonthlySnapshot(monthlyData,month,fallback){
+ const sourceMonth=Object.keys(monthlyData||{}).filter(key=>key<month).sort().reverse()[0];
+ return cloneData(sourceMonth?monthlyData[sourceMonth]:fallback);
+}
+function normalizeHeader(value){return String(value??'').replace(/[\s\n\r*＊（）()【】\[\]_-]/g,'').toLowerCase()}
+function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
+function escapeXml(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]))}
+function cellRefToIndex(ref){
+ const letters=(String(ref).match(/[A-Z]+/i)||['A'])[0].toUpperCase();
+ return [...letters].reduce((total,char)=>total*26+char.charCodeAt(0)-64,0)-1;
+}
+function excelDateValue(value,header){
+ if(!/(日期|时间|到期日|起始日)/.test(String(header))||!/^\d+(\.\d+)?$/.test(String(value)))return value;
+ const serial=Number(value);if(serial<20000||serial>90000)return value;
+ return new Date(Date.UTC(1899,11,30)+serial*86400000).toISOString().slice(0,10);
+}
+function decodeText(bytes){
+ let text=new TextDecoder('utf-8').decode(bytes);
+ if(text.includes('�')){try{text=new TextDecoder('gb18030').decode(bytes)}catch(error){}}
+ return text;
+}
+function parseDelimited(text){
+ const delimiter=(text.split(/\r?\n/,1)[0].match(/\t/g)||[]).length>(text.split(/\r?\n/,1)[0].match(/,/g)||[]).length?'\t':',';
+ const rows=[];let row=[],cell='',quoted=false;
+ for(let i=0;i<text.length;i++){
+  const char=text[i];
+  if(char==='"'&&quoted&&text[i+1]==='"'){cell+='"';i++;continue}
+  if(char==='"'){quoted=!quoted;continue}
+  if(char===delimiter&&!quoted){row.push(cell);cell='';continue}
+  if((char==='\n'||char==='\r')&&!quoted){if(char==='\r'&&text[i+1]==='\n')i++;row.push(cell);rows.push(row);row=[];cell='';continue}
+  cell+=char;
+ }
+ if(cell||row.length){row.push(cell);rows.push(row)}
+ return rows.filter(row=>row.some(value=>String(value).trim()));
+}
+async function unzipEntries(buffer){
+ const view=new DataView(buffer);let eocd=-1;
+ for(let i=view.byteLength-22;i>=Math.max(0,view.byteLength-65557);i--){if(view.getUint32(i,true)===0x06054b50){eocd=i;break}}
+ if(eocd<0)throw new Error('未识别到有效的 XLSX 压缩目录');
+ const entryCount=view.getUint16(eocd+10,true);let offset=view.getUint32(eocd+16,true);const entries={};
+ for(let i=0;i<entryCount;i++){
+  if(view.getUint32(offset,true)!==0x02014b50)throw new Error('XLSX 文件目录已损坏');
+  const method=view.getUint16(offset+10,true),size=view.getUint32(offset+20,true),nameLength=view.getUint16(offset+28,true),extraLength=view.getUint16(offset+30,true),commentLength=view.getUint16(offset+32,true),localOffset=view.getUint32(offset+42,true);
+  const name=new TextDecoder().decode(new Uint8Array(buffer,offset+46,nameLength));
+  const localNameLength=view.getUint16(localOffset+26,true),localExtraLength=view.getUint16(localOffset+28,true),dataStart=localOffset+30+localNameLength+localExtraLength;
+  const compressed=new Uint8Array(buffer.slice(dataStart,dataStart+size));
+  if(method===0)entries[name]=compressed;
+  else if(method===8){
+   if(typeof DecompressionStream==='undefined')throw new Error('当前浏览器版本过低，无法解压 XLSX，请升级 Chrome/Edge');
+   const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+   entries[name]=new Uint8Array(await new Response(stream).arrayBuffer());
+  }else throw new Error(`暂不支持 XLSX 压缩方式 ${method}`);
+  offset+=46+nameLength+extraLength+commentLength;
+ }
+ return entries;
+}
+function xmlElements(root,name){return [...root.getElementsByTagNameNS('*',name)]}
+async function parseXlsx(buffer){
+ const entries=await unzipEntries(buffer),parser=new DOMParser();
+ const xml=name=>{if(!entries[name])throw new Error(`XLSX 缺少 ${name}`);return parser.parseFromString(decodeText(entries[name]),'application/xml')};
+ const shared=entries['xl/sharedStrings.xml']?xmlElements(xml('xl/sharedStrings.xml'),'si').map(si=>xmlElements(si,'t').map(t=>t.textContent||'').join('')):[];
+ const workbook=xml('xl/workbook.xml'),rels=xml('xl/_rels/workbook.xml.rels'),relationMap={};
+ xmlElements(rels,'Relationship').forEach(rel=>relationMap[rel.getAttribute('Id')]=rel.getAttribute('Target'));
+ const sheets=[];
+ for(const sheet of xmlElements(workbook,'sheet')){
+  const rid=sheet.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id')||sheet.getAttribute('r:id');
+  let target=relationMap[rid]||'';target=target.replace(/^\//,'');if(!target.startsWith('xl/'))target='xl/'+target.replace(/^\.\//,'');
+  const sheetXml=xml(target),matrix=[];
+  for(const rowNode of xmlElements(sheetXml,'row')){
+   const row=[];
+   for(const cell of [...rowNode.children].filter(node=>node.localName==='c')){
+    const index=cellRefToIndex(cell.getAttribute('r'));const type=cell.getAttribute('t');const valueNode=xmlElements(cell,'v')[0];let value=valueNode?.textContent??'';
+    if(type==='s'&&value!=='')value=shared[Number(value)]??'';
+    if(type==='inlineStr')value=xmlElements(cell,'t').map(t=>t.textContent||'').join('');
+    row[index]=value;
+   }
+   matrix.push(row.map(value=>value??''));
+  }
+  sheets.push({name:sheet.getAttribute('name')||`Sheet${sheets.length+1}`,rows:matrix});
+ }
+ return sheets;
+}
+function parseSpreadsheetXml(text){
+ const doc=new DOMParser().parseFromString(text,'application/xml'),sheets=[];
+ for(const worksheet of xmlElements(doc,'Worksheet')){
+  const rows=xmlElements(worksheet,'Row').map(rowNode=>{
+   const row=[];let cursor=0;
+   [...rowNode.children].filter(node=>node.localName==='Cell').forEach(cell=>{
+    const index=Number(cell.getAttribute('ss:Index')||cell.getAttributeNS('urn:schemas-microsoft-com:office:spreadsheet','Index')||0);
+    if(index)cursor=index-1;row[cursor++]=xmlElements(cell,'Data')[0]?.textContent??'';
+   });return row;
+  });
+  sheets.push({name:worksheet.getAttribute('ss:Name')||worksheet.getAttributeNS('urn:schemas-microsoft-com:office:spreadsheet','Name')||`Sheet${sheets.length+1}`,rows});
+ }
+ return sheets;
+}
+async function readWorkbookFile(file){
+ const buffer=await file.arrayBuffer(),bytes=new Uint8Array(buffer),isZip=bytes[0]===0x50&&bytes[1]===0x4b;
+ if(isZip)return parseXlsx(buffer);
+ const text=decodeText(bytes).replace(/^\uFEFF/,'').trim();
+ if(/^<\?xml|^<Workbook/i.test(text))return parseSpreadsheetXml(text);
+ if(/\.csv$/i.test(file.name)||text.includes(',')||text.includes('\t'))return [{name:'导入数据',rows:parseDelimited(text)}];
+ throw new Error('暂不支持旧版二进制 XLS，请另存为 XLSX 或 CSV 后重试');
+}
+function findHeader(sheetRows,expected,aliases={}){
+ let best={index:-1,score:0,headers:[]};const normalizedExpected=new Set(expected.map(normalizeHeader));
+ sheetRows.slice(0,20).forEach((row,index)=>{
+  const headers=row.map(value=>String(value??'').trim());let score=0;
+  headers.forEach(header=>{const key=normalizeHeader(header);if(normalizedExpected.has(key)||Object.values(aliases).flat().some(alias=>normalizeHeader(alias)===key))score++});
+  if(score>best.score)best={index,score,headers};
+ });
+ return best;
+}
+function worksheetRows(title,headers,rows){return [[title],[`导出日期：${REPORT_DATE}`],headers,...rows]}
+function buildExcelXml(sheets){
+ const sheetXml=sheets.map((sheet,index)=>{
+  const safeName=String(sheet.name||`Sheet${index+1}`).replace(/[\\/*?:\[\]]/g,'_').slice(0,31)||`Sheet${index+1}`;
+  const rows=sheet.rows.map((row,rowIndex)=>`<Row>${row.map(value=>`<Cell${rowIndex===0?' ss:StyleID="title"':rowIndex===2?' ss:StyleID="header"':''}><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`).join('')}</Row>`).join('');
+  return `<Worksheet ss:Name="${escapeXml(safeName)}"><Table>${rows}</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>3</SplitHorizontal><TopRowBottomPane>3</TopRowBottomPane></WorksheetOptions></Worksheet>`;
+ }).join('');
+ return `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Default"><Alignment ss:Vertical="Center"/><Font ss:FontName="Microsoft YaHei" ss:Size="10"/></Style><Style ss:ID="title"><Font ss:FontName="Microsoft YaHei" ss:Size="15" ss:Bold="1"/><Interior ss:Color="#DCE6F1" ss:Pattern="Solid"/></Style><Style ss:ID="header"><Font ss:FontName="Microsoft YaHei" ss:Bold="1"/><Interior ss:Color="#B8CCE4" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style></Styles>${sheetXml}</Workbook>`;
+}
+function downloadExcel(filename,sheets){
+ const blob=new Blob(['\uFEFF',buildExcelXml(sheets)],{type:'application/vnd.ms-excel;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download=filename.endsWith('.xls')?filename:`${filename}.xls`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function setButtonLoading(id,loading){const button=document.getElementById(id);if(button){button.disabled=loading;button.classList.toggle('loading',loading)}}
+
+/* 花名册 */
+const SSC_PERSONNEL_STORAGE_KEY='kpi-bi:ssc-employees';
+const RECRUITMENT_DATA_STORAGE_KEY='kpi-bi:demo-domain-data:v2';
+const SSC_PERSONNEL_META_KEY='kpi-bi:ssc-employees-meta';
+const SSC_PERSONNEL_MONTHLY_KEY='kpi-bi:ssc-employees-monthly';
+const SSC_PERSONNEL_MONTH_KEY='kpi-bi:ssc-employees-selected-month';
+const ROSTER_EXPORT_FIELDS=['公司','员工编号','部门','职务','姓名','花名','入职时间','试用期止','司龄','转正状态','户口性质','社保','公积金','民族','婚否','联系方式','性别','年龄','出生日期','身份证号','身份证有效期','身份证有效期限统计','户籍地址','银行卡号','开户行','合同起始日','合同到期日','合同期统计','毕业院校','专业','最高学历','毕业时间','现居地','紧急联系人','联系电话','备注','试用期薪资','转正后薪资','离职日期','离职原因','结算金额'];
+const ROSTER_ALIASES={
+ no:['员工编号','员工编码（新）','员工编码（旧）','员工编号（新）','员工编号（旧）','UserID'],
+ name:['姓名','姓名/简历名（选填）','姓名/简历名'],alias:['花名','花名*'],dept:['部门','部门*'],role:['职务','职位','职位*'],
+ date:['入职时间','入职日期'],regularDate:['转正日期'],departureDate:['离职日期'],regular:['转正状态','试用期结果'],
+ status:['在职状态','在职状态*'],phone:['联系方式','私人联系方式（选填）','私人联系方式'],leader:['直接上级'],company:['公司','编制组织','编制组织*']
+};
+const ROSTER_FIELD_ALIASES={
+ '公司':['公司','编制组织','编制组织*'],'员工编号':ROSTER_ALIASES.no,'部门':ROSTER_ALIASES.dept,'职务':ROSTER_ALIASES.role,
+ '姓名':ROSTER_ALIASES.name,'花名':ROSTER_ALIASES.alias,'入职时间':ROSTER_ALIASES.date,'试用期止':['试用期止','试用期到期日'],
+ '司龄':['司龄','司龄（年）'],'转正状态':['转正状态','试用期结果'],'户口性质':['户口性质','户籍性质'],'社保':['社保','社保状态'],
+ '公积金':['公积金','公积金状态'],'民族':['民族'],'婚否':['婚否','婚姻状况'],'联系方式':ROSTER_ALIASES.phone,'性别':['性别'],
+ '年龄':['年龄','年龄区间'],'出生日期':['出生日期','生日','生日月份'],'身份证号':['身份证号','身份证号码'],
+ '身份证有效期':['身份证有效期'],'身份证有效期限统计':['身份证有效期限统计','身份证有效期统计'],'户籍地址':['户籍地址','户口地址'],
+ '银行卡号':['银行卡号'],'开户行':['开户行'],'合同起始日':['合同起始日','合同开始日期'],'合同到期日':['合同到期日'],
+ '合同期统计':['合同期统计','合同期限统计'],'毕业院校':['毕业院校'],'专业':['专业'],'最高学历':['最高学历','学历'],
+ '毕业时间':['毕业时间'],'现居地':['现居地','现居地址'],'紧急联系人':['紧急联系人'],'联系电话':['联系电话','紧急联系人电话（选填）'],
+ '备注':['备注','备注1','备注2','特殊备注'],'试用期薪资':['试用期薪资','试用期薪资*'],'转正后薪资':['转正后薪资','转正后薪资*'],
+ '离职日期':['离职日期'],'离职原因':['离职原因'],'结算金额':['结算金额']
+};
+const employeeSeed=[
+ {no:'ZY20260101',name:'陈雨',alias:'挑灯',dept:'平台与中台研发部',role:'产品经理',date:'2026-01-05',regular:'已转正',status:'在职',complete:'96%',phone:'138****2156',leader:'李明'},
+ {no:'ZY20251023',name:'李哲',alias:'云舟',dept:'平台与中台研发部',role:'后端开发',date:'2025-10-23',regular:'已转正',status:'在职',complete:'100%',phone:'139****6621',leader:'赵海'},
+ {no:'ZY20260412',name:'周宁',alias:'北辰',dept:'内容经营中心',role:'运营专员',date:'2026-04-12',regular:'实习期',status:'实习期',complete:'82%',phone:'137****9318',leader:'张璐'},
+ {no:'ZY20260715',name:'苏冉',alias:'南乔',dept:'运营增长中心',role:'海外发行运营',date:'2026-07-15',regular:'实习期',status:'实习期',complete:'74%',phone:'137****3156',leader:'赵启'},
+ {no:'ZY20240218',name:'王敏',alias:'知夏',dept:'综合管理中心',role:'人事主管',date:'2024-02-18',regular:'已转正',status:'在职',complete:'100%',phone:'136****7820',leader:'刘欣'},
+ {no:'ZY20231107',name:'赵磊',alias:'远川',dept:'商务中心',role:'商务经理',date:'2023-11-07',regular:'已转正',status:'在职',complete:'91%',phone:'135****1722',leader:'孙杰'}
+];
+let employees=employeeSeed.map(employee=>({...employee}));
+let rosterSourceFields=[...ROSTER_EXPORT_FIELDS],rosterSourceMeta=null;
+let currentRosterMonth=CURRENT_MONTH,rosterMonthlyData={},rosterEditMode=false;
+let selectedRecruitmentArrival=null;
+try{
+ currentRosterMonth=localStorage.getItem(SSC_PERSONNEL_MONTH_KEY)||CURRENT_MONTH;
+ const stored=JSON.parse(localStorage.getItem(SSC_PERSONNEL_STORAGE_KEY)||'null');
+ if(Array.isArray(stored)&&stored.length){
+  employees=stored.map(e=>({...e,regular:e.regular==='试用期'?'实习期':e.regular,status:e.status==='试用期'?'实习期':e.status}));
+ }
+ const meta=JSON.parse(localStorage.getItem(SSC_PERSONNEL_META_KEY)||'null');
+ if(meta?.fields?.length){rosterSourceFields=meta.fields;if(meta.fileName)rosterSourceMeta=meta}
+ const monthly=JSON.parse(localStorage.getItem(SSC_PERSONNEL_MONTHLY_KEY)||'null');if(monthly&&typeof monthly==='object')rosterMonthlyData=monthly;
+}catch(error){employees=employeeSeed}
+if(!Array.isArray(rosterMonthlyData[currentRosterMonth]))rosterMonthlyData[currentRosterMonth]=inheritMonthlySnapshot(rosterMonthlyData,currentRosterMonth,employees);
+employees=rosterMonthlyData[currentRosterMonth];
+function persistEmployees(){
+ rosterMonthlyData[currentRosterMonth]=employees;
+ const latestMonth=Object.keys(rosterMonthlyData).sort().reverse()[0],sharedEmployees=rosterMonthlyData[CURRENT_MONTH]||rosterMonthlyData[latestMonth]||employees;
+ try{localStorage.setItem(SSC_PERSONNEL_STORAGE_KEY,JSON.stringify(sharedEmployees));localStorage.setItem(SSC_PERSONNEL_MONTHLY_KEY,JSON.stringify(rosterMonthlyData));localStorage.setItem(SSC_PERSONNEL_MONTH_KEY,currentRosterMonth)}catch(error){}
+ try{localStorage.setItem(SSC_PERSONNEL_META_KEY,JSON.stringify({...(rosterSourceMeta||{}),fields:rosterSourceFields}))}catch(error){}
+ try{window.parent.postMessage({type:'ssc-personnel-updated'},window.location.origin)}catch(error){}
+}
+persistEmployees();
+let currentDept='全部公司';
+function ensureRosterMonth(month){
+ if(!Array.isArray(rosterMonthlyData[month]))rosterMonthlyData[month]=inheritMonthlySnapshot(rosterMonthlyData,month,employees);
+ currentRosterMonth=month;employees=rosterMonthlyData[month];currentDept='全部公司';rosterEditMode=false;persistEmployees();renderRoster();
+}
+function recordValue(record,aliases){
+ const entries=Object.entries(record||{}),targets=aliases.map(normalizeHeader);
+ const found=entries.find(([key,value])=>targets.includes(normalizeHeader(key))&&String(value??'').trim());return found?.[1]??'';
+}
+function normalizeRosterRecord(source,rowIndex){
+ const value=key=>recordValue(source,ROSTER_ALIASES[key]);
+ const departure=value('departureDate'),rawRegular=value('regular'),rawStatus=value('status');
+ const regular=/已转正|正式/.test(rawRegular)?'已转正':/实习|试用/.test(rawRegular)?'实习期':value('regularDate')?'已转正':'实习期';
+ const status=/离职/.test(rawStatus)||departure?'已离职':/实习|试用/.test(rawStatus)||regular==='实习期'?'实习期':'在职';
+ const core=[value('no'),value('name'),value('alias'),value('dept'),value('role'),value('date')];
+ return {no:String(value('no')||`IMPORT-${rowIndex+1}`),name:String(value('name')||value('alias')||'待补姓名'),alias:String(value('alias')||'-'),dept:String(value('dept')||'未分配部门'),role:String(value('role')||'-'),date:String(value('date')||''),regular,status,complete:`${Math.round(core.filter(Boolean).length/core.length*100)}%`,phone:String(value('phone')||'-'),leader:String(value('leader')||'-'),regularDate:String(value('regularDate')||''),departureDate:String(departure||''),source};
+}
+function visibleEmployees(){
+ const kw=document.getElementById('rosterSearch').value.trim().toLowerCase(),st=document.getElementById('employmentStatus').value,rt=document.getElementById('regularStatus').value;
+ return employees.filter(e=>(currentDept==='全部公司'||e.dept===currentDept)&&(!st||e.status===st)&&(!rt||e.regular===rt)&&(!kw||[e.no,e.name,e.alias,e.dept,e.role].join('|').toLowerCase().includes(kw)));
+}
+function renderRosterSource(){
+ const detail=document.getElementById('rosterSourceDetail');if(!detail)return;
+ detail.textContent=rosterSourceMeta?.fileName?`${currentRosterMonth} · ${rosterSourceMeta.fileName} · ${employees.length} 条`:`${currentRosterMonth} · ${employees.length} 条月度快照，可导入 XLSX、XLS 或 CSV 替换`;
+}
+function renderOrgCounts(){
+ document.querySelectorAll('#view-org .tree-row[data-dept]').forEach(row=>{const count=row.dataset.dept==='全部公司'?employees.length:employees.filter(e=>e.dept===row.dataset.dept).length;const target=row.querySelector('.count');if(target)target.textContent=count});
+}
+function renderRoster(){
+ const rows=visibleEmployees();
+ document.getElementById('rosterMonth').value=currentRosterMonth;
+ document.getElementById('rosterEditButton').textContent=rosterEditMode?'完成编辑':'编辑本月';
+ document.getElementById('rosterEditButton').classList.toggle('primary',rosterEditMode);
+ document.getElementById('rosterEditingIndicator').classList.toggle('show',rosterEditMode);
+ document.getElementById('rosterTotal').textContent=rows.length;
+ document.getElementById('rosterActive').textContent=rows.filter(e=>e.status==='在职').length;
+ document.getElementById('rosterProbation').textContent=rows.filter(e=>e.status==='实习期').length;
+ document.getElementById('rosterIncomplete').textContent=rows.filter(e=>Number.parseInt(e.complete,10)<100).length;
+ document.getElementById('rosterHead').innerHTML=`<tr>${ROSTER_EXPORT_FIELDS.map(field=>`<th>${escapeHtml(field)}</th>`).join('')}</tr>`;
+ document.getElementById('rosterBody').innerHTML=rows.length?rows.map(employee=>`<tr>${ROSTER_EXPORT_FIELDS.map(field=>renderRosterCell(employee,field,employees.indexOf(employee))).join('')}</tr>`).join(''):`<tr><td colspan="${ROSTER_EXPORT_FIELDS.length}"><div class="empty">本月暂无员工数据，可导入文件或新增员工</div></td></tr>`;
+ renderRosterSource();renderOrgCounts();
+}
+renderRoster();
+document.getElementById('rosterMonth').addEventListener('change',event=>{if(event.target.value)ensureRosterMonth(event.target.value)});
+['rosterSearch','employmentStatus','regularStatus'].forEach(id=>document.getElementById(id).addEventListener(id==='rosterSearch'?'input':'change',renderRoster));
+document.querySelectorAll('#view-org .tree-row[data-dept]').forEach(row=>row.addEventListener('click',()=>{
+ document.querySelectorAll('#view-org .tree-row').forEach(x=>x.classList.remove('active'));row.classList.add('active');
+ currentDept=row.dataset.dept;document.getElementById('rosterTitle').textContent=currentDept==='全部公司'?'全部员工':currentDept;renderRoster();
+}));
+function openEmployee(no){
+ const e=employees.find(x=>x.no===no);if(!e)return;
+ document.getElementById('employeeDrawerBody').innerHTML=`
+  <div class="profile"><div class="profile-avatar">${escapeHtml(e.name.slice(-1))}</div><div><div class="profile-name">${escapeHtml(e.name)} <span class="badge info">${escapeHtml(e.alias)}</span></div><div class="profile-sub">${escapeHtml(e.dept)} · ${escapeHtml(e.role)}</div></div></div>
+  <div class="info-grid">
+   <div class="info-cell"><div class="info-label">员工编号</div><div class="info-value">${escapeHtml(e.no)}</div></div>
+   <div class="info-cell"><div class="info-label">员工状态</div><div class="info-value">${escapeHtml(e.status)}</div></div>
+   <div class="info-cell"><div class="info-label">入职日期</div><div class="info-value">${escapeHtml(e.date||'-')}</div></div>
+   <div class="info-cell"><div class="info-label">转正状态</div><div class="info-value">${escapeHtml(e.regular)}</div></div>
+   <div class="info-cell"><div class="info-label">直属负责人</div><div class="info-value">${escapeHtml(e.leader)}</div></div>
+   <div class="info-cell"><div class="info-label">联系电话</div><div class="info-value">${escapeHtml(e.phone)}</div></div>
+   <div class="info-cell"><div class="info-label">资料完整度</div><div class="info-value">${escapeHtml(e.complete)}</div></div>
+   <div class="info-cell"><div class="info-label">所属公司</div><div class="info-value">杭州智影引擎科技有限公司</div></div>
+  </div>`;
+ document.getElementById('employeeDrawer').classList.add('show');
+}
+function recruitmentArrivalCandidates(){
+ try{
+  const data=JSON.parse(localStorage.getItem(RECRUITMENT_DATA_STORAGE_KEY)||'null');
+  if(!data||!Array.isArray(data.candidates))return [];
+  return data.candidates.flatMap(candidate=>(candidate.applications||[])
+   .filter(application=>application.status==='SSC待建档'&&!application.sscEmployeeNo)
+   .map(application=>{
+    const job=(data.jobs||[]).find(item=>item.name===application.job);
+    return {candidateId:candidate.id,applicationId:application.id,name:candidate.name,phone:candidate.phone||'',email:candidate.email||'',job:application.job||'',department:job?.department||'',owner:candidate.owner||'',onboardAt:application.onboardAt||REPORT_DATE};
+   }));
+ }catch(error){return []}
+}
+function renderRecruitmentArrivals(){
+ const arrivals=recruitmentArrivalCandidates(),list=document.getElementById('recruitmentArrivalList');
+ document.getElementById('recruitmentArrivalCount').textContent=`${arrivals.length} 人待建档`;
+ if(!arrivals.length){list.innerHTML='<div class="recruitment-arrival-empty">暂无已确认到岗且待 SSC 建档的人员，仍可直接填写员工信息。</div>';return}
+ list.innerHTML=arrivals.map(item=>{
+  const selected=selectedRecruitmentArrival?.applicationId===item.applicationId;
+  return `<button class="recruitment-arrival-option ${selected?'selected':''}" type="button" onclick="selectRecruitmentArrival('${escapeHtml(item.candidateId)}','${escapeHtml(item.applicationId)}')"><input type="radio" tabindex="-1" ${selected?'checked':''} aria-label="选择${escapeHtml(item.name)}"/><span class="recruitment-arrival-person"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.phone||'手机号待补充')} · ${escapeHtml(item.email||'邮箱待补充')}</span></span><span class="recruitment-arrival-meta">${escapeHtml(item.department||'部门待确认')}<br>${escapeHtml(item.job||'岗位待确认')}</span></button>`;
+ }).join('');
+}
+function ensureDepartmentOption(department){
+ if(!department)return;
+ const select=document.getElementById('empDept');
+ if(![...select.options].some(option=>option.value===department))select.add(new Option(department,department));
+ select.value=department;
+}
+function selectRecruitmentArrival(candidateId,applicationId){
+ selectedRecruitmentArrival=recruitmentArrivalCandidates().find(item=>item.candidateId===candidateId&&item.applicationId===applicationId)||null;
+ if(!selectedRecruitmentArrival)return;
+ const item=selectedRecruitmentArrival;
+ document.getElementById('empName').value=item.name;
+ document.getElementById('empPhone').value=item.phone;
+ document.getElementById('empRole').value=item.job;
+ document.getElementById('empDate').value=item.onboardAt;
+ ensureDepartmentOption(item.department);
+ document.getElementById('employeeLinkSummaryText').textContent=`将关联招聘记录 ${item.applicationId} · ${item.name} · ${item.job}`;
+ document.getElementById('employeeLinkSummary').classList.add('show');
+ renderRecruitmentArrivals();
+}
+function clearRecruitmentArrivalSelection(){
+ selectedRecruitmentArrival=null;
+ document.getElementById('employeeLinkSummary').classList.remove('show');
+ renderRecruitmentArrivals();
+}
+function nextEmployeeNo(){
+ const day=REPORT_DATE.replaceAll('-',''),prefix=`ZY${day}`,used=new Set(employees.map(employee=>employee.no));
+ if(!used.has(prefix))return prefix;
+ let sequence=2;while(used.has(`${prefix}-${String(sequence).padStart(2,'0')}`))sequence+=1;
+ return `${prefix}-${String(sequence).padStart(2,'0')}`;
+}
+function openEmployeeModal(){
+ selectedRecruitmentArrival=null;
+ document.getElementById('empNo').value=nextEmployeeNo();
+ document.getElementById('empName').value='';document.getElementById('empAlias').value='';document.getElementById('empRole').value='';
+ document.getElementById('empDate').value=REPORT_DATE;document.getElementById('empStatus').value='实习期';document.getElementById('empPhone').value='';document.getElementById('empLeader').value='';
+ document.getElementById('employeeLinkSummary').classList.remove('show');
+ renderRecruitmentArrivals();openModal('employeeModal');
+}
+function linkRecruitmentApplication(employee){
+ if(!selectedRecruitmentArrival)return;
+ try{
+  const data=JSON.parse(localStorage.getItem(RECRUITMENT_DATA_STORAGE_KEY)||'null');if(!data?.candidates)return;
+  const linkedStatus=employee.status==='已离职'?'已离职':employee.regular==='已转正'?'已转正':'实习期';
+  const now=new Date().toLocaleString('zh-CN',{hour12:false});
+  data.candidates=data.candidates.map(candidate=>candidate.id!==selectedRecruitmentArrival.candidateId?candidate:{...candidate,updatedAt:now,applications:(candidate.applications||[]).map(application=>application.id!==selectedRecruitmentArrival.applicationId?application:{...application,status:linkedStatus,sscEmployeeNo:employee.no,onboardAt:employee.date,employmentSource:'SSC花名册',version:Number(application.version||1)+1,history:[...(application.history||[]),{time:now,action:'SSC完成员工建档并关联',operator:'SSC服务中心',note:`员工编号：${employee.no}`} ]})});
+  data.updatedAt=now;localStorage.setItem(RECRUITMENT_DATA_STORAGE_KEY,JSON.stringify(data));
+  window.parent.postMessage({type:'ssc-recruitment-linked',candidateId:selectedRecruitmentArrival.candidateId,applicationId:selectedRecruitmentArrival.applicationId,employee:{no:employee.no,date:employee.date,status:employee.status,regular:employee.regular}},window.location.origin);
+ }catch(error){toast('员工已新增，招聘关联回写失败，请稍后重试')}
+}
+function addEmployee(){
+ const name=document.getElementById('empName').value.trim(),no=document.getElementById('empNo').value.trim();if(!name){toast('请填写员工姓名');return}if(!no){toast('请填写员工编号');return}if(employees.some(employee=>employee.no===no)){toast('员工编号已存在，请检查后重试');return}
+ const employee={
+  no,name,alias:document.getElementById('empAlias').value.trim()||'-',
+  dept:document.getElementById('empDept').value,role:document.getElementById('empRole').value.trim()||'-',
+  date:document.getElementById('empDate').value,regular:document.getElementById('empStatus').value==='实习期'?'实习期':'已转正',
+  status:document.getElementById('empStatus').value,complete:selectedRecruitmentArrival?'78%':'68%',phone:document.getElementById('empPhone').value.trim()||'-',leader:document.getElementById('empLeader').value.trim()||'-',source:{},
+  recruitmentCandidateId:selectedRecruitmentArrival?.candidateId||'',recruitmentApplicationId:selectedRecruitmentArrival?.applicationId||''
+ };
+ employees.unshift(employee);linkRecruitmentApplication(employee);persistEmployees();closeModal('employeeModal');renderRoster();toast(selectedRecruitmentArrival?'员工已新增并关联招聘记录':'员工已新增');
+}
+function employeeFieldValue(employee,field){
+ if(employee.source){
+  const value=recordValue(employee.source,ROSTER_FIELD_ALIASES[field]||[field]);if(value!=='')return value;
+  if(field==='备注'){
+   const notes=['特殊备注','备注','备注1','备注2'].map(key=>recordValue(employee.source,[key])).filter(Boolean);if(notes.length)return [...new Set(notes)].join('；');
+  }
+ }
+ const mapping={公司:'杭州智影引擎科技有限公司',员工编号:employee.no,部门:employee.dept,职务:employee.role,姓名:employee.name,花名:employee.alias,入职时间:employee.date,入职日期:employee.date,转正状态:employee.regular,联系方式:employee.phone,离职日期:employee.departureDate||''};
+ if(field==='司龄'&&employee.date){const start=new Date(employee.date),now=new Date();if(!Number.isNaN(start.getTime()))return Math.max(0,(now-start)/31557600000).toFixed(1)}
+ return mapping[field]??recordValue(employee.source||{},[field])??'';
+}
+function renderRosterCell(employee,field,employeeIndex){
+ const raw=employeeFieldValue(employee,field),value=raw===''?'-':raw,title=escapeHtml(value);
+ if(rosterEditMode){const editableValue=raw===''?'':raw;return `<td class="editable-cell" contenteditable="true" spellcheck="false" data-field="${escapeHtml(field)}" onblur="updateRosterCell(${employeeIndex},this.dataset.field,this.textContent)" title="编辑 ${escapeHtml(field)}">${escapeHtml(editableValue)}</td>`}
+ if(field==='姓名')return `<td title="${title}"><button class="ledger-name" data-no="${escapeHtml(employee.no)}" onclick="openEmployee(this.dataset.no)">${title}</button></td>`;
+ return `<td title="${title}">${title}</td>`;
+}
+function updateRosterCell(employeeIndex,field,value){
+ const employee=employees[employeeIndex];if(!employee)return;const next=String(value??'').trim();employee.source=employee.source||{};employee.source[field]=next;
+ const coreMap={员工编号:'no',部门:'dept',职务:'role',姓名:'name',花名:'alias',入职时间:'date',转正状态:'regular',联系方式:'phone',离职日期:'departureDate'};
+ if(coreMap[field])employee[coreMap[field]]=next;
+ if(field==='转正状态'&&employee.status!=='已离职')employee.status=/实习|试用/.test(next)?'实习期':'在职';
+ if(field==='离职日期')employee.status=next?'已离职':employee.regular==='实习期'?'实习期':'在职';
+ persistEmployees();renderOrgCounts();
+}
+function toggleRosterEdit(){rosterEditMode=!rosterEditMode;if(!rosterEditMode){persistEmployees();toast(`${currentRosterMonth} 花名册已保存`)}renderRoster()}
+function rosterRows(fields,list=employees){return list.map(employee=>fields.map(field=>employeeFieldValue(employee,field)))}
+async function importRosterFile(file){
+ setButtonLoading('rosterImportButton',true);
+ try{
+  const sheets=await readWorkbookFile(file);let best=null;
+  sheets.forEach(sheet=>{const header=findHeader(sheet.rows,ROSTER_EXPORT_FIELDS,ROSTER_ALIASES);const rank=header.score+(sheet.name.includes('花名册')?2:0);if(!best||rank>best.rank)best={sheet,header,rank}});
+  if(!best||best.header.score<3)throw new Error('未识别到花名册表头，请确认文件包含员工编号、姓名/花名、部门等字段');
+  const fields=best.header.headers.map(value=>String(value??'').trim()),records=best.sheet.rows.slice(best.header.index+1).map(row=>Object.fromEntries(fields.map((field,index)=>[field,excelDateValue(row[index]??'',field)]))).filter(record=>Object.values(record).some(value=>String(value).trim()));
+  if(!records.length)throw new Error('已识别花名册表头，但未发现员工数据；当前文件可能只是空模板');
+  employees=records.map(normalizeRosterRecord);rosterSourceFields=fields.filter(Boolean);rosterSourceMeta={fileName:file.name,importedAt:new Date().toLocaleString('zh-CN',{hour12:false}),sheetName:best.sheet.name,month:currentRosterMonth,fields:rosterSourceFields};
+  persistEmployees();currentDept='全部公司';document.querySelectorAll('#view-org .tree-row').forEach(row=>row.classList.toggle('active',row.dataset.dept==='全部公司'));renderRoster();toast(`花名册导入成功：${employees.length} 条`);
+ }catch(error){toast(error.message||'花名册导入失败')}finally{setButtonLoading('rosterImportButton',false)}
+}
+function downloadRosterTemplate(){downloadExcel(`花名册导入模板-${REPORT_DATE}`,[{name:'花名册',rows:worksheetRows('员工花名册',ROSTER_EXPORT_FIELDS,[])}]);toast('花名册导入模板已生成')}
+function exportRoster(){
+ const fields=ROSTER_EXPORT_FIELDS,list=visibleEmployees();downloadExcel(`花名册汇报-${currentRosterMonth}`,[{name:'花名册',rows:worksheetRows(`${currentRosterMonth} 员工花名册`,fields,rosterRows(fields,list))}]);toast(`已导出 ${currentRosterMonth} 的 ${list.length} 条花名册数据`);
+}
+document.getElementById('rosterFileInput').addEventListener('change',event=>{const file=event.target.files?.[0];if(file)importRosterFile(file);event.target.value=''});
+
+/* 表格管理 */
+const TABLE_STORAGE_KEY='kpi-bi:ssc-business-tables';
+const TABLE_MONTH_KEY='kpi-bi:ssc-tables-selected-month';
+const ATTENDANCE_FIELDS=['考勤月份','UserID','姓名','花名','部门','职务','入职日期','转正日期','离职日期','应出勤天数','实出勤天数','转正天数','入离职天数','事假小时数','病假小时数','迟到早退0.5小时以内（含）','迟到早退0.5-1小时（含）','迟到早退1-4小时（含）','迟到早退超过4小时次数','缺卡次数','晚走（21:30及之后）','是否全勤','备注'];
+const ATTENDANCE_ALIASES={
+ '实出勤天数':['实出勤天数','实际出勤天数'],'迟到早退0.5小时以内（含）':['迟到早退0.5小时以内（含）','迟到早退0.5小时以内含'],'迟到早退0.5-1小时（含）':['迟到早退0.5-1小时（含）','迟到早退0.5至1小时（含）'],'迟到早退1-4小时（含）':['迟到早退1-4小时（含）','迟到早退1至4小时（含）'],'迟到早退超过4小时次数':['迟到早退超过4小时次数','迟到早退4小时以上次数'],'晚走（21:30及之后）':['晚走（21:30及之后）','晚走21:30及之后']
+};
+let tables=[
+ {id:1,name:'账号管理表',category:'账号类',desc:'维护员工在各系统中的账号、等级、权限范围和有效期',
+  fields:['员工姓名','所属部门','系统名称','账号名称','账号等级','权限范围','开通日期','到期日期','账号状态'],
+  rows:[
+   ['陈雨','平台与中台研发部','管理后台','chenyu','部门管理员','本部门数据','2026-01-10','长期','正常'],
+   ['李哲','平台与中台研发部','GitLab','lizhe.dev','Developer','研发项目组','2025-09-02','2026-08-01','即将到期'],
+   ['王敏','综合管理中心','NAS','wangmin','只读账号','公共资料区','2026-03-18','长期','正常']
+  ]},
+ {id:2,name:'月度考勤统计表',category:'人事类',desc:'按月维护出勤、请假、迟到早退、缺卡、晚走和全勤数据',
+  fields:ATTENDANCE_FIELDS,
+  rows:[
+   ['2026-07','10001','陈雨','挑灯','平台与中台研发部','产品经理','2026-01-05','','','23','22','0','23','0','0','0','0','0','0','1','0','否',''],
+   ['2026-07','10002','李哲','云舟','平台与中台研发部','后端开发','2025-10-23','','','23','23','0','23','0','0','0','0','0','0','0','1','是','']
+  ],updatedAt:'演示数据'},
+ {id:3,name:'办公设备领用表',category:'行政类',desc:'维护员工办公设备的领用、归还和资产状态',
+  fields:['员工姓名','所属部门','设备名称','资产编号','领用日期','归还日期','当前状态'],
+  rows:[['陈雨','平台与中台研发部','MacBook Pro','ZC-2026-018','2026-01-06','-','使用中']]},
+ {id:4,name:'合同到期台账',category:'人事类',desc:'维护员工合同起止时间及续签状态',
+  fields:['员工姓名','所属部门','合同开始日期','合同到期日期','续签状态','备注'],
+  rows:[['赵磊','商务中心','2023-11-07','2026-11-06','待续签','提前60天提醒']]}
+];
+let currentTableMonth=CURRENT_MONTH,tableEditMode=false;
+try{
+ currentTableMonth=localStorage.getItem(TABLE_MONTH_KEY)||CURRENT_MONTH;
+ const storedTables=JSON.parse(localStorage.getItem(TABLE_STORAGE_KEY)||'null');if(Array.isArray(storedTables)&&storedTables.length)tables=storedTables;
+ const attendance=tables.find(table=>table.id===2);if(attendance&&attendance.fields.length<ATTENDANCE_FIELDS.length){attendance.fields=ATTENDANCE_FIELDS;attendance.rows=[];attendance.monthlyRows={};attendance.updatedAt='字段已按最新考勤表升级'}
+}catch(error){}
+function ensureTableMonth(table,month){
+ if(!table.monthlyRows||typeof table.monthlyRows!=='object')table.monthlyRows={};
+ if(!Array.isArray(table.monthlyRows[month]))table.monthlyRows[month]=inheritMonthlySnapshot(table.monthlyRows,month,table.rows||[]);
+ table.rows=table.monthlyRows[month];
+}
+tables.forEach(table=>ensureTableMonth(table,currentTableMonth));
+function persistTables(){try{localStorage.setItem(TABLE_STORAGE_KEY,JSON.stringify(tables));localStorage.setItem(TABLE_MONTH_KEY,currentTableMonth)}catch(error){}}
+function changeTableMonth(month){currentTableMonth=month;tableEditMode=false;tables.forEach(table=>ensureTableMonth(table,month));persistTables();renderDirectory();renderActiveTable()}
+let activeTableId=1;
+function filteredTables(){
+ const kw=document.getElementById('tableSearch').value.trim().toLowerCase();
+ const cat=document.getElementById('tableCategory').value;
+ return tables.filter(t=>(!kw||[t.name,t.desc].join('|').toLowerCase().includes(kw))&&(!cat||t.category===cat));
+}
+function renderDirectory(){
+ const list=filteredTables();
+ document.getElementById('tableDirectory').innerHTML=list.length?list.map(t=>`
+  <div class="directory-item ${t.id===activeTableId?'active':''}" onclick="selectTable(${t.id})">
+   <div class="directory-name">${escapeHtml(t.name)}</div>
+   <div class="directory-meta"><span>${escapeHtml(t.category)}</span><span>${t.rows.length} 条</span></div>
+  </div>`).join(''):`<div class="empty" style="padding:30px 10px">未找到表格</div>`;
+}
+function selectTable(id){activeTableId=id;tableEditMode=false;ensureTableMonth(tables.find(item=>item.id===id),currentTableMonth);renderDirectory();renderActiveTable()}
+function renderActiveTable(){
+ const t=tables.find(x=>x.id===activeTableId);if(!t)return;
+ ensureTableMonth(t,currentTableMonth);document.getElementById('tableMonth').value=currentTableMonth;
+ document.getElementById('tableEditButton').textContent=tableEditMode?'完成编辑':'编辑本月';document.getElementById('tableEditButton').classList.toggle('primary',tableEditMode);
+ document.getElementById('activeTableTitle').textContent=t.name;
+ document.getElementById('activeTableDesc').textContent=t.desc;
+ document.getElementById('tableSummary').innerHTML=`<span>数据月份 <b style="font-size:13px">${currentTableMonth}</b></span><span>数据总量 <b>${t.rows.length}</b></span><span>字段数量 <b>${t.fields.length}</b></span><span>数据来源 <b style="font-size:13px">${escapeHtml(t.sourceMeta?.fileName||'浏览器本地维护')}</b></span><span>最后更新 <b style="font-size:13px">${escapeHtml(t.updatedAt||'演示数据')}</b></span>`;
+ const th=t.fields.map(f=>`<th>${escapeHtml(f)}</th>`).join('')+'<th>操作</th>';
+ const body=t.rows.length?t.rows.map((r,idx)=>`<tr>${t.fields.map((f,i)=>renderTableCell(r[i],idx,i)).join('')}<td><span class="link" onclick="enableTableEdit()">编辑</span><span class="link danger" onclick="deleteRow(${idx})">删除</span></td></tr>`).join(''):`<tr><td colspan="${t.fields.length+1}"><div class="empty">本月暂无数据，可新增、导入或从其他月份继承</div></td></tr>`;
+ document.getElementById('dynamicTable').innerHTML=`<table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
+}
+renderDirectory();renderActiveTable();
+document.getElementById('tableMonth').addEventListener('change',event=>{if(event.target.value)changeTableMonth(event.target.value)});
+['tableSearch','tableCategory'].forEach(id=>document.getElementById(id).addEventListener(id==='tableSearch'?'input':'change',renderDirectory));
+document.getElementById('directorySearch').addEventListener('input',e=>{
+ const val=e.target.value.toLowerCase();
+ document.querySelectorAll('.directory-item').forEach(x=>x.style.display=x.textContent.toLowerCase().includes(val)?'block':'none');
+});
+function deleteRow(idx){const t=tables.find(x=>x.id===activeTableId);t.rows.splice(idx,1);t.updatedAt=new Date().toLocaleString('zh-CN',{hour12:false});persistTables();renderActiveTable();renderDirectory();toast('数据已删除')}
+function renderTableCell(value,rowIndex,columnIndex){
+ const raw=value??'';if(tableEditMode)return `<td class="editable-cell" contenteditable="true" spellcheck="false" onblur="updateTableCell(${rowIndex},${columnIndex},this.textContent)">${escapeHtml(raw)}</td>`;
+ return `<td>${escapeHtml(raw===''?'-':raw)}</td>`;
+}
+function updateTableCell(rowIndex,columnIndex,value){const table=tables.find(item=>item.id===activeTableId);if(!table?.rows[rowIndex])return;table.rows[rowIndex][columnIndex]=String(value??'').trim();table.monthlyRows[currentTableMonth]=table.rows;table.updatedAt=new Date().toLocaleString('zh-CN',{hour12:false});persistTables()}
+function toggleTableEdit(){tableEditMode=!tableEditMode;if(!tableEditMode){persistTables();toast(`${currentTableMonth} ${tables.find(item=>item.id===activeTableId)?.name}已保存`)}renderActiveTable()}
+function enableTableEdit(){if(!tableEditMode){tableEditMode=true;renderActiveTable()}}
+function appendNewField(){
+ const d=document.createElement('div');d.className='field-builder-row';
+ d.innerHTML=`<input class="input field-name" placeholder="字段名称" /><select class="select"><option>文本</option><option>数字</option><option>日期</option><option>金额</option><option>单选</option></select><select class="select"><option>非必填</option><option>必填</option></select><button class="remove-btn" onclick="removeField(this)">×</button>`;
+ document.getElementById('newFieldBuilder').appendChild(d);
+}
+function removeField(btn){
+ const box=btn.parentElement.parentElement;if(box.querySelectorAll('.field-builder-row').length<=1){toast('至少保留一个字段');return}
+ btn.parentElement.remove();
+}
+function createTable(){
+ const name=document.getElementById('newTableName').value.trim();if(!name){toast('请填写表格名称');return}
+ const fields=[...document.querySelectorAll('#newFieldBuilder .field-name')].map(x=>x.value.trim()).filter(Boolean);if(!fields.length){toast('至少配置一个字段');return}
+ const rows=[];const t={id:Date.now(),name,category:document.getElementById('newTableCategory').value,desc:document.getElementById('newTableDesc').value.trim()||'暂无表格说明',fields,rows,monthlyRows:{[currentTableMonth]:rows}};
+ tables.unshift(t);activeTableId=t.id;persistTables();closeModal('newTableModal');renderDirectory();renderActiveTable();toast('表格已创建并加入目录');
+ document.getElementById('newTableName').value='';document.getElementById('newTableDesc').value='';
+}
+function openFieldConfig(){
+ const t=tables.find(x=>x.id===activeTableId);
+ document.getElementById('fieldConfigList').innerHTML=t.fields.map(f=>`<div class="field-builder-row config-field"><input class="input config-name" value="${escapeHtml(f)}" /><select class="select"><option>文本</option><option>数字</option><option>日期</option><option>金额</option><option>单选</option></select><select class="select"><option>非必填</option><option>必填</option></select><button class="remove-btn" onclick="this.parentElement.remove()">×</button></div>`).join('');
+ openModal('fieldModal');
+}
+function appendConfigField(){
+ const d=document.createElement('div');d.className='field-builder-row config-field';
+ d.innerHTML=`<input class="input config-name" placeholder="字段名称" /><select class="select"><option>文本</option><option>数字</option><option>日期</option><option>金额</option><option>单选</option></select><select class="select"><option>非必填</option><option>必填</option></select><button class="remove-btn" onclick="this.parentElement.remove()">×</button>`;
+ document.getElementById('fieldConfigList').appendChild(d);
+}
+function saveFieldConfig(){
+ const names=[...document.querySelectorAll('#fieldConfigList .config-name')].map(x=>x.value.trim()).filter(Boolean);if(!names.length){toast('至少保留一个字段');return}
+ const t=tables.find(x=>x.id===activeTableId);t.rows=t.rows.map(r=>names.map((_,i)=>r[i]??''));t.monthlyRows[currentTableMonth]=t.rows;t.fields=names;t.updatedAt=new Date().toLocaleString('zh-CN',{hour12:false});persistTables();closeModal('fieldModal');renderActiveTable();renderDirectory();toast('字段配置已保存');
+}
+function openAddRow(){
+ const t=tables.find(x=>x.id===activeTableId);
+ document.getElementById('rowForm').innerHTML=t.fields.map((f,i)=>`<div class="form-item ${t.fields.length%2===1&&i===t.fields.length-1?'full':''}"><label>${escapeHtml(f)}</label><input class="input row-input" data-index="${i}" placeholder="请输入${escapeHtml(f)}" /></div>`).join('');
+ openModal('rowModal');
+}
+function saveRow(){
+ const t=tables.find(x=>x.id===activeTableId);const values=[...document.querySelectorAll('.row-input')].map(x=>x.value.trim());
+ t.rows.unshift(values);t.updatedAt=new Date().toLocaleString('zh-CN',{hour12:false});persistTables();closeModal('rowModal');renderActiveTable();renderDirectory();toast('数据已新增');
+}
+function matchImportedField(headers,field){
+ const options=[field,...(ATTENDANCE_ALIASES[field]||[])].map(normalizeHeader);
+ return headers.findIndex(header=>options.includes(normalizeHeader(header))||(field==='备注'&&normalizeHeader(header).startsWith('备注')));
+}
+async function importActiveTableFile(file){
+ setButtonLoading('tableImportButton',true);
+ try{
+  const table=tables.find(item=>item.id===activeTableId),sheets=await readWorkbookFile(file);let best=null;
+  sheets.forEach(sheet=>{const header=findHeader(sheet.rows,table.fields,ATTENDANCE_ALIASES);if(!best||header.score>best.header.score)best={sheet,header}});
+  if(!best||best.header.score<2)throw new Error(`未识别到“${table.name}”表头，请先下载模板核对字段`);
+  const importedHeaders=best.header.headers.map(value=>String(value??'').trim()),sourceRows=best.sheet.rows.slice(best.header.index+1).filter(row=>row.some(value=>String(value??'').trim()));
+  if(!sourceRows.length)throw new Error('已识别表头，但未发现可导入的数据行');
+  if(table.id===2){table.fields=[...ATTENDANCE_FIELDS];table.rows=sourceRows.map(row=>table.fields.map(field=>{const index=matchImportedField(importedHeaders,field);return index<0?'':excelDateValue(row[index]??'',field)}))}
+  else{table.fields=importedHeaders.filter(Boolean);table.rows=sourceRows.map(row=>table.fields.map((field,index)=>excelDateValue(row[index]??'',field)))}
+  table.monthlyRows[currentTableMonth]=table.rows;
+  table.sourceMeta={fileName:file.name,sheetName:best.sheet.name};table.updatedAt=new Date().toLocaleString('zh-CN',{hour12:false});persistTables();renderActiveTable();renderDirectory();toast(`${table.name}导入成功：${table.rows.length} 条`);
+ }catch(error){toast(error.message||'表格导入失败')}finally{setButtonLoading('tableImportButton',false)}
+}
+function downloadActiveTableTemplate(){const table=tables.find(item=>item.id===activeTableId);downloadExcel(`${table.name}-导入模板-${currentTableMonth}`,[{name:table.name,rows:worksheetRows(`${currentTableMonth} ${table.name}`,table.fields,[])}]);toast('当前月份表格模板已生成')}
+function exportActiveTable(){const table=tables.find(item=>item.id===activeTableId);downloadExcel(`${table.name}-汇报-${currentTableMonth}`,[{name:table.name,rows:worksheetRows(`${currentTableMonth} ${table.name}`,table.fields,table.rows)}]);toast(`已导出 ${currentTableMonth} 的 ${table.rows.length} 条数据`)}
+function exportReportingWorkbook(){
+ const attendance=tables.find(table=>table.id===2),activeCount=employees.filter(employee=>employee.status==='在职').length,probationCount=employees.filter(employee=>employee.status==='实习期').length;
+ const summaryRows=[['花名册月份',currentRosterMonth],['业务表月份',currentTableMonth],['花名册总人数',employees.length],['在职人数',activeCount],['实习期人数',probationCount],['离职人数',employees.filter(employee=>employee.status==='已离职').length],['考勤记录数',attendance?.rows.length||0],['业务表数量',tables.length],['生成日期',REPORT_DATE]];
+ const fields=ROSTER_EXPORT_FIELDS;
+ const sheets=[{name:'汇报摘要',rows:worksheetRows('SSC月度数据汇报摘要',['指标','数值'],summaryRows)},{name:'花名册',rows:worksheetRows(`${currentRosterMonth} 员工花名册`,fields,rosterRows(fields))},...tables.map(table=>({name:table.name,rows:worksheetRows(`${currentTableMonth} ${table.name}`,table.fields,table.rows)}))];
+ downloadExcel(`SSC全量月度汇报-${currentTableMonth}`,sheets);toast(`已生成 ${currentTableMonth} 的 ${sheets.length} 张汇报工作表`);
+}
+document.getElementById('tableFileInput').addEventListener('change',event=>{const file=event.target.files?.[0];if(file)importActiveTableFile(file);event.target.value=''});
+
+/* 模板管理 */
+const templates=[
+ {name:'员工信息采集表',category:'人事行政',version:'V3.1',desc:'用于新员工入职资料收集及花名册信息维护。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'XLS'},
+ {name:'离职交接清单',category:'人事行政',version:'V2.4',desc:'用于员工离职时进行工作、设备及账号交接。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'DOC'},
+ {name:'费用报销明细表',category:'财务报销',version:'V4.2',desc:'用于各部门提交费用报销明细及凭证信息。',departments:['全部部门'],permission:'指定部门可下载',status:'启用',format:'XLS'},
+ {name:'账号开通申请单',category:'账号申请',version:'V2.0',desc:'用于申请系统账号、账号等级及权限范围。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'DOC'},
+ {name:'项目汇报模板',category:'项目管理',version:'V1.8',desc:'用于项目阶段性汇报与管理层进度同步。',departments:['平台与中台研发部','内容经营中心'],permission:'指定部门可下载',status:'启用',format:'PPT'},
+ {name:'部门月度数据表',category:'通用表格',version:'V1.3',desc:'用于各部门统一提交月度基础数据。',departments:['全部部门'],permission:'申请后下载',status:'停用',format:'XLS'}
+];
+let templateCategory='全部模板',selectedDownload=null;
+function renderTemplates(){
+ const kw=document.getElementById('templateSearch').value.trim().toLowerCase(),st=document.getElementById('templateStatus').value;
+ const list=templates.filter(t=>(templateCategory==='全部模板'||t.category===templateCategory)&&(!st||t.status===st)&&(!kw||[t.name,t.desc,t.category].join('|').toLowerCase().includes(kw)));
+ document.getElementById('templateCardList').innerHTML=list.length?list.map((t,i)=>`
+  <div class="template-card">
+   <div class="template-top"><div class="file-icon">${t.format}</div><div><div class="template-name">${t.name}</div><div class="template-version">${t.category} · ${t.version} · <span class="${t.status==='启用'?'':'muted'}">${t.status}</span></div></div></div>
+   <div class="template-desc">${t.desc}</div>
+   <div class="template-tags"><span class="tag">适用：${t.departments.join('、')}</span><span class="tag">权限：${t.permission}</span></div>
+   <div class="template-bottom"><span style="font-size:11px;color:var(--muted)">更新于 2026-07-${12-i}</span>
+    <div class="template-actions"><button class="btn small">预览</button><button class="btn small">版本</button><button class="btn small primary" onclick="openDownload('${t.name}','${t.version}')">下载</button></div>
+   </div>
+  </div>`).join(''):`<div class="empty" style="grid-column:1/-1">暂无符合条件的模板</div>`;
+}
+renderTemplates();
+document.getElementById('templateSearch').addEventListener('input',renderTemplates);
+document.getElementById('templateStatus').addEventListener('change',renderTemplates);
+document.querySelectorAll('#templateCategoryTree .tree-row').forEach(row=>row.addEventListener('click',()=>{
+ document.querySelectorAll('#templateCategoryTree .tree-row').forEach(x=>x.classList.remove('active'));row.classList.add('active');
+ templateCategory=row.dataset.category;document.getElementById('templateSectionTitle').textContent=templateCategory;renderTemplates();
+}));
+document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>{
+ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
+ document.querySelectorAll('.tab-pane').forEach(x=>x.classList.remove('active'));document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+}));
+function openDownload(name,version){
+ selectedDownload={name,version};document.getElementById('downloadInfo').textContent=`当前下载：${name}（${version}）。下载完成后，系统将记录下载人员、部门、版本和用途。`;
+ document.getElementById('downloadPurpose').value='';openModal('downloadModal');
+}
+function confirmDownload(){
+ const purpose=document.getElementById('downloadPurpose').value.trim();if(!purpose){toast('请填写下载用途');return}
+ const r=document.getElementById('downloadRecordBody');r.insertAdjacentHTML('afterbegin',`<tr><td>2026-07-15 16:00</td><td>${selectedDownload.name}</td><td>${selectedDownload.version}</td><td>当前用户</td><td>综合管理中心</td><td>${purpose}</td><td><span class="badge success">成功</span></td></tr>`);
+ closeModal('downloadModal');toast('模板下载已开始，记录已保存');
+}
+</script>
+</body>
+</html>

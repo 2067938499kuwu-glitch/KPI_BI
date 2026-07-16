@@ -15,12 +15,20 @@ function switchRole(name) {
 }
 
 describe("绩效中心交互与权限", () => {
-  test("导航只保留数据看板、绩效中心和周报，默认进入绩效中心", () => {
+  test("一体化导航完整且默认进入工作台", () => {
     render(<App />);
-    expect(screen.getByRole("button", { name: "绩效中心" })).toHaveClass("is-active");
-    expect(screen.queryByRole("button", { name: "工作台" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "项目中心" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "任务中心" })).toBeNull();
+    expect(screen.getByRole("button", { name: "工作台" })).toHaveClass("is-active");
+    expect(screen.getByRole("button", { name: "经营驾驶舱" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "绩效中心" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "周报" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "招聘管理" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "选题管理" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "项目制作" })).toBeInTheDocument();
+    expect(screen.getByText("SSC服务中心")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "组织架构与花名册" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "表格管理" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "模板管理" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "系统配置" })).toBeInTheDocument();
   });
 
   test("用户可见绩效页面不再出现旧术语", () => {
@@ -39,6 +47,7 @@ describe("绩效中心交互与权限", () => {
     expect(card).toHaveClass("performance-summary-card");
     expect(card?.tagName).toBe("ARTICLE");
     expect(within(card).queryByRole("button")).toBeNull();
+    expect(within(card).getByText(/%$/).tagName).toBe("STRONG");
   });
 
   test("指标卡不随状态页签与等级筛选改变", () => {

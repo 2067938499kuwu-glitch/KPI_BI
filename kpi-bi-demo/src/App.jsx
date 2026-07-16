@@ -1,9 +1,14 @@
 ﻿
 import { Children, useEffect, useMemo, useState } from "react";
 import {
+  Briefcase,
   ChartLineUp,
   ClipboardText,
+  Database,
   FileCsv,
+  GearSix,
+  House,
+  Lightbulb,
   Trophy,
   UsersThree,
   UploadSimple,
@@ -39,7 +44,6 @@ import {
 } from "./performance/logic";
 import { performanceFocusOptions, reviewsSeed } from "./performance/seed";
 import { HONGGUO_REQUIRED_COLUMNS, parseHongguoCsv } from "./performance/hongguo";
-import { PersonnelDashboard } from "./dashboard/PersonnelDashboard";
 import { dashboardPeople, dashboardWeeklyReports } from "./dashboard/dashboardData";
 import {
   mergeWeeklyReports,
@@ -48,6 +52,20 @@ import {
   WEEKLY_REPORT_UPDATED_EVENT,
 } from "./dashboard/weeklyReportBridge";
 import { buildWeeklyReference } from "./performance/weeklyReference";
+import {
+  BusinessTaskProcessingDrawer,
+  BusinessDashboardPage,
+  DemoDataProvider,
+  GovernancePage,
+  ProjectProductionPage,
+  RecruitmentCenterPage,
+  RoleScopeBanner,
+  ReportsCenterPage,
+  TopicCenterPage,
+  UnifiedWorkbenchPage,
+  useDemoData,
+} from "./platform/IntegratedPlatform";
+import { SscDataMaintenancePage } from "./ssc/SscDataMaintenancePage";
 
 const CURRENT_MONTH = "2026-07";
 
@@ -124,10 +142,43 @@ const processNodes = [
   "绩效申诉",
 ];
 
-const sidebarItems = [
-  { id: "dashboard", label: "数据看板", icon: ChartLineUp },
-  { id: "performance", label: "绩效中心", icon: Trophy },
-  { id: "weekly", label: "周报", icon: ClipboardText },
+const sidebarGroups = [
+  {
+    label: "总览",
+    items: [
+      { id: "workspace", label: "工作台", icon: House },
+      { id: "dashboard", label: "经营驾驶舱", icon: ChartLineUp },
+    ],
+  },
+  {
+    label: "人效管理",
+    items: [
+      { id: "performance", label: "绩效中心", icon: Trophy },
+      { id: "reports", label: "周报", icon: ClipboardText },
+    ],
+  },
+  {
+    label: "业务管理",
+    items: [
+      { id: "recruitment", label: "招聘管理", icon: UsersThree },
+      { id: "topics", label: "选题管理", icon: Lightbulb },
+      { id: "projects", label: "项目制作", icon: Briefcase },
+    ],
+  },
+  {
+    label: "SSC服务中心",
+    items: [
+      { id: "ssc-org", label: "组织架构与花名册", icon: UsersThree },
+      { id: "ssc-tables", label: "表格管理", icon: Database },
+      { id: "ssc-templates", label: "模板管理", icon: FileCsv },
+    ],
+  },
+  {
+    label: "系统",
+    items: [
+      { id: "governance", label: "系统配置", icon: GearSix },
+    ],
+  },
 ];
 
 const roles = [
@@ -136,6 +187,32 @@ const roles = [
   { id: "hr", label: "HR", badge: "组织视图" },
   { id: "ceo", label: "CEO", badge: "经营驾驶舱" },
 ];
+
+const SSC_ACCESS_ROLES = ["hr", "ceo"];
+
+const platformPageAccess = {
+  workspace: ["employee", "leader", "hr", "ceo"],
+  dashboard: ["employee", "leader", "hr", "ceo"],
+  performance: ["employee", "leader", "hr", "ceo"],
+  reports: ["employee", "leader", "hr", "ceo"],
+  recruitment: ["leader", "hr", "ceo"],
+  topics: ["employee", "leader", "hr", "ceo"],
+  projects: ["employee", "leader", "hr", "ceo"],
+  "ssc-org": SSC_ACCESS_ROLES,
+  "ssc-tables": SSC_ACCESS_ROLES,
+  "ssc-templates": SSC_ACCESS_ROLES,
+  governance: ["hr", "ceo"],
+};
+
+const sscPageViews = {
+  "ssc-org": "org",
+  "ssc-tables": "tables",
+  "ssc-templates": "templates",
+};
+
+function canAccessPlatformPage(roleId, pageId) {
+  return platformPageAccess[pageId]?.includes(roleId) ?? false;
+}
 
 const projects = [
   { id: "p1", name: "星际边缘", stage: "制作中", progress: 85, roi: 92, risk: "高", owner: "张艺谦" },
@@ -2136,6 +2213,20 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, active
 
   return (
     <div className="admin-page performance-console">
+      <section className="platform-header performance-page-intro">
+        <div className="platform-header__copy">
+          <span className="platform-header__icon"><Trophy size={24} weight="duotone" /></span>
+          <div>
+            <span className="platform-eyebrow">绩效管理</span>
+            <h1>绩效中心</h1>
+            <p>统一管理目标下发、结果填报、多级复审、绩效申诉与归档，并保留完整版本和操作记录。</p>
+          </div>
+        </div>
+        <div className="platform-header__side">
+          <div className="platform-header__meta"><small>当前考核周期</small><strong>{filters.cycle === "all" ? CURRENT_MONTH : filters.cycle}</strong></div>
+          <div className="platform-header__meta"><small>当前数据范围</small><strong>{access.roleName} · {scopedReviews.length} 人</strong></div>
+        </div>
+      </section>
       <section className="performance-filter-panel">
         <div className="performance-filter-panel__fields">
           <label><span>月份</span><select value={filters.cycle} onChange={(event) => updateFilter("cycle", event.target.value)}><option value="all">全部周期</option>{cycles.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
@@ -2528,16 +2619,73 @@ function WeeklyPage() {
   );
 }
 
-export function App() {
+function AppContent() {
+  const { completeWorkbenchTask } = useDemoData();
   const [activeRole, setActiveRole] = useState("ceo");
-  const [activePage, setActivePage] = useState("performance");
-  const [reviews, setReviews] = useState(reviewsSeed);
+  const [activePage, setActivePage] = useState("workspace");
+  const [accessFeedback, setAccessFeedback] = useState("");
+  const [entryTask, setEntryTask] = useState(null);
+  const [reviews, setReviews] = useState(() => {
+    try {
+      return import.meta.env.MODE === "test"
+        ? reviewsSeed
+        : JSON.parse(window.localStorage.getItem("kpi-bi:performance-reviews:v1")) || reviewsSeed;
+    } catch {
+      return reviewsSeed;
+    }
+  });
   const [departmentTemplates, setDepartmentTemplates] = useState(departmentPerformanceTemplatesSeed);
   const activeRoleMeta = roles.find((item) => item.id === activeRole);
 
-  const goPage = (page) => {
+  useEffect(() => {
+    const main = document.querySelector(".app-main");
+    if (main) {
+      main.scrollTop = 0;
+      main.scrollLeft = 0;
+    }
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activePage]);
+
+  useEffect(() => {
+    if (import.meta.env.MODE === "test") return;
+    try {
+      window.localStorage.setItem("kpi-bi:performance-reviews:v1", JSON.stringify(reviews));
+    } catch {
+      // The demo remains usable when browser persistence is unavailable.
+    }
+  }, [reviews]);
+
+  useEffect(() => {
+    if (canAccessPlatformPage(activeRole, activePage)) return;
+    setActivePage("workspace");
+    setEntryTask(null);
+    setAccessFeedback(`当前${roleAccess[activeRole]?.roleName ?? "身份"}无权访问该业务页面，已返回工作台。`);
+  }, [activePage, activeRole]);
+
+  const goPage = (page, context = {}) => {
+    if (!canAccessPlatformPage(activeRole, page)) {
+      setEntryTask(null);
+      setAccessFeedback(`当前${roleAccess[activeRole]?.roleName ?? "身份"}无权进入该业务页面。`);
+      setActivePage("workspace");
+      return;
+    }
+    setAccessFeedback("");
+    setEntryTask(context.task ?? null);
     setActivePage(page);
   };
+
+  const completeTask = (task, payload) => {
+    const completed = completeWorkbenchTask(task, payload);
+    if (!completed) {
+      setAccessFeedback(`“${task.title}”需要进入来源业务页面处理。`);
+      return;
+    }
+    setEntryTask(null);
+    setAccessFeedback(`“${task.title}”已回写来源业务单据，工作台与驾驶舱已同步更新。`);
+  };
+
+  const visibleSidebarGroups = sidebarGroups.map((group) => ({ ...group, items: group.items.filter((item) => canAccessPlatformPage(activeRole, item.id)) })).filter((group) => group.items.length);
 
   const saveReview = (draft) => {
     setReviews((current) => current.map((item) => (item.id === draft.id ? draft : item)));
@@ -2622,12 +2770,23 @@ export function App() {
     )));
   };
 
+  const activeSscView = sscPageViews[activePage];
+  const activePageContent = <>{activePage !== "workspace" && activePage !== "reports" ? <RoleScopeBanner activeRole={activeRole} page={sidebarGroups.flatMap((group) => group.items).find((item) => item.id === activePage)?.label ?? "业务页面"} /> : null}{activePage === "workspace" ? <UnifiedWorkbenchPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "dashboard" ? <BusinessDashboardPage activeRole={activeRole} goPage={goPage} reviews={reviews} /> : null}{activePage === "performance" ? <PerformanceCenter reviews={reviews} onSave={saveReview} onBatchIssue={batchIssueReviews} onSaveAppeal={saveAppeal} activeRole={activeRoleMeta} departmentTemplates={departmentTemplates} onSaveDepartmentTemplate={saveDepartmentTemplate} onCreateDepartmentTemplate={createDepartmentTemplate} /> : null}{activePage === "reports" ? <WeeklyPage /> : null}{activePage === "recruitment" ? <RecruitmentCenterPage /> : null}{activePage === "topics" ? <TopicCenterPage goPage={goPage} /> : null}{activePage === "projects" ? <ProjectProductionPage /> : null}{activeSscView ? <SscDataMaintenancePage view={activeSscView} /> : null}{activePage === "governance" ? <GovernancePage /> : null}</>;
+
   return (
     <main className="app-shell">
-      <aside className="sidebar"><div className="brand"><div className="brand__logo">A</div><div><strong>光影未来</strong><span>AI Film & Media</span></div></div><div className="role-switcher">{roles.map((role) => <button key={role.id} className={`ghost-chip ${activeRole === role.id ? "ghost-chip--active" : ""}`} onClick={() => setActiveRole(role.id)} type="button"><span>{role.label}</span><small>{role.badge}</small></button>)}</div><nav className="sidebar__nav">{sidebarItems.map((item) => { const Icon = item.icon; return <button key={item.id} className={`sidebar__item ${activePage === item.id ? "is-active" : ""}`} onClick={() => goPage(item.id)} type="button"><Icon size={20} weight="duotone" />{item.label}</button>; })}</nav></aside>
+      <aside className="sidebar"><div className="brand"><div className="brand__logo"><ChartLineUp size={22} weight="duotone" /></div><div><strong>KPI_BI</strong><span>一体化管理平台</span></div></div><nav className="sidebar__nav" aria-label="主导航">{visibleSidebarGroups.map((group) => <section className="sidebar__group" key={group.label}><span>{group.label}</span>{group.items.map((item) => { const Icon = item.icon; return <button key={item.id} className={`sidebar__item ${activePage === item.id ? "is-active" : ""}`} onClick={() => goPage(item.id)} type="button"><Icon size={19} weight="duotone" />{item.label}</button>; })}</section>)}</nav><div className="role-switcher">{roles.map((role) => <button key={role.id} className={`ghost-chip ${activeRole === role.id ? "ghost-chip--active" : ""}`} onClick={() => setActiveRole(role.id)} type="button"><span>{role.label}</span><small>{role.badge}</small></button>)}</div></aside>
       <div className="app-main">
-        <div className={`content ${activePage === "weekly" ? "content--weekly-document" : ""}`}>{activePage === "dashboard" ? <PersonnelDashboard activeRole={activeRole} /> : null}{activePage === "performance" ? <PerformanceCenter reviews={reviews} onSave={saveReview} onBatchIssue={batchIssueReviews} onSaveAppeal={saveAppeal} activeRole={activeRoleMeta} departmentTemplates={departmentTemplates} onSaveDepartmentTemplate={saveDepartmentTemplate} onCreateDepartmentTemplate={createDepartmentTemplate} /> : null}{activePage === "weekly" ? <WeeklyPage /> : null}</div>
+        <div className="content">{accessFeedback ? <div className="platform-access-feedback" role="status">{accessFeedback}</div> : null}{activePageContent}{entryTask ? <BusinessTaskProcessingDrawer activeRole={activeRole} onClose={() => setEntryTask(null)} onComplete={completeTask} task={entryTask} /> : null}</div>
       </div>
     </main>
+  );
+}
+
+export function App() {
+  return (
+    <DemoDataProvider>
+      <AppContent />
+    </DemoDataProvider>
   );
 }

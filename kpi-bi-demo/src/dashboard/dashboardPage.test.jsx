@@ -8,14 +8,18 @@ afterEach(cleanup);
 
 function openDashboard() {
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "数据看板" }));
+  fireEvent.click(screen.getByRole("button", { name: "经营驾驶舱" }));
+  fireEvent.click(screen.getByRole("tab", { name: "人员绩效" }));
 }
 
 describe("personnel performance and weekly dashboard page", () => {
   test("shows company ranking and formal-score states for management", () => {
     openDashboard();
     expect(screen.getByRole("heading", { name: "人员绩效与周报数据看板" })).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "驾驶舱分析维度" }).closest(".dashboard-title")).toBeInTheDocument();
     expect(screen.getByText("绩效排名列表")).toBeInTheDocument();
+    expect(screen.getByText("周报提交概览")).toBeInTheDocument();
+    expect(screen.getByText("本月应提交周报")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "详情" }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "绩效详情" })).toBeNull();
     expect(screen.queryByRole("button", { name: "查看周报" })).toBeNull();

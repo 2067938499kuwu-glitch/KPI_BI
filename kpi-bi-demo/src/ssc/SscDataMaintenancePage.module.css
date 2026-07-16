@@ -1,0 +1,25 @@
+.page {
+  width: 100%;
+  height: max(760px, calc(100vh - 132px));
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border, #e3e8f1);
+  border-radius: var(--radius-card, 18px);
+  background: var(--surface, #ffffff);
+  box-shadow: var(--shadow-card, 0 10px 30px rgba(35, 55, 88, 0.07));
+}
+
+.frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #f4f7fb;
+}
+
+@media (max-width: 760px) {
+  .page {
+    height: max(680px, calc(100vh - 104px));
+    border-radius: 14px;
+  }
+}
