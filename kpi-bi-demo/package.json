@@ -3,9 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
+    "build:exe": "npm run build && electron-builder --win portable --x64",
+    "export:full-standalone": "npm run build && node scripts/export-full-standalone.mjs",
     "export:standalone": "npm run build && node scripts/export-combined-standalone.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "test": "vitest run"
@@ -20,8 +23,30 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@vitejs/plugin-react": "5.0.4",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
     "jsdom": "^29.1.1",
     "vite": "6.4.2",
     "vitest": "^4.1.9"
+  },
+  "build": {
+    "appId": "com.kpibi.preview",
+    "productName": "KPI_BI业务管理平台",
+    "artifactName": "KPI_BI项目预览.exe",
+    "asar": true,
+    "compression": "maximum",
+    "files": [
+      "dist/**/*",
+      "desktop/main.cjs",
+      "package.json"
+    ],
+    "directories": {
+      "output": "desktop-release"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
+    }
   }
 }

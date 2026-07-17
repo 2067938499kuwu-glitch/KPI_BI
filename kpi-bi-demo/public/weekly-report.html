@@ -266,20 +266,19 @@ svg{display:block}
 .comment-box:focus{border-color:#a7afff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
 .insight-foot{position:absolute;left:0;right:0;bottom:0;padding:11px 13px;border-top:1px solid var(--line);background:rgba(255,255,255,.96);display:flex;gap:8px}
 .insight-wrap{height:100%;position:relative;display:flex;flex-direction:column}
-.leader-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex:none}
-.leader-filter{display:flex;align-items:center;gap:8px}
+.leader-toolbar{display:flex;align-items:center;justify-content:flex-start;gap:12px;margin-bottom:12px;flex:none}
+.leader-filter{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .select-box{height:37px;padding:0 10px;border:1px solid var(--line-strong);border-radius:10px;background:#fff;color:var(--text);outline:0;font-size:10.5px}
+.select-box:focus{border-color:#a7afff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
+.leader-people-entry{height:37px;border-color:#dfe3ff;background:var(--primary-soft-2);color:var(--primary-dark)}
+.leader-people-entry svg{transition:transform .18s ease}
+.leader-people-entry:hover svg{transform:translateX(2px)}
 .leader-grid{min-height:0;flex:1;display:grid;grid-template-columns:minmax(650px,1.35fr) minmax(390px,.85fr);gap:14px}
 .leader-left,.leader-right{min-height:0;display:flex;flex-direction:column;gap:12px}
 .team-brief{min-height:0;flex:1;display:flex;flex-direction:column}
-.brief-head{padding:14px 15px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex:none}
-.brief-head h2{margin:0 0 4px;font-size:15px}
-.brief-head p{margin:0;font-size:10px;color:var(--text-3)}
+.brief-head{padding:14px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;flex:none}
+.brief-head h2{margin:0;font-size:15px}
 .brief-body{min-height:0;flex:1;overflow:auto;padding:13px 15px 18px}
-.executive-summary{padding:13px 14px;border-radius:13px;background:linear-gradient(135deg,rgba(91,103,241,.10),rgba(29,181,201,.05)),#fbfcff;border:1px solid #dfe3ff;margin-bottom:11px}
-.executive-summary-label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
-.executive-summary-label strong{font-size:11px;color:var(--primary)}
-.executive-summary p{margin:0;font-size:11px;line-height:1.75;color:#384459}
 .brief-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .brief-section{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fff}
 .brief-section-head{display:flex;align-items:center;gap:7px;margin-bottom:8px}
@@ -291,7 +290,9 @@ svg{display:block}
 .department-head,.decision-head{padding:13px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none}
 .department-head strong,.decision-head strong{font-size:12px}
 .department-body{padding:12px 14px;min-height:0;flex:1;overflow:auto}
-.dept-row{margin-bottom:11px}
+.dept-row{margin-bottom:6px;padding:6px 8px;border:1px solid transparent;border-radius:10px;transition:.16s ease;cursor:pointer}
+.dept-row:hover{background:#fafbfe;border-color:#eef1f5;transform:translateX(2px)}
+.dept-row:focus-visible{outline:0;border-color:#bfc6ff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
 .dept-row:last-child{margin-bottom:0}
 .dept-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
 .dept-top strong{font-size:10px}
@@ -354,9 +355,16 @@ svg{display:block}
 .drawer-mask.show{display:block}
 .side-drawer{position:absolute;right:0;top:0;bottom:0;width:520px;background:#fff;box-shadow:-24px 0 70px rgba(23,32,51,.18);display:flex;flex-direction:column}
 .side-drawer.history-drawer{width:min(930px,78vw)}
+.side-drawer.leader-reports-drawer{width:min(1080px,86vw)}
 .drawer-head{height:66px;padding:0 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
 .drawer-head h3{margin:0;font-size:15px}
 .drawer-head p{margin:4px 0 0;font-size:9.5px;color:var(--text-3)}
+.leader-reports-head-actions{display:flex;align-items:center;gap:9px;flex:none}
+.leader-report-period-filter{height:44px;min-width:230px;padding:0 11px;border:1px solid var(--line);border-radius:12px;background:#fafbff;display:flex;align-items:center;gap:9px;color:var(--primary);transition:.16s ease}
+.leader-report-period-filter:focus-within{border-color:#a7afff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
+.leader-report-period-filter > span{min-width:0;display:block;flex:1}
+.leader-report-period-filter small{display:block;margin-bottom:2px;font-size:8.5px;color:var(--text-3)}
+.leader-report-period-filter select{width:100%;max-width:185px;padding:0;border:0;outline:0;background:transparent;color:var(--text);font-size:10.5px;font-weight:700}
 .drawer-body{min-height:0;flex:1;overflow:auto;padding:18px 20px}
 .drawer-foot{min-height:62px;padding:11px 20px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;flex:none;background:#fff}
 .prompt-notice{padding:11px 12px;border:1px solid #dfe3ff;border-radius:11px;background:#f7f8ff;color:#4f5b71;font-size:10px;line-height:1.6;margin-bottom:15px}
@@ -400,6 +408,55 @@ svg{display:block}
 .history-ai-grid div{padding:7px 8px;border-radius:8px;background:#fff;border:1px solid #e5f2f4}
 .history-ai-grid label{display:block;font-size:8.5px;color:var(--text-3);margin-bottom:3px}
 .history-ai-grid span{font-size:9.5px;color:#455166;line-height:1.45}
+
+.leader-directory-layout{height:100%;min-height:0;display:grid;grid-template-columns:300px minmax(0,1fr)}
+.leader-directory-pane{min-height:0;border-right:1px solid var(--line);display:flex;flex-direction:column;background:#fafbfe}
+.leader-directory-tools{padding:13px;border-bottom:1px solid var(--line);flex:none}
+.leader-directory-tools .select-box{width:100%;height:38px}
+.leader-directory-summary{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
+.leader-directory-summary strong{font-size:10.5px}
+.leader-directory-summary span{font-size:9px;color:var(--text-3)}
+.leader-directory-filters{display:flex;gap:4px;margin-top:9px}
+.leader-directory-filters button{height:27px;padding:0 9px;border:0;border-radius:7px;background:transparent;color:var(--text-2);font-size:9.5px;transition:.15s ease}
+.leader-directory-filters button:hover{background:#fff;color:var(--primary)}
+.leader-directory-filters button.active{background:var(--primary-soft);color:var(--primary);font-weight:700}
+.leader-directory-list{min-height:0;flex:1;overflow:auto;padding:8px}
+.leader-person-item{width:100%;min-height:62px;padding:8px 9px;border:1px solid transparent;border-radius:11px;display:flex;align-items:center;gap:9px;margin-bottom:5px;background:transparent;text-align:left;transition:.15s ease}
+.leader-person-item:hover{background:#fff;border-color:#eef1f5;transform:translateY(-1px)}
+.leader-person-item.active{background:#fff;border-color:#dfe3ff;box-shadow:0 5px 14px rgba(39,50,78,.06)}
+.leader-person-item:focus-visible{outline:0;border-color:#a7afff;box-shadow:0 0 0 3px rgba(91,103,241,.08)}
+.leader-person-main{min-width:0;flex:1}
+.leader-person-main strong{display:block;font-size:10.8px;margin-bottom:4px}
+.leader-person-main span{display:block;font-size:8.9px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leader-person-state{text-align:right;flex:none}
+.leader-person-state b{display:block;font-size:9px;color:var(--success)}
+.leader-person-state b.warning{color:var(--warning)}
+.leader-person-state b.danger{color:var(--danger)}
+.leader-person-state small{display:block;font-size:8.3px;color:var(--text-3);margin-top:4px}
+.leader-report-detail{min-width:0;min-height:0;display:flex;flex-direction:column;background:#fff}
+.leader-report-detail-head{min-height:70px;padding:13px 17px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
+.leader-report-detail-meta{display:flex;align-items:center;gap:10px;min-width:0}
+.leader-report-detail-meta .member-avatar{width:40px;height:40px;border-radius:12px}
+.leader-report-detail-meta h4{margin:0 0 4px;font-size:14px}
+.leader-report-detail-meta p{margin:0;font-size:9.5px;color:var(--text-3)}
+.leader-report-detail-actions{display:flex;align-items:center;gap:7px}
+.leader-report-detail-body{min-height:0;flex:1;overflow:auto;padding:15px 17px 24px}
+.leader-report-overview{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(115px,.45fr));gap:9px;margin-bottom:11px}
+.leader-report-overview > div{padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#fafbfc}
+.leader-report-overview > div:first-child{border-color:#dfe3ff;background:linear-gradient(135deg,#f7f8ff,#fcfeff)}
+.leader-report-overview label{display:block;font-size:8.7px;color:var(--text-3);margin-bottom:4px}
+.leader-report-overview strong{display:block;font-size:10.5px;line-height:1.55;color:#3f4a5d}
+.leader-report-sections{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.leader-report-sections .report-block{margin-bottom:0}
+.leader-report-original{grid-column:1 / -1;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.leader-report-original-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.leader-report-original-head strong{font-size:10.5px}
+.leader-report-original-head span{font-size:8.8px;color:var(--text-3)}
+.leader-report-original p{margin:0;white-space:pre-wrap;font-size:10.5px;line-height:1.78;color:#4b576b}
+.leader-report-empty{height:100%;min-height:360px;display:grid;place-items:center;text-align:center;color:var(--text-3)}
+.leader-report-empty-icon{width:54px;height:54px;margin:0 auto 12px;border-radius:16px;background:#f1f3f7;display:grid;place-items:center;font-size:21px}
+.leader-report-empty strong{display:block;font-size:12px;color:var(--text-2)}
+.leader-report-empty p{margin:6px 0 0;font-size:9.5px}
 
 .modal-mask{position:fixed;inset:0;background:rgba(15,23,42,.38);backdrop-filter:blur(4px);z-index:100;display:none}
 .modal-mask.show{display:block}
@@ -598,9 +655,16 @@ svg{display:block}
     </section>
 
     <section class="view" id="leaderView">
-      <div class="leader-toolbar"><div class="leader-filter"><select class="select-box" id="departmentSelect"><option>内容经营中心</option><option>制片部门</option><option>编剧中心</option><option>剪辑部门</option></select><select class="select-box"><option>全部团队</option><option>制片组</option><option>导演组</option><option>剪辑一组</option></select><span class="tag success">数据更新至今天 10:35</span></div><div style="display:flex;gap:8px"><button class="btn" id="copyBriefBtn">复制简报</button><button class="btn primary" id="generateBriefBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-1.9 4.4L6 9.3l4.1 1.8L12 15.5l1.9-4.4L18 9.3l-4.1-1.9Z"/></svg>重新生成团队简报</button></div></div>
+      <div class="leader-toolbar">
+        <div class="leader-filter">
+          <select class="select-box" id="departmentSelect" aria-label="领导概览部门"><option>内容经营中心</option><option>制片部门</option><option>编剧中心</option><option>剪辑部门</option><option>运营部门</option></select>
+          <select class="select-box" id="leaderTeamSelect" aria-label="领导概览团队"><option>全部团队</option><option>制片组</option><option>导演组</option><option>剪辑一组</option></select>
+          <button class="btn leader-people-entry" id="openLeaderReportsBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="7" r="4"/><path d="M2 21a7 7 0 0 1 14 0M17 11h5m-2.5-2.5v5"/></svg>人员周报</button>
+          <span class="tag success">数据更新至今天 10:35</span>
+        </div>
+      </div>
       <div class="kpi-grid">
-        <div class="kpi-card"><div><label>覆盖员工</label><strong>46</strong><div class="sub">4个部门，8个业务组</div></div><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div></div>
+        <div class="kpi-card"><div><label>覆盖员工</label><strong>46</strong><div class="sub">4个部门，11个业务组</div></div><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div></div>
         <div class="kpi-card"><div><label>周报提交率</label><strong>87%</strong><div class="sub">较上周提升 5%</div></div><div class="kpi-icon success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="m7 16 4-5 3 3 5-7"/></svg></div></div>
         <div class="kpi-card"><div><label>关键项目进展</label><strong>6</strong><div class="sub">5项正常，1项有风险</div></div><div class="kpi-icon warning"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14"/><path d="M8 7h8M8 11h8M8 15h5"/></svg></div></div>
         <div class="kpi-card"><div><label>需决策/协调</label><strong>5</strong><div class="sub">跨部门3项，预算2项</div></div><div class="kpi-icon danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg></div></div>
@@ -608,10 +672,8 @@ svg{display:block}
       <div class="leader-grid">
         <div class="leader-left">
           <article class="card team-brief">
-            <div class="brief-head"><div><h2>AI团队周报简报</h2><p>综合46份个人周报与8份负责人总结，按经营影响自动排序</p></div><div style="display:flex;gap:7px"><span class="tag primary">AI聚合</span><span class="tag neutral">可编辑</span></div></div>
+            <div class="brief-head"><h2>AI团队周报简报</h2></div>
             <div class="brief-body">
-              <div class="executive-summary"><div class="executive-summary-label"><strong>本周经营摘要</strong><span class="tag primary">建议领导先读</span></div><p id="executiveSummaryText">内容经营中心本周整体交付稳定，6个重点项目中5个按计划推进。《城市回声》拍摄进度达到92%，通过排期优化预计节省12%场地成本；B项目进入开机准备阶段。当前主要风险集中在特效需求变更、配音资源和剪辑设备产能，涉及3项跨部门协调与2项临时预算决策。</p></div>
-
               <div class="ai-adoption-banner"><div class="ai-adoption-main"><strong>本周 AI 应用洞察</strong><span>来自员工必填的“本周AI使用情况”，仅展示聚合结果</span></div><div class="ai-adoption-metric"><label>填写覆盖率</label><strong>100%</strong></div><div class="ai-adoption-metric"><label>实际使用率</label><strong>83%</strong></div><div class="ai-adoption-metric"><label>人均节省</label><strong>2.6小时</strong></div></div>
               <div class="brief-grid">
                 <section class="brief-section"><div class="brief-section-head"><span class="dot success"></span><strong>关键成果</strong></div><ul><li>《城市回声》完成前10集拍摄，计划达成率92%。</li><li>“夏夜计划”完成全季剧本定稿，比计划提前2天。</li><li>内容投放ROI提升至1.68，较上周增长11%。</li></ul></section>
@@ -623,7 +685,7 @@ svg{display:block}
           </article>
         </div>
         <div class="leader-right">
-          <article class="card department-card"><div class="department-head"><strong>部门提交与风险分布</strong><span class="tag neutral">本周</span></div><div class="department-body"><div class="dept-row"><div class="dept-top"><strong>制片部门</strong><span>提交率 92% · 风险 2</span></div><div class="bar"><span style="width:92%"></span></div></div><div class="dept-row"><div class="dept-top"><strong>编剧中心</strong><span>提交率 100% · 风险 1</span></div><div class="bar"><span style="width:100%"></span></div></div><div class="dept-row"><div class="dept-top"><strong>剪辑部门</strong><span>提交率 78% · 风险 2</span></div><div class="bar warning"><span style="width:78%"></span></div></div><div class="dept-row"><div class="dept-top"><strong>运营部门</strong><span>提交率 83% · 风险 0</span></div><div class="bar"><span style="width:83%"></span></div></div></div></article>
+          <article class="card department-card"><div class="department-head"><strong>部门提交与风险分布</strong><span class="tag neutral">点击查看人员</span></div><div class="department-body"><div class="dept-row" data-leader-department="制片部门" role="button" tabindex="0"><div class="dept-top"><strong>制片部门</strong><span>提交率 75% · 风险 4 ›</span></div><div class="bar warning"><span style="width:75%"></span></div></div><div class="dept-row" data-leader-department="编剧中心" role="button" tabindex="0"><div class="dept-top"><strong>编剧中心</strong><span>提交率 92% · 风险 3 ›</span></div><div class="bar"><span style="width:92%"></span></div></div><div class="dept-row" data-leader-department="剪辑部门" role="button" tabindex="0"><div class="dept-top"><strong>剪辑部门</strong><span>提交率 92% · 风险 3 ›</span></div><div class="bar"><span style="width:92%"></span></div></div><div class="dept-row" data-leader-department="运营部门" role="button" tabindex="0"><div class="dept-top"><strong>运营部门</strong><span>提交率 90% · 风险 1 ›</span></div><div class="bar"><span style="width:90%"></span></div></div></div></article>
           <article class="card decision-card"><div class="decision-head"><strong>领导关注事项</strong><button class="btn link">查看全部 5 项</button></div><div class="decision-body"><div class="decision-item"><div class="decision-item-top"><strong>配音资源与临时预算</strong><span class="tag danger">高优先级</span></div><p>最晚周二前确认替补配音演员和备用录音棚，否则影响第18集粗剪节奏。</p></div><div class="decision-item"><div class="decision-item-top"><strong>剪辑设备产能协调</strong><span class="tag warning">跨部门</span></div><p>剪辑一组设备负荷达到95%，建议从技术中心临时借调2台设备。</p></div><div class="decision-item"><div class="decision-item-top"><strong>B项目新增场景预算</strong><span class="tag primary">待决策</span></div><p>新增室外夜景可能增加约8万元成本，需要在开机前确认预算上限。</p></div></div></article>
         </div>
       </div>
@@ -648,11 +710,47 @@ svg{display:block}
   </aside>
 </div>
 
+<div class="drawer-mask" id="leaderReportsDrawerMask">
+  <aside class="side-drawer leader-reports-drawer" aria-label="部门人员周报">
+    <div class="drawer-head">
+      <div><h3>部门人员周报</h3><p id="leaderReportsPeriod">查看各部门每位人员的本周提交内容与 AI 提炼结果</p></div>
+      <div class="leader-reports-head-actions">
+        <label class="leader-report-period-filter">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <span><small>周报周期</small><select id="leaderReportWeek" aria-label="人员周报时间筛选"></select></span>
+        </label>
+        <button class="icon-btn" id="closeLeaderReportsBtn" aria-label="关闭人员周报">×</button>
+      </div>
+    </div>
+    <div class="drawer-body" style="padding:0;overflow:hidden">
+      <div class="leader-directory-layout">
+        <aside class="leader-directory-pane">
+          <div class="leader-directory-tools">
+            <select class="select-box" id="leaderReportDepartment" aria-label="筛选部门"><option>全部部门</option><option>制片部门</option><option>编剧中心</option><option>剪辑部门</option><option>运营部门</option></select>
+            <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="leaderReportSearch" placeholder="搜索姓名、岗位或团队" /></div>
+            <div class="leader-directory-summary"><strong id="leaderDirectoryTitle">全部人员</strong><span id="leaderDirectoryCount">共 0 人</span></div>
+            <div class="leader-directory-filters" id="leaderReportFilters"><button class="active" data-leader-status="all">全部</button><button data-leader-status="submitted">已提交</button><button data-leader-status="pending">待提交</button></div>
+          </div>
+          <div class="leader-directory-list" id="leaderDirectoryList"></div>
+        </aside>
+        <article class="leader-report-detail">
+          <div class="leader-report-detail-head">
+            <div class="leader-report-detail-meta"><div class="member-avatar" id="leaderReportAvatar">林</div><div><h4 id="leaderReportName">林晓的周报</h4><p id="leaderReportMeta">制片部门 · 制片组 · 执行制片</p></div></div>
+            <div class="leader-report-detail-actions"><span class="tag success" id="leaderReportStatus">已提交</span><button class="btn small" id="exportLeaderReportBtn">导出周报</button></div>
+          </div>
+          <div class="leader-report-detail-body" id="leaderReportDetailBody"></div>
+        </article>
+      </div>
+    </div>
+    <div class="drawer-foot"><span id="leaderReportsFootnote" style="font-size:9.5px;color:var(--text-3)">仅展示当前周次与权限范围内的人员周报</span><button class="btn" id="closeLeaderReportsFooterBtn">关闭</button></div>
+  </aside>
+</div>
+
 <div class="toast-stack" id="toastStack"></div>
 
 <script>
 const $ = id => document.getElementById(id);
-const state = { currentView:'employee', memberFilter:'all', selectedMember:'lin', historyId:'w27' };
+const state = { currentView:'employee', memberFilter:'all', selectedMember:'lin', historyId:'w27', leaderDepartment:'全部部门', leaderStatus:'all', leaderPerson:'lin', leaderWeek:'W28' };
 const WEEKLY_REPORT_STORAGE_KEY='kpi-bi-weekly-report-records-v1';
 const WEEKLY_REPORT_UPDATED_EVENT='kpi-bi-weekly-report-updated';
 const CURRENT_WEEKLY_EMPLOYEE={employeeId:'emp-003',name:'林制片',department:'制片中心',role:'中级制片'};
@@ -925,6 +1023,50 @@ const memberOriginals={
   wu:'本周完成核心场次分镜调整和现场调度，拍摄节奏符合计划。\n\n问题与风险：周三夜戏可能受天气影响。\n\n下周计划：确认替代场景并完成后续分镜。',
   song:'本周完成供应商结算、项目台账更新和合同资料归档。\n\n当前无明显风险。\n\n下周计划：推进下一阶段供应商询价。'
 };
+const leaderPeople=[
+  ...members.map((member,index)=>({
+    ...member,
+    department:'制片部门',
+    original:memberOriginals[member.id]||'',
+    achievements:[member.summary,index%2===0?'重点工作节点已同步项目台账并完成相关方确认。':'本周计划内事项已按优先级推进并留存交付记录。'],
+    risks:member.risk?[member.summary.includes('风险')?member.summary:'当前有'+member.risk+'项事项需要负责人持续跟进。']:['当前未识别到需要升级协调的重大风险。'],
+    nextPlan:[index%2===0?'完成下一阶段里程碑并复盘本周计划偏差。':'跟进相关协作方，按约定时间完成下周交付。'],
+    aiUsage:index%3===0?'使用内部 AI 助手整理项目纪要、提取风险与行动项，人工复核后同步团队。':'使用 Copilot 辅助整理周报结构和数据说明，最终内容由本人复核。'
+  })),
+  {id:'chenmo',name:'陈墨',department:'编剧中心',team:'主笔组',role:'主编剧',status:'locked',time:'已锁定 · V2',risk:1,summary:'“夏夜计划”全季剧本完成定稿，比原计划提前2天；人物小传仍需制片组确认。',original:'本周完成《夏夜计划》全季24集剧本定稿，完成第二轮台词统一和节奏校正，并与导演组确认前8集视觉重点。\n\n问题与风险：主要角色人物小传的商务限制仍待制片组书面确认。\n\n下周计划：完成分镜评审修改并启动新项目故事大纲。',achievements:['完成《夏夜计划》24集剧本定稿，比计划提前2天。','完成前8集导演阐述对齐与台词风格统一。'],risks:['主要角色人物小传的商务限制待制片组书面确认。'],nextPlan:['根据分镜评审意见完成剧本微调。','启动新项目故事大纲与人物关系设计。'],aiUsage:'使用 ChatGPT 辅助检查人物称谓一致性并生成修改清单，节省约2小时。'},
+  {id:'zhouyao',name:'周瑶',department:'编剧中心',team:'主笔组',role:'编剧',status:'submitted',time:'今天 09:42 · V1',risk:0,summary:'完成第13—18集二稿与台词精简，内部评审一次通过。',original:'本周完成第13—18集二稿，重点压缩重复台词并强化每集结尾钩子；参加两次内部评审，修改项已全部关闭。\n\n当前无重大风险。\n\n下周计划：推进第19—24集二稿并参与分镜沟通。',achievements:['完成6集二稿并关闭全部内部评审意见。','单集平均台词量下降8%，保留关键剧情信息。'],risks:['当前未识别到需要升级协调的重大风险。'],nextPlan:['完成第19—24集二稿。','参与分镜沟通并同步场景调整。'],aiUsage:'使用内部 AI 助手进行台词重复度检查，人工逐条确认后采纳11条建议。'},
+  {id:'sunyi',name:'孙奕',department:'编剧中心',team:'策划组',role:'故事策划',status:'submitted',time:'昨天 17:28 · V1',risk:1,summary:'完成新项目竞品拆解和核心卖点提案，需进一步验证女性用户反馈。',original:'本周完成12部竞品的题材、节奏和商业化拆解，输出3个故事方向及核心卖点提案。\n\n问题与风险：当前样本偏向现有核心用户，需要补充女性增量用户访谈。\n\n下周计划：完成8名目标用户访谈并收敛最终故事方向。',achievements:['完成12部竞品结构化拆解。','输出3个可进入概念验证的故事方向。'],risks:['用户样本结构偏单一，需补充女性增量用户反馈。'],nextPlan:['完成8名目标用户访谈。','收敛故事方向并提交立项讨论。'],aiUsage:'使用 Perplexity 辅助收集公开行业资料，所有结论均回查原始来源。'},
+  {id:'guoqian',name:'郭倩',department:'编剧中心',team:'策划组',role:'编剧助理',status:'draft',time:'更新于 10:16',risk:0,summary:'周报仍在填写中。',original:'',achievements:[],risks:[],nextPlan:[],aiUsage:''},
+  {id:'liqiao',name:'李乔',department:'剪辑部门',team:'剪辑一组',role:'高级剪辑师',status:'submitted',time:'今天 10:05 · V1',risk:1,summary:'完成《城市回声》前6集粗剪，设备负荷较高但当前交付节点可控。',original:'本周完成《城市回声》前6集粗剪及两轮内部修改，统一片头节奏与转场规范。\n\n问题与风险：剪辑一组设备负荷达到95%，新增返工可能挤压第7集排期。\n\n下周计划：完成第7—10集粗剪并提交前3集精剪版。',achievements:['完成前6集粗剪和两轮内部修改。','统一片头节奏、字幕安全区和转场规范。'],risks:['剪辑设备负荷达到95%，新增返工会挤压后续排期。'],nextPlan:['完成第7—10集粗剪。','提交前3集精剪版供制片审阅。'],aiUsage:'使用 Adobe AI 字幕工具生成初稿，人工校对专有名词后节省约3小时。'},
+  {id:'zhaozitong',name:'赵梓桐',department:'剪辑部门',team:'剪辑一组',role:'剪辑助理',status:'overdue_missing',time:'逾期未交',risk:0,summary:'本周周报尚未提交。',original:'',achievements:[],risks:[],nextPlan:[],aiUsage:''},
+  {id:'qiuning',name:'邱宁',department:'剪辑部门',team:'后期包装组',role:'调色师',status:'locked',time:'已锁定 · V1',risk:0,summary:'完成4集基础调色与主场景色彩标准建立，交付正常。',original:'本周完成4集基础调色，建立室内夜景和城市外景两套色彩标准，并输出项目 LUT。\n\n当前无重大风险。\n\n下周计划：完成剩余6集基础调色并配合精剪回看。',achievements:['完成4集基础调色。','建立两套主场景色彩标准并输出项目 LUT。'],risks:['当前未识别到需要升级协调的重大风险。'],nextPlan:['完成剩余6集基础调色。','配合精剪版本完成色彩回看。'],aiUsage:'本周未使用 AI，主要工作依赖专业监看和人工判断。'},
+  {id:'luoxin',name:'罗欣',department:'剪辑部门',team:'声音组',role:'声音设计',status:'submitted',time:'昨天 18:10 · V1',risk:1,summary:'完成前5集声音设计初版，配音演员档期未锁定可能影响粗混。',original:'本周完成前5集环境声、拟音和音乐点位设计，输出声音设计初版。\n\n问题与风险：第18集配音演员档期未锁定，可能影响下周粗混。\n\n下周计划：完成前5集粗混并确认替补配音资源。',achievements:['完成前5集声音设计初版。','建立项目声音素材命名与归档规则。'],risks:['配音演员档期未锁定，可能影响下周粗混。'],nextPlan:['完成前5集粗混。','与制片部门确认替补配音资源。'],aiUsage:'使用 AI 降噪工具处理3段现场对白，人工听审后保留2段。'},
+  {id:'tangjie',name:'唐洁',department:'运营部门',team:'内容运营组',role:'内容运营',status:'submitted',time:'今天 09:18 · V1',risk:0,summary:'完成两轮投放素材测试，内容投放 ROI 提升至1.68。',original:'本周完成12组素材的两轮投放测试，保留4组高转化版本；整体 ROI 提升至1.68，较上周增长11%。\n\n当前无重大风险。\n\n下周计划：扩大高转化素材预算并测试两套新封面。',achievements:['完成12组素材测试并筛选4组高转化版本。','整体投放 ROI 提升至1.68。'],risks:['当前未识别到需要升级协调的重大风险。'],nextPlan:['扩大高转化素材预算。','完成两套新封面的 A/B 测试。'],aiUsage:'使用内部 AI 助手生成标题方向，人工改写后进入小流量测试。'},
+  {id:'surui',name:'苏睿',department:'运营部门',team:'数据策略组',role:'数据分析师',status:'locked',time:'已锁定 · V2',risk:0,summary:'完成内容漏斗看板升级并定位首日留存下降的主要渠道。',original:'本周完成内容漏斗看板升级，新增渠道、题材和素材版本三个分析维度；定位首日留存下降主要来自渠道C。\n\n当前无重大风险。\n\n下周计划：验证渠道C人群结构并上线异常波动提醒。',achievements:['上线内容漏斗看板三项新维度。','定位首日留存下降的主要渠道。'],risks:['当前未识别到需要升级协调的重大风险。'],nextPlan:['验证渠道C的人群结构差异。','上线核心指标异常波动提醒。'],aiUsage:'使用 Copilot 生成 SQL 初稿并完成人工审查，查询开发时间缩短约30%。'},
+  {id:'wenyan',name:'文妍',department:'运营部门',team:'渠道组',role:'渠道运营',status:'draft',time:'更新于 11:02',risk:0,summary:'周报仍在填写中。',original:'',achievements:[],risks:[],nextPlan:[],aiUsage:''},
+  {id:'dengjia',name:'邓嘉',department:'运营部门',team:'商务组',role:'商务运营',status:'overdue_submitted',time:'逾期 1小时06分 · V1',risk:1,summary:'完成两家平台合作条款初审，独家窗口期仍需管理层决策。',original:'本周完成两家平台合作条款初审和收益测算，形成三套合作方案。\n\n问题与风险：平台A要求增加独家窗口期，需要管理层确认可接受上限。\n\n下周计划：完成法务复核并推动合作方案定稿。',achievements:['完成两家平台合作条款初审。','输出三套收益测算与合作方案。'],risks:['独家窗口期上限需要管理层决策。'],nextPlan:['完成法务复核。','推动合作方案定稿并进入签约流程。'],aiUsage:'使用内部 AI 助手比对合同版本差异，法务复核后采用。'}
+];
+const leaderAdditionalPeopleSeed=[
+  ['fangyu','方宇','制片部门','制片组','执行制片'],['liangchen','梁辰','制片部门','制片组','项目制片'],['miaoke','苗可','制片部门','导演组','副导演'],['jianglan','江岚','制片部门','导演组','场记'],['hanxu','韩旭','制片部门','导演组','执行导演'],
+  ['yangfan','杨帆','编剧中心','主笔组','主编剧'],['xujia','许佳','编剧中心','主笔组','编剧'],['linlu','林鹿','编剧中心','主笔组','编剧'],['shaoqing','邵晴','编剧中心','主笔组','编剧'],['chenxi','陈曦','编剧中心','策划组','故事策划'],['baiyang','白杨','编剧中心','策划组','策划编辑'],['luqing','陆青','编剧中心','策划组','资料编辑'],['zhengwen','郑文','编剧中心','策划组','编剧助理'],
+  ['zhouhe','周禾','剪辑部门','剪辑一组','剪辑师'],['gaoyuan','高源','剪辑部门','剪辑一组','剪辑师'],['shenyan','沈妍','剪辑部门','剪辑一组','剪辑助理'],['zhuoran','卓然','剪辑部门','后期包装组','包装设计'],['yeling','叶菱','剪辑部门','后期包装组','动效设计'],['caoyue','曹悦','剪辑部门','声音组','声音编辑'],['peiran','裴然','剪辑部门','声音组','混音师'],['jiyan','纪言','剪辑部门','声音组','拟音师'],
+  ['lumo','陆墨','运营部门','内容运营组','内容运营'],['qinya','秦雅','运营部门','内容运营组','用户运营'],['xuwen','徐闻','运营部门','数据策略组','数据分析师'],['jinan','季楠','运营部门','渠道组','渠道运营'],['yaoning','姚宁','运营部门','商务组','商务运营'],['xieyi','谢一','运营部门','商务组','商务助理']
+];
+const leaderDepartmentTemplates={
+  '制片部门':{work:'完成负责项目的排期、资源确认与现场交付跟进',result:'关键拍摄节点按计划推进，项目台账已同步更新',next:'完成下一阶段拍摄计划并关闭待协调资源'},
+  '编剧中心':{work:'完成剧本修改、内容评审与创作资料整理',result:'本周版本按时交付，评审意见已形成闭环清单',next:'推进下一批次内容创作并参与分镜沟通'},
+  '剪辑部门':{work:'完成负责集数的后期制作、内部审片与版本归档',result:'交付版本通过内部检查，素材和工程文件已规范归档',next:'完成下一批次后期交付并跟进审片反馈'},
+  '运营部门':{work:'完成内容分析、渠道协同与运营方案执行',result:'核心运营指标保持稳定，重点动作已完成复盘',next:'推进下周运营实验并跟踪核心指标变化'}
+};
+leaderPeople.push(...leaderAdditionalPeopleSeed.map((row,index)=>{
+  const [id,name,department,team,role]=row;
+  const template=leaderDepartmentTemplates[department];
+  const hasRisk=index%10===0;
+  const status=index%5===0?'locked':'submitted';
+  const time=status==='locked'?'已锁定 · V1':`${index%2?'昨天':'今天'} ${String(9+index%3).padStart(2,'0')}:${String(12+index).padStart(2,'0')} · V1`;
+  const riskText=hasRisk?'一项跨团队依赖仍待对方确认，当前不影响本周交付。':'当前未识别到需要升级协调的重大风险。';
+  return {id,name,department,team,role,status,time,risk:hasRisk?1:0,summary:`${template.work}；${template.result}。`,original:`本周完成：${template.work}。\n\n数据与结果：${template.result}。\n\n问题与风险：${riskText}\n\n下周计划：${template.next}。`,achievements:[template.work+'。',template.result+'。'],risks:[riskText],nextPlan:[template.next+'。'],aiUsage:index%4===0?'本周未使用 AI，主要工作依赖现场沟通和专业判断。':'使用内部 AI 助手整理会议纪要和行动项，人工复核后同步相关协作方。'};
+}));
 function statusLabel(s){
   return ({
     submitted:['已提交',''],locked:['已锁定','locked'],overdue_submitted:['逾期已提交','draft'],
@@ -962,9 +1104,131 @@ document.querySelectorAll('#memberFilters button').forEach(btn=>btn.addEventList
 $('exportMemberBtn').onclick=()=>toast('已生成该成员周报导出文件');
 renderMembers();renderMemberReport();
 
-$('copyBriefBtn').onclick=()=>toast('团队简报已复制到剪贴板');
-$('generateBriefBtn').onclick=()=>{const btn=$('generateBriefBtn');const old=btn.innerHTML;btn.disabled=true;btn.textContent='AI生成中…';setTimeout(()=>{btn.disabled=false;btn.innerHTML=old;toast('团队简报已根据最新周报重新生成')},1000)};
-$('departmentSelect').onchange=()=>toast(`已切换至${$('departmentSelect').value}领导概览`);
+function leaderStatusGroup(status){
+  return ['submitted','locked','overdue_submitted','revision_requested'].includes(status)?'submitted':'pending';
+}
+function leaderStatusTone(status){
+  if(['submitted','locked'].includes(status))return 'success';
+  if(['draft','overdue_submitted','revision_requested'].includes(status))return 'warning';
+  return 'danger';
+}
+function syncLeaderReportWeekOptions(){
+  const sourceOptions=[...$('weekSelect').options];
+  $('leaderReportWeek').innerHTML=sourceOptions.map(option=>`<option value="${option.value}">${option.textContent}</option>`).join('');
+  if(!sourceOptions.some(option=>option.value===state.leaderWeek))state.leaderWeek=$('weekSelect').value;
+  $('leaderReportWeek').value=state.leaderWeek;
+}
+function getLeaderReportPeriodLabel(){
+  return $('leaderReportWeek').selectedOptions[0]?.textContent||'当前周次';
+}
+function updateLeaderReportPeriodContext(){
+  const period=getLeaderReportPeriodLabel();
+  $('leaderReportsPeriod').textContent=`${period} · 查看各部门每位人员的提交内容与 AI 提炼结果`;
+}
+function getLeaderDirectoryPeople(){
+  const query=$('leaderReportSearch').value.trim();
+  return leaderPeople.filter(person=>
+    (state.leaderDepartment==='全部部门'||person.department===state.leaderDepartment)&&
+    (state.leaderStatus==='all'||leaderStatusGroup(person.status)===state.leaderStatus)&&
+    (!query||person.name.includes(query)||person.role.includes(query)||person.team.includes(query))
+  );
+}
+function renderLeaderDirectory(){
+  const list=getLeaderDirectoryPeople();
+  if(!list.some(person=>person.id===state.leaderPerson))state.leaderPerson=list[0]?.id||'';
+  $('leaderDirectoryTitle').textContent=state.leaderDepartment==='全部部门'?'全部人员':state.leaderDepartment;
+  $('leaderDirectoryCount').textContent=`共 ${list.length} 人`;
+  $('leaderReportsFootnote').textContent=`${getLeaderReportPeriodLabel()} · 当前范围：${state.leaderDepartment} · ${list.length} 人 · 仅展示权限范围内的周报`;
+  $('leaderDirectoryList').innerHTML=list.map(person=>{
+    const [label]=statusLabel(person.status);
+    return `<button class="leader-person-item ${state.leaderPerson===person.id?'active':''}" data-leader-person="${person.id}"><span class="member-avatar">${person.name.slice(0,1)}</span><span class="leader-person-main"><strong>${person.name}</strong><span>${person.role} · ${person.department} · ${person.team}</span></span><span class="leader-person-state"><b class="${leaderStatusTone(person.status)}">${label}</b><small>${person.risk?person.risk+'项风险':person.time}</small></span></button>`;
+  }).join('')||'<div style="padding:60px 18px;text-align:center;color:var(--text-3);font-size:10px">当前筛选条件下暂无人员</div>';
+  document.querySelectorAll('[data-leader-person]').forEach(button=>button.addEventListener('click',()=>{
+    state.leaderPerson=button.dataset.leaderPerson;
+    renderLeaderDirectory();
+    renderLeaderReportDetail();
+  }));
+  renderLeaderReportDetail();
+}
+function renderLeaderReportDetail(){
+  const person=leaderPeople.find(item=>item.id===state.leaderPerson);
+  const exportButton=$('exportLeaderReportBtn');
+  if(!person){
+    $('leaderReportAvatar').textContent='—';
+    $('leaderReportName').textContent='暂无人员';
+    $('leaderReportMeta').textContent='请调整左侧筛选条件';
+    $('leaderReportStatus').textContent='无数据';
+    $('leaderReportStatus').className='tag neutral';
+    exportButton.disabled=true;
+    $('leaderReportDetailBody').innerHTML='<div class="leader-report-empty"><div><div class="leader-report-empty-icon">⌕</div><strong>没有匹配的人员周报</strong><p>可切换部门、提交状态或清空搜索关键词</p></div></div>';
+    return;
+  }
+  const [statusText]=statusLabel(person.status);
+  $('leaderReportAvatar').textContent=person.name.slice(0,1);
+  $('leaderReportName').textContent=person.name+'的周报';
+  $('leaderReportMeta').textContent=`${getLeaderReportPeriodLabel()} · ${person.department} · ${person.team} · ${person.role} · ${person.time}`;
+  $('leaderReportStatus').textContent=statusText;
+  $('leaderReportStatus').className='tag '+leaderStatusTone(person.status);
+  const pending=['draft','overdue_missing'].includes(person.status);
+  exportButton.disabled=pending;
+  if(pending){
+    const draft=person.status==='draft';
+    $('leaderReportDetailBody').innerHTML=`<div class="leader-report-empty"><div><div class="leader-report-empty-icon">⌛</div><strong>${person.name}${draft?'正在填写周报':'尚未提交本周周报'}</strong><p>${draft?'草稿内容仅员工本人可见，正式提交后领导可查看完整内容。':'可发送提醒，提交后这里将同步展示完整周报。'}</p><button class="btn soft small" id="leaderReminderBtn" style="margin-top:14px">发送提交提醒</button></div></div>`;
+    $('leaderReminderBtn').onclick=()=>toast(`已向${person.name}发送周报提交提醒`);
+    return;
+  }
+  const listItems=items=>items.map(item=>`<li>${item}</li>`).join('');
+  $('leaderReportDetailBody').innerHTML=`<div class="leader-report-overview"><div><label>AI 重点摘要</label><strong>${person.summary}</strong></div><div><label>风险事项</label><strong>${person.risk||0} 项</strong></div><div><label>本周 AI 使用</label><strong>${person.aiUsage?'已填写':'未填写'}</strong></div></div><div class="leader-report-sections"><section class="report-block"><div class="report-block-head"><strong><span class="dot success"></span>关键成果</strong><span class="tag success">${person.achievements.length}项</span></div><div class="report-block-content"><ul>${listItems(person.achievements)}</ul></div></section><section class="report-block"><div class="report-block-head"><strong><span class="dot warning"></span>风险与支持</strong><span class="tag warning">${person.risk||0}项</span></div><div class="report-block-content"><ul>${listItems(person.risks)}</ul></div></section><section class="report-block"><div class="report-block-head"><strong><span class="dot cyan"></span>下周重点</strong><span class="tag primary">${person.nextPlan.length}项</span></div><div class="report-block-content"><ul>${listItems(person.nextPlan)}</ul></div></section><section class="report-block"><div class="report-block-head"><strong><span class="dot"></span>本周 AI 使用情况</strong><span class="tag neutral">员工填写</span></div><div class="report-block-content"><ul><li>${person.aiUsage||'本周未填写 AI 使用情况。'}</li></ul></div></section><section class="leader-report-original"><div class="leader-report-original-head"><strong>员工周报原文</strong><span>提交版本 · ${person.time}</span></div><p>${person.original||person.summary}</p></section></div>`;
+}
+function syncLeaderTeamOptions(){
+  const department=$('departmentSelect').value;
+  const scoped=department==='内容经营中心'?leaderPeople:leaderPeople.filter(person=>person.department===department);
+  const teams=[...new Set(scoped.map(person=>person.team))];
+  $('leaderTeamSelect').innerHTML='<option>全部团队</option>'+teams.map(team=>`<option>${team}</option>`).join('');
+}
+function openLeaderReports(department){
+  const selected=department||$('departmentSelect').value;
+  state.leaderDepartment=selected==='内容经营中心'?'全部部门':selected;
+  state.leaderStatus='all';
+  if(!$('leaderReportsDrawerMask').classList.contains('show'))state.leaderWeek=$('weekSelect').value;
+  syncLeaderReportWeekOptions();
+  $('leaderReportDepartment').value=state.leaderDepartment;
+  $('leaderReportSearch').value='';
+  document.querySelectorAll('#leaderReportFilters button').forEach(button=>button.classList.toggle('active',button.dataset.leaderStatus==='all'));
+  updateLeaderReportPeriodContext();
+  renderLeaderDirectory();
+  $('leaderReportsDrawerMask').classList.add('show');
+}
+function closeLeaderReports(){$('leaderReportsDrawerMask').classList.remove('show')}
+$('openLeaderReportsBtn').onclick=()=>openLeaderReports();
+$('closeLeaderReportsBtn').onclick=$('closeLeaderReportsFooterBtn').onclick=closeLeaderReports;
+$('leaderReportsDrawerMask').addEventListener('click',event=>{if(event.target===$('leaderReportsDrawerMask'))closeLeaderReports()});
+$('leaderReportDepartment').addEventListener('change',event=>{state.leaderDepartment=event.target.value;renderLeaderDirectory()});
+$('leaderReportWeek').addEventListener('change',event=>{
+  state.leaderWeek=event.target.value;
+  updateLeaderReportPeriodContext();
+  renderLeaderDirectory();
+});
+$('leaderReportSearch').addEventListener('input',renderLeaderDirectory);
+document.querySelectorAll('#leaderReportFilters button').forEach(button=>button.addEventListener('click',()=>{
+  state.leaderStatus=button.dataset.leaderStatus;
+  document.querySelectorAll('#leaderReportFilters button').forEach(item=>item.classList.toggle('active',item===button));
+  renderLeaderDirectory();
+}));
+document.querySelectorAll('[data-leader-department]').forEach(row=>{
+  const open=()=>{$('departmentSelect').value=row.dataset.leaderDepartment;syncLeaderTeamOptions();openLeaderReports(row.dataset.leaderDepartment)};
+  row.addEventListener('click',open);
+  row.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open()}});
+});
+$('exportLeaderReportBtn').onclick=()=>{
+  const person=leaderPeople.find(item=>item.id===state.leaderPerson);
+  if(person)toast(`已生成${person.name}的个人周报导出文件`);
+};
+
+$('departmentSelect').onchange=()=>{syncLeaderTeamOptions();toast(`已切换至${$('departmentSelect').value}领导概览`)};
+$('leaderTeamSelect').onchange=()=>toast(`已切换至${$('leaderTeamSelect').value}数据范围`);
+$('weekSelect').addEventListener('change',()=>{if($('leaderReportsDrawerMask').classList.contains('show')){state.leaderWeek=$('weekSelect').value;openLeaderReports(state.leaderDepartment)}});
+syncLeaderTeamOptions();
 
 const queryParams=new URLSearchParams(location.search);
 const queryView=queryParams.get('view');

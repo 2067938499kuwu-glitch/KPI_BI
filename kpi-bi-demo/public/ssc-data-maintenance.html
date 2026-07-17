@@ -240,6 +240,25 @@ tbody tr:hover{background:#fafbfe}
 .tag{font-size:11px;color:#63708a;background:#f4f6fa;border-radius:5px;padding:4px 7px}
 .template-bottom{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:11px}
 .template-actions{display:flex;gap:5px}
+.template-preview-hero{display:flex;align-items:center;gap:13px;padding:14px;border:1px solid #dbe4ff;border-radius:11px;background:#f7f9ff}
+.template-preview-hero .file-icon{width:50px;height:50px;flex-basis:50px}
+.template-preview-hero strong{display:block;font-size:15px}
+.template-preview-hero p{margin:5px 0 0;color:var(--muted);font-size:12px;line-height:1.55}
+.template-preview-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}
+.template-preview-meta>div{padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.template-preview-meta span,.template-preview-meta strong{display:block}
+.template-preview-meta span{color:var(--muted);font-size:10px}
+.template-preview-meta strong{margin-top:5px;font-size:12px}
+.template-preview-structure{padding:14px;border:1px solid var(--line);border-radius:11px;background:#fff}
+.template-preview-structure-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px}
+.template-preview-structure-head strong{font-size:13px}.template-preview-structure-head span{color:var(--muted);font-size:11px}
+.template-preview-field-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.template-preview-field{min-height:48px;padding:9px 10px;border:1px solid #e4e9f2;border-radius:8px;background:#fafbfe;display:flex;align-items:center;gap:8px}
+.template-preview-field span{display:grid;place-items:center;width:23px;height:23px;flex:0 0 23px;border-radius:6px;background:#e9efff;color:var(--primary);font-size:9px;font-weight:750}
+.template-preview-field b{font-size:12px;font-weight:650}
+.template-version-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px;padding:13px 14px;border:1px solid #dbe4ff;border-radius:10px;background:#f7f9ff}
+.template-version-heading strong{display:block;font-size:14px}.template-version-heading p{margin:5px 0 0;color:var(--muted);font-size:12px}
+.template-version-table table{min-width:700px}.template-version-table td{white-space:normal;line-height:1.5}
 .drawer-mask,.modal-mask{
   position:fixed;inset:0;background:rgba(8,18,36,.42);display:none;z-index:100
 }
@@ -376,7 +395,7 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
       <!-- 组织架构与花名册 -->
       <section class="view active" id="view-org">
         <div class="toolbar">
-          <input class="input search" id="rosterSearch" placeholder="搜索姓名、花名、员工编号" />
+          <input class="input search" id="rosterSearch" placeholder="搜索姓名、花名、部门或职务" />
           <select class="select" id="employmentStatus">
             <option value="">全部员工状态</option>
             <option>在职</option><option>实习期</option><option>已离职</option>
@@ -582,7 +601,7 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
       <div class="employee-link-summary" id="employeeLinkSummary"><span id="employeeLinkSummaryText"></span><button type="button" onclick="clearRecruitmentArrivalSelection()">取消关联</button></div>
       <div class="employee-form-title">员工建档信息</div>
       <div class="form-grid">
-        <div class="form-item"><label>员工编号</label><input class="input" id="empNo" /></div>
+        <input id="empNo" type="hidden" />
         <div class="form-item"><label>姓名</label><input class="input" id="empName" placeholder="请输入姓名" /></div>
         <div class="form-item"><label>花名</label><input class="input" id="empAlias" placeholder="请输入花名" /></div>
         <div class="form-item"><label>所属部门</label><select class="select" id="empDept"><option>平台与中台研发部</option><option>内容经营中心</option><option>综合管理中心</option><option>商务中心</option><option>AIGC部门</option></select></div>
@@ -692,6 +711,24 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
       </div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal('uploadTemplateModal')">取消</button><button class="btn primary" onclick="closeModal('uploadTemplateModal');toast('模板已上传并创建V1.0版本')">确认上传</button></div>
+  </div>
+</div>
+
+<!-- 模板预览 -->
+<div class="modal-mask" id="templatePreviewModal" role="dialog" aria-modal="true" aria-labelledby="templatePreviewTitle">
+  <div class="modal large">
+    <div class="modal-head"><div class="modal-title" id="templatePreviewTitle">模板预览</div><button class="close" aria-label="关闭模板预览" onclick="closeModal('templatePreviewModal')">×</button></div>
+    <div class="modal-body" id="templatePreviewBody"></div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal('templatePreviewModal')">关闭</button><button class="btn primary" id="templatePreviewDownload" onclick="downloadPreviewTemplate()">下载当前版本</button></div>
+  </div>
+</div>
+
+<!-- 模板版本记录 -->
+<div class="modal-mask" id="templateVersionModal" role="dialog" aria-modal="true" aria-labelledby="templateVersionTitle">
+  <div class="modal large">
+    <div class="modal-head"><div class="modal-title" id="templateVersionTitle">模板版本记录</div><button class="close" aria-label="关闭模板版本" onclick="closeModal('templateVersionModal')">×</button></div>
+    <div class="modal-body" id="templateVersionBody"></div>
+    <div class="modal-foot"><button class="btn primary" onclick="closeModal('templateVersionModal')">完成查看</button></div>
   </div>
 </div>
 
@@ -881,7 +918,7 @@ const RECRUITMENT_DATA_STORAGE_KEY='kpi-bi:demo-domain-data:v2';
 const SSC_PERSONNEL_META_KEY='kpi-bi:ssc-employees-meta';
 const SSC_PERSONNEL_MONTHLY_KEY='kpi-bi:ssc-employees-monthly';
 const SSC_PERSONNEL_MONTH_KEY='kpi-bi:ssc-employees-selected-month';
-const ROSTER_EXPORT_FIELDS=['公司','员工编号','部门','职务','姓名','花名','入职时间','试用期止','司龄','转正状态','户口性质','社保','公积金','民族','婚否','联系方式','性别','年龄','出生日期','身份证号','身份证有效期','身份证有效期限统计','户籍地址','银行卡号','开户行','合同起始日','合同到期日','合同期统计','毕业院校','专业','最高学历','毕业时间','现居地','紧急联系人','联系电话','备注','试用期薪资','转正后薪资','离职日期','离职原因','结算金额'];
+const ROSTER_EXPORT_FIELDS=['公司','部门','职务','姓名','花名','入职时间','试用期止','司龄','转正状态','户口性质','社保','公积金','民族','婚否','联系方式','性别','年龄','出生日期','身份证号','身份证有效期','身份证有效期限统计','户籍地址','银行卡号','开户行','合同起始日','合同到期日','合同期统计','毕业院校','专业','最高学历','毕业时间','现居地','紧急联系人','联系电话','备注','试用期薪资','转正后薪资','离职日期','离职原因','结算金额'];
 const ROSTER_ALIASES={
  no:['员工编号','员工编码（新）','员工编码（旧）','员工编号（新）','员工编号（旧）','UserID'],
  name:['姓名','姓名/简历名（选填）','姓名/简历名'],alias:['花名','花名*'],dept:['部门','部门*'],role:['职务','职位','职位*'],
@@ -952,7 +989,7 @@ function normalizeRosterRecord(source,rowIndex){
 }
 function visibleEmployees(){
  const kw=document.getElementById('rosterSearch').value.trim().toLowerCase(),st=document.getElementById('employmentStatus').value,rt=document.getElementById('regularStatus').value;
- return employees.filter(e=>(currentDept==='全部公司'||e.dept===currentDept)&&(!st||e.status===st)&&(!rt||e.regular===rt)&&(!kw||[e.no,e.name,e.alias,e.dept,e.role].join('|').toLowerCase().includes(kw)));
+ return employees.filter(e=>(currentDept==='全部公司'||e.dept===currentDept)&&(!st||e.status===st)&&(!rt||e.regular===rt)&&(!kw||[e.name,e.alias,e.dept,e.role].join('|').toLowerCase().includes(kw)));
 }
 function renderRosterSource(){
  const detail=document.getElementById('rosterSourceDetail');if(!detail)return;
@@ -987,7 +1024,6 @@ function openEmployee(no){
  document.getElementById('employeeDrawerBody').innerHTML=`
   <div class="profile"><div class="profile-avatar">${escapeHtml(e.name.slice(-1))}</div><div><div class="profile-name">${escapeHtml(e.name)} <span class="badge info">${escapeHtml(e.alias)}</span></div><div class="profile-sub">${escapeHtml(e.dept)} · ${escapeHtml(e.role)}</div></div></div>
   <div class="info-grid">
-   <div class="info-cell"><div class="info-label">员工编号</div><div class="info-value">${escapeHtml(e.no)}</div></div>
    <div class="info-cell"><div class="info-label">员工状态</div><div class="info-value">${escapeHtml(e.status)}</div></div>
    <div class="info-cell"><div class="info-label">入职日期</div><div class="info-value">${escapeHtml(e.date||'-')}</div></div>
    <div class="info-cell"><div class="info-label">转正状态</div><div class="info-value">${escapeHtml(e.regular)}</div></div>
@@ -1034,7 +1070,7 @@ function selectRecruitmentArrival(candidateId,applicationId){
  document.getElementById('empRole').value=item.job;
  document.getElementById('empDate').value=item.onboardAt;
  ensureDepartmentOption(item.department);
- document.getElementById('employeeLinkSummaryText').textContent=`将关联招聘记录 ${item.applicationId} · ${item.name} · ${item.job}`;
+ document.getElementById('employeeLinkSummaryText').textContent=`将关联 ${item.name} 的${item.job}招聘记录`;
  document.getElementById('employeeLinkSummary').classList.add('show');
  renderRecruitmentArrivals();
 }
@@ -1063,13 +1099,13 @@ function linkRecruitmentApplication(employee){
   const data=JSON.parse(localStorage.getItem(RECRUITMENT_DATA_STORAGE_KEY)||'null');if(!data?.candidates)return;
   const linkedStatus=employee.status==='已离职'?'已离职':employee.regular==='已转正'?'已转正':'实习期';
   const now=new Date().toLocaleString('zh-CN',{hour12:false});
-  data.candidates=data.candidates.map(candidate=>candidate.id!==selectedRecruitmentArrival.candidateId?candidate:{...candidate,updatedAt:now,applications:(candidate.applications||[]).map(application=>application.id!==selectedRecruitmentArrival.applicationId?application:{...application,status:linkedStatus,sscEmployeeNo:employee.no,onboardAt:employee.date,employmentSource:'SSC花名册',version:Number(application.version||1)+1,history:[...(application.history||[]),{time:now,action:'SSC完成员工建档并关联',operator:'SSC服务中心',note:`员工编号：${employee.no}`} ]})});
+  data.candidates=data.candidates.map(candidate=>candidate.id!==selectedRecruitmentArrival.candidateId?candidate:{...candidate,updatedAt:now,applications:(candidate.applications||[]).map(application=>application.id!==selectedRecruitmentArrival.applicationId?application:{...application,status:linkedStatus,sscEmployeeNo:employee.no,onboardAt:employee.date,employmentSource:'SSC花名册',version:Number(application.version||1)+1,history:[...(application.history||[]),{time:now,action:'SSC完成员工建档并关联',operator:'SSC服务中心',note:'已关联 SSC 花名册'} ]})});
   data.updatedAt=now;localStorage.setItem(RECRUITMENT_DATA_STORAGE_KEY,JSON.stringify(data));
   window.parent.postMessage({type:'ssc-recruitment-linked',candidateId:selectedRecruitmentArrival.candidateId,applicationId:selectedRecruitmentArrival.applicationId,employee:{no:employee.no,date:employee.date,status:employee.status,regular:employee.regular}},window.location.origin);
  }catch(error){toast('员工已新增，招聘关联回写失败，请稍后重试')}
 }
 function addEmployee(){
- const name=document.getElementById('empName').value.trim(),no=document.getElementById('empNo').value.trim();if(!name){toast('请填写员工姓名');return}if(!no){toast('请填写员工编号');return}if(employees.some(employee=>employee.no===no)){toast('员工编号已存在，请检查后重试');return}
+ const name=document.getElementById('empName').value.trim(),no=document.getElementById('empNo').value.trim()||nextEmployeeNo();if(!name){toast('请填写员工姓名');return}if(employees.some(employee=>employee.no===no)){toast('员工档案已存在，请检查后重试');return}
  const employee={
   no,name,alias:document.getElementById('empAlias').value.trim()||'-',
   dept:document.getElementById('empDept').value,role:document.getElementById('empRole').value.trim()||'-',
@@ -1111,7 +1147,7 @@ async function importRosterFile(file){
  try{
   const sheets=await readWorkbookFile(file);let best=null;
   sheets.forEach(sheet=>{const header=findHeader(sheet.rows,ROSTER_EXPORT_FIELDS,ROSTER_ALIASES);const rank=header.score+(sheet.name.includes('花名册')?2:0);if(!best||rank>best.rank)best={sheet,header,rank}});
-  if(!best||best.header.score<3)throw new Error('未识别到花名册表头，请确认文件包含员工编号、姓名/花名、部门等字段');
+  if(!best||best.header.score<3)throw new Error('未识别到花名册表头，请确认文件包含姓名/花名、部门、职务等字段');
   const fields=best.header.headers.map(value=>String(value??'').trim()),records=best.sheet.rows.slice(best.header.index+1).map(row=>Object.fromEntries(fields.map((field,index)=>[field,excelDateValue(row[index]??'',field)]))).filter(record=>Object.values(record).some(value=>String(value).trim()));
   if(!records.length)throw new Error('已识别花名册表头，但未发现员工数据；当前文件可能只是空模板');
   employees=records.map(normalizeRosterRecord);rosterSourceFields=fields.filter(Boolean);rosterSourceMeta={fileName:file.name,importedAt:new Date().toLocaleString('zh-CN',{hour12:false}),sheetName:best.sheet.name,month:currentRosterMonth,fields:rosterSourceFields};
@@ -1127,7 +1163,7 @@ document.getElementById('rosterFileInput').addEventListener('change',event=>{con
 /* 表格管理 */
 const TABLE_STORAGE_KEY='kpi-bi:ssc-business-tables';
 const TABLE_MONTH_KEY='kpi-bi:ssc-tables-selected-month';
-const ATTENDANCE_FIELDS=['考勤月份','UserID','姓名','花名','部门','职务','入职日期','转正日期','离职日期','应出勤天数','实出勤天数','转正天数','入离职天数','事假小时数','病假小时数','迟到早退0.5小时以内（含）','迟到早退0.5-1小时（含）','迟到早退1-4小时（含）','迟到早退超过4小时次数','缺卡次数','晚走（21:30及之后）','是否全勤','备注'];
+const ATTENDANCE_FIELDS=['考勤月份','姓名','花名','部门','职务','入职日期','转正日期','离职日期','应出勤天数','实出勤天数','转正天数','入离职天数','事假小时数','病假小时数','迟到早退0.5小时以内（含）','迟到早退0.5-1小时（含）','迟到早退1-4小时（含）','迟到早退超过4小时次数','缺卡次数','晚走（21:30及之后）','是否全勤','备注'];
 const ATTENDANCE_ALIASES={
  '实出勤天数':['实出勤天数','实际出勤天数'],'迟到早退0.5小时以内（含）':['迟到早退0.5小时以内（含）','迟到早退0.5小时以内含'],'迟到早退0.5-1小时（含）':['迟到早退0.5-1小时（含）','迟到早退0.5至1小时（含）'],'迟到早退1-4小时（含）':['迟到早退1-4小时（含）','迟到早退1至4小时（含）'],'迟到早退超过4小时次数':['迟到早退超过4小时次数','迟到早退4小时以上次数'],'晚走（21:30及之后）':['晚走（21:30及之后）','晚走21:30及之后']
 };
@@ -1142,12 +1178,12 @@ let tables=[
  {id:2,name:'月度考勤统计表',category:'人事类',desc:'按月维护出勤、请假、迟到早退、缺卡、晚走和全勤数据',
   fields:ATTENDANCE_FIELDS,
   rows:[
-   ['2026-07','10001','陈雨','挑灯','平台与中台研发部','产品经理','2026-01-05','','','23','22','0','23','0','0','0','0','0','0','1','0','否',''],
-   ['2026-07','10002','李哲','云舟','平台与中台研发部','后端开发','2025-10-23','','','23','23','0','23','0','0','0','0','0','0','0','1','是','']
+   ['2026-07','陈雨','挑灯','平台与中台研发部','产品经理','2026-01-05','','','23','22','0','23','0','0','0','0','0','0','1','0','否',''],
+   ['2026-07','李哲','云舟','平台与中台研发部','后端开发','2025-10-23','','','23','23','0','23','0','0','0','0','0','0','0','1','是','']
   ],updatedAt:'演示数据'},
  {id:3,name:'办公设备领用表',category:'行政类',desc:'维护员工办公设备的领用、归还和资产状态',
-  fields:['员工姓名','所属部门','设备名称','资产编号','领用日期','归还日期','当前状态'],
-  rows:[['陈雨','平台与中台研发部','MacBook Pro','ZC-2026-018','2026-01-06','-','使用中']]},
+  fields:['员工姓名','所属部门','设备名称','领用日期','归还日期','当前状态'],
+  rows:[['陈雨','平台与中台研发部','MacBook Pro','2026-01-06','-','使用中']]},
  {id:4,name:'合同到期台账',category:'人事类',desc:'维护员工合同起止时间及续签状态',
   fields:['员工姓名','所属部门','合同开始日期','合同到期日期','续签状态','备注'],
   rows:[['赵磊','商务中心','2023-11-07','2026-11-06','待续签','提前60天提醒']]}
@@ -1158,6 +1194,13 @@ try{
  const storedTables=JSON.parse(localStorage.getItem(TABLE_STORAGE_KEY)||'null');if(Array.isArray(storedTables)&&storedTables.length)tables=storedTables;
  const attendance=tables.find(table=>table.id===2);if(attendance&&attendance.fields.length<ATTENDANCE_FIELDS.length){attendance.fields=ATTENDANCE_FIELDS;attendance.rows=[];attendance.monthlyRows={};attendance.updatedAt='字段已按最新考勤表升级'}
 }catch(error){}
+function hideNonContentNumberFields(table){
+ const hiddenIndexes=(table.fields||[]).map((field,index)=>(/编号/i.test(field)||/userid/i.test(field)||/(^|[^a-z])id$/i.test(field))?index:-1).filter(index=>index>=0);
+ if(!hiddenIndexes.length)return table;
+ const keep=(row=[])=>row.filter((value,index)=>!hiddenIndexes.includes(index));
+ return {...table,fields:table.fields.filter((field,index)=>!hiddenIndexes.includes(index)),rows:(table.rows||[]).map(keep),monthlyRows:Object.fromEntries(Object.entries(table.monthlyRows||{}).map(([month,rows])=>[month,(rows||[]).map(keep)]))};
+}
+tables=tables.map(hideNonContentNumberFields);
 function ensureTableMonth(table,month){
  if(!table.monthlyRows||typeof table.monthlyRows!=='object')table.monthlyRows={};
  if(!Array.isArray(table.monthlyRows[month]))table.monthlyRows[month]=inheritMonthlySnapshot(table.monthlyRows,month,table.rows||[]);
@@ -1277,14 +1320,14 @@ document.getElementById('tableFileInput').addEventListener('change',event=>{cons
 
 /* 模板管理 */
 const templates=[
- {name:'员工信息采集表',category:'人事行政',version:'V3.1',desc:'用于新员工入职资料收集及花名册信息维护。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'XLS'},
- {name:'离职交接清单',category:'人事行政',version:'V2.4',desc:'用于员工离职时进行工作、设备及账号交接。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'DOC'},
- {name:'费用报销明细表',category:'财务报销',version:'V4.2',desc:'用于各部门提交费用报销明细及凭证信息。',departments:['全部部门'],permission:'指定部门可下载',status:'启用',format:'XLS'},
- {name:'账号开通申请单',category:'账号申请',version:'V2.0',desc:'用于申请系统账号、账号等级及权限范围。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'DOC'},
- {name:'项目汇报模板',category:'项目管理',version:'V1.8',desc:'用于项目阶段性汇报与管理层进度同步。',departments:['平台与中台研发部','内容经营中心'],permission:'指定部门可下载',status:'启用',format:'PPT'},
- {name:'部门月度数据表',category:'通用表格',version:'V1.3',desc:'用于各部门统一提交月度基础数据。',departments:['全部部门'],permission:'申请后下载',status:'停用',format:'XLS'}
+ {name:'员工信息采集表',category:'人事行政',version:'V3.1',desc:'用于新员工入职资料收集及花名册信息维护。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'XLS',previewFields:['姓名','花名','所属部门','职务','入职日期','联系电话','紧急联系人','紧急联系电话'],versions:[{version:'V3.1',status:'当前版本',note:'新增紧急联系人字段',uploader:'王敏',uploadedAt:'2026-07-12 16:20'},{version:'V3.0',status:'历史版本',note:'调整部门字段格式',uploader:'王敏',uploadedAt:'2026-06-02 10:15'}]},
+ {name:'离职交接清单',category:'人事行政',version:'V2.4',desc:'用于员工离职时进行工作、设备及账号交接。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'DOC',previewFields:['离职人员','所属部门','最后工作日','工作事项交接','设备归还','账号关闭','资料归档','交接人签字','负责人确认'],versions:[{version:'V2.4',status:'当前版本',note:'补充账号与设备交接检查项',uploader:'王敏',uploadedAt:'2026-07-10 09:40'},{version:'V2.3',status:'历史版本',note:'优化交接人签字栏',uploader:'王敏',uploadedAt:'2026-05-28 14:10'}]},
+ {name:'费用报销明细表',category:'财务报销',version:'V4.2',desc:'用于各部门提交费用报销明细及凭证信息。',departments:['全部部门'],permission:'指定部门可下载',status:'启用',format:'XLS',previewFields:['报销人员','所属部门','费用日期','费用类型','归属项目','报销金额','发票号码','支付方式','费用说明'],versions:[{version:'V4.2',status:'当前版本',note:'新增费用归属项目字段',uploader:'周静',uploadedAt:'2026-07-08 17:25'},{version:'V4.1',status:'历史版本',note:'统一金额与发票号码格式',uploader:'周静',uploadedAt:'2026-05-16 11:05'}]},
+ {name:'账号开通申请单',category:'账号申请',version:'V2.0',desc:'用于申请系统账号、账号等级及权限范围。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'DOC',previewFields:['申请人员','所属部门','系统名称','账号类型','权限等级','有效期','申请原因','直属负责人','系统管理员'],versions:[{version:'V2.0',status:'当前版本',note:'增加账号有效期和等级',uploader:'李哲',uploadedAt:'2026-07-09 11:30'},{version:'V1.9',status:'历史版本',note:'调整负责人审批信息',uploader:'李哲',uploadedAt:'2026-05-20 15:45'}]},
+ {name:'项目汇报模板',category:'项目管理',version:'V1.8',desc:'用于项目阶段性汇报与管理层进度同步。',departments:['平台与中台研发部','内容经营中心'],permission:'指定部门可下载',status:'启用',format:'PPT',previewFields:['项目概况','阶段目标','完成进度','本期成果','成本执行','风险事项','待协调事项','下期计划','关键里程碑'],versions:[{version:'V1.8',status:'当前版本',note:'新增成本执行与风险页',uploader:'陈雨',uploadedAt:'2026-07-06 13:50'},{version:'V1.7',status:'历史版本',note:'优化管理层摘要版式',uploader:'陈雨',uploadedAt:'2026-05-12 10:30'}]},
+ {name:'部门月度数据表',category:'通用表格',version:'V1.3',desc:'用于各部门统一提交月度基础数据。',departments:['全部部门'],permission:'申请后下载',status:'停用',format:'XLS',previewFields:['统计月份','所属部门','指标名称','指标口径','目标值','实际值','完成率','差异原因','改进计划'],versions:[{version:'V1.3',status:'当前版本',note:'补充指标口径与差异原因',uploader:'赵宁',uploadedAt:'2026-06-30 18:20'},{version:'V1.2',status:'历史版本',note:'增加目标值与完成率',uploader:'赵宁',uploadedAt:'2026-04-30 16:15'}]}
 ];
-let templateCategory='全部模板',selectedDownload=null;
+let templateCategory='全部模板',selectedDownload=null,selectedTemplate=null;
 function renderTemplates(){
  const kw=document.getElementById('templateSearch').value.trim().toLowerCase(),st=document.getElementById('templateStatus').value;
  const list=templates.filter(t=>(templateCategory==='全部模板'||t.category===templateCategory)&&(!st||t.status===st)&&(!kw||[t.name,t.desc,t.category].join('|').toLowerCase().includes(kw)));
@@ -1294,7 +1337,7 @@ function renderTemplates(){
    <div class="template-desc">${t.desc}</div>
    <div class="template-tags"><span class="tag">适用：${t.departments.join('、')}</span><span class="tag">权限：${t.permission}</span></div>
    <div class="template-bottom"><span style="font-size:11px;color:var(--muted)">更新于 2026-07-${12-i}</span>
-    <div class="template-actions"><button class="btn small">预览</button><button class="btn small">版本</button><button class="btn small primary" onclick="openDownload('${t.name}','${t.version}')">下载</button></div>
+     <div class="template-actions"><button class="btn small" onclick="openTemplatePreview('${encodeURIComponent(t.name)}')">预览</button><button class="btn small" onclick="openTemplateVersions('${encodeURIComponent(t.name)}')">版本</button><button class="btn small primary" onclick="openDownload('${t.name}','${t.version}')">下载</button></div>
    </div>
   </div>`).join(''):`<div class="empty" style="grid-column:1/-1">暂无符合条件的模板</div>`;
 }
@@ -1309,6 +1352,25 @@ document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>
  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');
  document.querySelectorAll('.tab-pane').forEach(x=>x.classList.remove('active'));document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
 }));
+function findTemplate(key){const name=decodeURIComponent(key);return templates.find(template=>template.name===name)}
+function openTemplatePreview(key){
+ const t=findTemplate(key);if(!t)return;selectedTemplate=t;
+ document.getElementById('templatePreviewTitle').textContent=`${t.name} · 模板预览`;
+ document.getElementById('templatePreviewBody').innerHTML=`
+  <div class="template-preview-hero"><div class="file-icon">${escapeHtml(t.format)}</div><div><strong>${escapeHtml(t.name)}</strong><p>${escapeHtml(t.desc)}</p></div></div>
+  <div class="template-preview-meta"><div><span>当前版本</span><strong>${escapeHtml(t.version)}</strong></div><div><span>模板状态</span><strong>${escapeHtml(t.status)}</strong></div><div><span>适用部门</span><strong>${escapeHtml(t.departments.join('、'))}</strong></div><div><span>下载权限</span><strong>${escapeHtml(t.permission)}</strong></div></div>
+  <section class="template-preview-structure"><div class="template-preview-structure-head"><strong>模板结构预览</strong><span>${t.previewFields.length} 个主要填写项</span></div><div class="template-preview-field-grid">${t.previewFields.map((field,index)=>`<div class="template-preview-field"><span>${String(index+1).padStart(2,'0')}</span><b>${escapeHtml(field)}</b></div>`).join('')}</div></section>`;
+ openModal('templatePreviewModal');
+}
+function downloadPreviewTemplate(){if(!selectedTemplate)return;closeModal('templatePreviewModal');openDownload(selectedTemplate.name,selectedTemplate.version)}
+function openTemplateVersions(key){
+ const t=findTemplate(key);if(!t)return;selectedTemplate=t;
+ document.getElementById('templateVersionTitle').textContent=`${t.name} · 版本记录`;
+ document.getElementById('templateVersionBody').innerHTML=`
+  <div class="template-version-heading"><div><strong>${escapeHtml(t.name)}</strong><p>历史版本只读保留，当前启用 ${escapeHtml(t.version)}</p></div><span class="badge ${t.status==='启用'?'success':'gray'}">${escapeHtml(t.status)}</span></div>
+  <div class="table-wrap template-version-table"><table><thead><tr><th>版本号</th><th>版本状态</th><th>修改说明</th><th>上传人</th><th>上传时间</th></tr></thead><tbody>${t.versions.map(version=>`<tr><td><strong>${escapeHtml(version.version)}</strong></td><td><span class="badge ${version.status==='当前版本'?'success':'gray'}">${escapeHtml(version.status)}</span></td><td>${escapeHtml(version.note)}</td><td>${escapeHtml(version.uploader)}</td><td>${escapeHtml(version.uploadedAt)}</td></tr>`).join('')}</tbody></table></div>`;
+ openModal('templateVersionModal');
+}
 function openDownload(name,version){
  selectedDownload={name,version};document.getElementById('downloadInfo').textContent=`当前下载：${name}（${version}）。下载完成后，系统将记录下载人员、部门、版本和用途。`;
  document.getElementById('downloadPurpose').value='';openModal('downloadModal');

@@ -184,7 +184,6 @@ describe("SSC服务中心独立页面", () => {
     expect(headers).toEqual(
       expect.arrayContaining([
         "考勤月份",
-        "UserID",
         "花名",
         "转正天数",
         "入离职天数",
@@ -197,7 +196,8 @@ describe("SSC服务中心独立页面", () => {
         "备注",
       ]),
     );
-    expect(headers).toHaveLength(24);
+    expect(headers).toHaveLength(23);
+    expect(headers).not.toContain("UserID");
     expect(errors).toEqual([]);
     dom.window.close();
   });
@@ -239,10 +239,9 @@ describe("SSC服务中心独立页面", () => {
     );
 
     expect(document.querySelector(".roster-ledger-title")).toBeNull();
-    expect(headers).toHaveLength(41);
+    expect(headers).toHaveLength(40);
     expect(headers.slice(0, 10)).toEqual([
       "公司",
-      "员工编号",
       "部门",
       "职务",
       "姓名",
@@ -251,7 +250,9 @@ describe("SSC服务中心独立页面", () => {
       "试用期止",
       "司龄",
       "转正状态",
+      "户口性质",
     ]);
+    expect(headers).not.toContain("员工编号");
     expect(headers.slice(-5)).toEqual([
       "试用期薪资",
       "转正后薪资",
@@ -369,6 +370,40 @@ describe("SSC服务中心独立页面", () => {
     expect(typeof dom.window.importRosterFile).toBe("function");
     expect(typeof dom.window.importActiveTableFile).toBe("function");
     expect(typeof dom.window.exportReportingWorkbook).toBe("function");
+    expect(errors).toEqual([]);
+    dom.window.close();
+  });
+
+  test("模板卡片的预览与版本操作展示对应模板内容", () => {
+    const { dom, errors } = loadDocument("?embed=1&view=templates");
+    const { document } = dom.window;
+    const templateKey = encodeURIComponent("员工信息采集表");
+
+    dom.window.openTemplatePreview(templateKey);
+    expect(
+      document.getElementById("templatePreviewModal")?.classList.contains("show"),
+    ).toBe(true);
+    expect(document.getElementById("templatePreviewTitle")?.textContent).toBe(
+      "员工信息采集表 · 模板预览",
+    );
+    expect(document.getElementById("templatePreviewBody")?.textContent).toContain(
+      "紧急联系人",
+    );
+
+    dom.window.closeModal("templatePreviewModal");
+    dom.window.openTemplateVersions(templateKey);
+    expect(
+      document.getElementById("templateVersionModal")?.classList.contains("show"),
+    ).toBe(true);
+    expect(document.getElementById("templateVersionTitle")?.textContent).toBe(
+      "员工信息采集表 · 版本记录",
+    );
+    expect(document.getElementById("templateVersionBody")?.textContent).toContain(
+      "V3.1",
+    );
+    expect(document.getElementById("templateVersionBody")?.textContent).toContain(
+      "V3.0",
+    );
     expect(errors).toEqual([]);
     dom.window.close();
   });

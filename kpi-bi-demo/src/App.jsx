@@ -44,7 +44,7 @@ import {
 } from "./performance/logic";
 import { performanceFocusOptions, reviewsSeed } from "./performance/seed";
 import { HONGGUO_REQUIRED_COLUMNS, parseHongguoCsv } from "./performance/hongguo";
-import { dashboardPeople, dashboardWeeklyReports } from "./dashboard/dashboardData";
+import { dashboardPeople, dashboardPerformanceRecords, dashboardWeeklyReports } from "./dashboard/dashboardData";
 import {
   mergeWeeklyReports,
   readStoredWeeklyReports,
@@ -57,11 +57,13 @@ import {
   BusinessDashboardPage,
   DemoDataProvider,
   GovernancePage,
+  ProjectInitiationPage,
   ProjectProductionPage,
   RecruitmentCenterPage,
   RoleScopeBanner,
   ReportsCenterPage,
   TopicCenterPage,
+  TaskCenterPage,
   UnifiedWorkbenchPage,
   useDemoData,
 } from "./platform/IntegratedPlatform";
@@ -162,6 +164,8 @@ const sidebarGroups = [
     items: [
       { id: "recruitment", label: "招聘管理", icon: UsersThree },
       { id: "topics", label: "选题管理", icon: Lightbulb },
+      { id: "project-initiation", label: "项目立项", icon: Briefcase },
+      { id: "tasks", label: "任务列表", icon: ClipboardText },
       { id: "projects", label: "项目制作", icon: Briefcase },
     ],
   },
@@ -197,6 +201,8 @@ const platformPageAccess = {
   reports: ["employee", "leader", "hr", "ceo"],
   recruitment: ["leader", "hr", "ceo"],
   topics: ["employee", "leader", "hr", "ceo"],
+  "project-initiation": ["employee", "leader", "hr", "ceo"],
+  tasks: ["employee", "leader", "hr", "ceo"],
   projects: ["employee", "leader", "hr", "ceo"],
   "ssc-org": SSC_ACCESS_ROLES,
   "ssc-tables": SSC_ACCESS_ROLES,
@@ -839,7 +845,7 @@ function PerformanceReferencePanel({ review, hongguoUploads = [] }) {
           <div className="hongguo-reference__table-wrap">
             <table className="hongguo-reference__table">
               <thead><tr><th>作品名称</th><th>剧目类型 / 体裁</th><th>发布时间</th><th>集数</th><th>累计点击率</th><th>首集完播</th><th>10分钟</th><th>30分钟</th><th>60分钟</th><th>人均播放</th></tr></thead>
-              <tbody>{hongguoRecords.map((record) => <tr key={`${record.uploadName}-${record.id}`}><td><strong>{record["作品名称"]}</strong><small>{record["作品ID"]}</small></td><td>{record["剧目类型"]} / {record["剧目体裁"]}</td><td>{record["发布时间"]}</td><td>{record["作品集数"]}</td><td>{record["累计点击率"]}</td><td>{record["首集完播进度"]}</td><td>{record["10分钟完播率"]}</td><td>{record["30分钟完播率"]}</td><td>{record["60分钟完播率"]}</td><td>{record["人均播放集数"]}</td></tr>)}</tbody>
+              <tbody>{hongguoRecords.map((record) => <tr key={`${record.uploadName}-${record.id}`}><td><strong>{record["作品名称"]}</strong></td><td>{record["剧目类型"]} / {record["剧目体裁"]}</td><td>{record["发布时间"]}</td><td>{record["作品集数"]}</td><td>{record["累计点击率"]}</td><td>{record["首集完播进度"]}</td><td>{record["10分钟完播率"]}</td><td>{record["30分钟完播率"]}</td><td>{record["60分钟完播率"]}</td><td>{record["人均播放集数"]}</td></tr>)}</tbody>
             </table>
           </div>
         </section>
@@ -984,7 +990,7 @@ function HongguoUploadModal({ onClose, onImport }) {
     <div className="overlay" onClick={onClose} role="presentation">
       <div className="modal hongguo-upload-modal" onClick={(event) => event.stopPropagation()}>
         <div className="modal__header">
-          <div><strong>上传红果数据</strong><span>导入运营从红果后台导出的作品数据 CSV，以作品名称和作品 ID 自动关联项目。</span></div>
+          <div><strong>上传红果数据</strong><span>导入运营从红果后台导出的作品数据 CSV，以作品名称自动关联项目。</span></div>
           <button aria-label="关闭上传窗口" className="icon-btn" onClick={onClose} type="button"><X size={18} /></button>
         </div>
         <div className="modal__body hongguo-upload-modal__body">
@@ -996,7 +1002,7 @@ function HongguoUploadModal({ onClose, onImport }) {
             <input accept=".csv,text/csv" id="hongguo-csv-file" onChange={handleFileChange} type="file" />
           </div>
           {error ? <p className="hongguo-upload-error">{error}</p> : null}
-          {records.length ? <div className="hongguo-upload-preview"><div><strong>解析成功</strong><span>{records.length} 条作品记录将按作品名称和作品 ID 关联到项目数据。</span></div><div className="hongguo-upload-preview__table-wrap"><table><thead><tr><th>作品名称</th><th>作品ID</th><th>累计点击率</th><th>首集完播</th><th>60分钟完播</th></tr></thead><tbody>{records.slice(0, 5).map((record) => <tr key={record.id}><td>{record["作品名称"]}</td><td>{record["作品ID"]}</td><td>{record["累计点击率"]}</td><td>{record["首集完播进度"]}</td><td>{record["60分钟完播率"]}</td></tr>)}</tbody></table></div>{records.length > 5 ? <small>仅预览前 5 条记录。</small> : null}</div> : null}
+          {records.length ? <div className="hongguo-upload-preview"><div><strong>解析成功</strong><span>{records.length} 条作品记录将按作品名称关联到项目数据。</span></div><div className="hongguo-upload-preview__table-wrap"><table><thead><tr><th>作品名称</th><th>累计点击率</th><th>首集完播</th><th>60分钟完播</th></tr></thead><tbody>{records.slice(0, 5).map((record) => <tr key={record.id}><td>{record["作品名称"]}</td><td>{record["累计点击率"]}</td><td>{record["首集完播进度"]}</td><td>{record["60分钟完播率"]}</td></tr>)}</tbody></table></div>{records.length > 5 ? <small>仅预览前 5 条记录。</small> : null}</div> : null}
         </div>
         <div className="action-row"><button className="ghost-chip" onClick={onClose} type="button">取消</button><button className="primary-btn" disabled={!records.length} onClick={submit} type="button">确认导入</button></div>
       </div>
@@ -1184,7 +1190,7 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
           </section>
           <section className="template-management-section template-management-section--metrics" aria-label="模板必选目标">
             <div className="template-management-section__head"><div><strong>模板必选目标</strong><span>这些指标下发后不可删除；权重需与个人月度目标共同校验。</span></div><span className="template-management-section__count">{draft.categories?.filter((item) => item.origin === "template").length ?? 0} 项</span></div>
-            <div className="performance-category-table target-template-metrics"><div className="performance-category-table__head"><span>模板必选目标</span><span>默认权重</span><span>目标要求</span></div>{draft.categories?.filter((item) => item.origin === "template").map((target) => <div className="performance-category-table__row" key={target.id}><input aria-label={`模板目标名称-${target.id}`} value={target.name} onChange={(event) => updateCategory(target.id, "name", event.target.value)} /><input aria-label={`模板目标权重-${target.id}`} min="0" max="100" type="number" value={target.weight} onChange={(event) => updateCategory(target.id, "weight", Number(event.target.value))} /><textarea aria-label={`模板目标要求-${target.id}`} rows={3} value={target.requirement} onChange={(event) => updateCategory(target.id, "requirement", event.target.value)} /></div>)}<button className="ghost-chip target-template-metrics__add" onClick={addTemplateTarget} type="button">+ 新增必选目标</button></div>
+            <div className="performance-category-table target-template-metrics"><div className="performance-category-table__head"><span>模板必选目标</span><span>默认权重</span><span>目标要求</span></div>{draft.categories?.filter((item) => item.origin === "template").map((target) => <div className="performance-category-table__row" key={target.id}><input aria-label={`模板目标名称：${target.name}`} value={target.name} onChange={(event) => updateCategory(target.id, "name", event.target.value)} /><input aria-label={`模板目标权重：${target.name}`} min="0" max="100" type="number" value={target.weight} onChange={(event) => updateCategory(target.id, "weight", Number(event.target.value))} /><textarea aria-label={`模板目标要求：${target.name}`} rows={3} value={target.requirement} onChange={(event) => updateCategory(target.id, "requirement", event.target.value)} /></div>)}<button className="ghost-chip target-template-metrics__add" onClick={addTemplateTarget} type="button">+ 新增必选目标</button></div>
           </section>
         </div>
         <div className="target-template-modal__footer"><span>保存后仅更新当前模板，不会覆盖已下发的历史绩效目标。</span><div className="action-row"><button className="primary-btn" onClick={() => onSave(draft)} type="button">保存当前模板</button></div></div>
@@ -1934,13 +1940,19 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, active
     });
   }, [filters, scopedReviews]);
 
-  const metricScopeReviews = useMemo(() => scopedReviews.filter((item) => {
-    const metricCycle = filters.cycle === "all" ? CURRENT_MONTH : filters.cycle;
-    if (item.cycle !== metricCycle) return false;
-    if (filters.department !== "all" && item.department !== filters.department) return false;
-    if (filters.employee.trim() && !item.employee.includes(filters.employee.trim())) return false;
-    return true;
-  }), [filters.cycle, filters.department, filters.employee, scopedReviews]);
+  const metricCycle = filters.cycle === "all" ? CURRENT_MONTH : filters.cycle;
+  const metricPerformanceRecords = useMemo(() => {
+    const scopedEmployeeNames = new Set(scopedReviews.map((item) => item.employee));
+    return dashboardPerformanceRecords.filter((item) => {
+      const isInRoleScope = access.viewMode === "all"
+        || (access.viewMode === "self" && item.name === access.viewerName)
+        || (access.viewMode === "subtree" && (item.leader === access.viewerName || scopedEmployeeNames.has(item.name)));
+      if (item.cycle !== metricCycle || !isInRoleScope) return false;
+      if (filters.department !== "all" && item.department !== filters.department) return false;
+      if (filters.employee.trim() && !item.name.includes(filters.employee.trim())) return false;
+      return true;
+    });
+  }, [access.viewMode, access.viewerName, filters.department, filters.employee, metricCycle, scopedReviews]);
 
   const tabReviews = useMemo(
     () => filteredReviews.filter((item) => matchesStatusView(item, activeTab)),
@@ -1962,14 +1974,18 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, active
   const committeeApprovalCount = filteredReviews.filter((item) => item.status === REVIEW_STATUS.committeeApproval).length;
   const secondReviewCount = filteredReviews.filter((item) => item.status === REVIEW_STATUS.secondReview).length;
   const feedbackCount = filteredReviews.filter((item) => item.status === REVIEW_STATUS.feedback).length;
-  const confirmationRate = metricScopeReviews.length ? Math.round((metricScopeReviews.filter((item) => ![REVIEW_STATUS.targetIssue, REVIEW_STATUS.employeeConfirm, REVIEW_STATUS.targetDispute].includes(item.status)).length / metricScopeReviews.length) * 100) : 0;
-  const scoredRate = metricScopeReviews.length ? Math.round((metricScopeReviews.filter((item) => [
-    REVIEW_STATUS.hrReview,
-    REVIEW_STATUS.committeeApproval,
-    REVIEW_STATUS.feedback,
-    REVIEW_STATUS.archived,
-  ].includes(item.status)).length / metricScopeReviews.length) * 100) : 0;
-  const topGradeCount = metricScopeReviews.filter((item) => getGrade(calcScore(item)) === "S").length;
+  const completedPerformanceRecords = metricPerformanceRecords.filter((item) => item.finalScoreEffective);
+  const completedPerformanceCount = completedPerformanceRecords.length;
+  const performanceCompletionRate = metricPerformanceRecords.length
+    ? (completedPerformanceCount / metricPerformanceRecords.length) * 100
+    : 0;
+  const incompletePerformanceCount = metricPerformanceRecords.length - completedPerformanceCount;
+  const completedScores = completedPerformanceRecords.map((item) => item.finalScore);
+  const averagePerformanceScore = completedScores.length
+    ? completedScores.reduce((sum, score) => sum + score, 0) / completedScores.length
+    : null;
+  const highestPerformanceScore = completedScores.length ? Math.max(...completedScores) : null;
+  const lowestPerformanceScore = completedScores.length ? Math.min(...completedScores) : null;
   const focusTabs = [
     { value: "all", label: "全部流程", count: filteredReviews.length },
     { value: "targetIssue", label: "绩效目标待下发", count: targetIssueCount },
@@ -2224,7 +2240,7 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, active
         </div>
         <div className="platform-header__side">
           <div className="platform-header__meta"><small>当前考核周期</small><strong>{filters.cycle === "all" ? CURRENT_MONTH : filters.cycle}</strong></div>
-          <div className="platform-header__meta"><small>当前数据范围</small><strong>{access.roleName} · {scopedReviews.length} 人</strong></div>
+          <div className="platform-header__meta"><small>当前数据范围</small><strong>{access.roleName} · {metricPerformanceRecords.length} 人</strong></div>
         </div>
       </section>
       <section className="performance-filter-panel">
@@ -2245,26 +2261,49 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, active
         </div>
       </section>
       {actionFeedback ? <div className="performance-action-feedback" role="status">{actionFeedback}</div> : null}
-      <section className="performance-summary-grid">
-        <article className="performance-summary-card">
-          <span>绩效目标确认率</span>
-          <strong>{confirmationRate}%</strong>
-          <small>当前周期与当前权限范围</small>
+      <section className="performance-summary-grid" aria-label="绩效中心统计概览">
+        <article className="performance-summary-card performance-summary-card--progress">
+          <div className="performance-summary-card__content">
+            <span className="performance-summary-card__title">综合绩效完成度</span>
+            <div className="performance-summary-card__value">
+              <strong>{completedPerformanceCount}</strong>
+              <em>/ {metricPerformanceRecords.length} 人</em>
+            </div>
+            <small>已有 {completedPerformanceCount} 人完成最终评分</small>
+          </div>
+          <div
+            className="performance-summary-progress"
+            style={{ "--progress-angle": `${performanceCompletionRate * 3.6}deg` }}
+            aria-label={`完成率 ${performanceCompletionRate.toFixed(1)}%`}
+          >
+            <b>{performanceCompletionRate.toFixed(1)}%</b>
+          </div>
         </article>
         <article className="performance-summary-card">
-          <span>评分复审完成率</span>
-          <strong>{scoredRate}%</strong>
-          <small>一级、二级、HR与CEO进度</small>
+          <div className="performance-summary-card__heading">
+            <span className="performance-summary-card__title">评分未完成</span>
+            <i className="performance-summary-card__icon"><ClipboardText size={17} weight="duotone" /></i>
+          </div>
+          <div className="performance-summary-card__value"><strong>{incompletePerformanceCount}</strong><em>人</em></div>
+          <small>含审批中与退回</small>
         </article>
         <article className="performance-summary-card">
-          <span>待受理申诉</span>
-          <strong>{metricScopeReviews.filter(isOpenAppealReview).length}</strong>
-          <small>员工提交后由HR受理调查</small>
+          <div className="performance-summary-card__heading">
+            <span className="performance-summary-card__title">平均分</span>
+            <i className="performance-summary-card__icon"><ChartLineUp size={17} weight="duotone" /></i>
+          </div>
+          <div className="performance-summary-card__value"><strong>{averagePerformanceScore?.toFixed(1) ?? "--"}</strong><em>分</em></div>
+          <small>仅统计已完成最终评分</small>
         </article>
         <article className="performance-summary-card">
-          <span>S级人数</span>
-          <strong>{topGradeCount}人</strong>
-          <small>80分及以上</small>
+          <div className="performance-summary-card__heading">
+            <span className="performance-summary-card__title">最高 / 最低</span>
+            <i className="performance-summary-card__icon"><Trophy size={17} weight="duotone" /></i>
+          </div>
+          <div className="performance-summary-card__value performance-summary-card__value--range">
+            <strong>{highestPerformanceScore ?? "--"}</strong><em>/</em><strong>{lowestPerformanceScore ?? "--"}</strong>
+          </div>
+          <small>当前权限范围</small>
         </article>
       </section>
       <div className="tab-row performance-tab-row">
@@ -2771,7 +2810,7 @@ function AppContent() {
   };
 
   const activeSscView = sscPageViews[activePage];
-  const activePageContent = <>{activePage !== "workspace" && activePage !== "reports" ? <RoleScopeBanner activeRole={activeRole} page={sidebarGroups.flatMap((group) => group.items).find((item) => item.id === activePage)?.label ?? "业务页面"} /> : null}{activePage === "workspace" ? <UnifiedWorkbenchPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "dashboard" ? <BusinessDashboardPage activeRole={activeRole} goPage={goPage} reviews={reviews} /> : null}{activePage === "performance" ? <PerformanceCenter reviews={reviews} onSave={saveReview} onBatchIssue={batchIssueReviews} onSaveAppeal={saveAppeal} activeRole={activeRoleMeta} departmentTemplates={departmentTemplates} onSaveDepartmentTemplate={saveDepartmentTemplate} onCreateDepartmentTemplate={createDepartmentTemplate} /> : null}{activePage === "reports" ? <WeeklyPage /> : null}{activePage === "recruitment" ? <RecruitmentCenterPage /> : null}{activePage === "topics" ? <TopicCenterPage goPage={goPage} /> : null}{activePage === "projects" ? <ProjectProductionPage /> : null}{activeSscView ? <SscDataMaintenancePage view={activeSscView} /> : null}{activePage === "governance" ? <GovernancePage /> : null}</>;
+  const activePageContent = <>{!["workspace", "project-initiation", "tasks", "reports"].includes(activePage) ? <RoleScopeBanner activeRole={activeRole} page={sidebarGroups.flatMap((group) => group.items).find((item) => item.id === activePage)?.label ?? "业务页面"} /> : null}{activePage === "workspace" ? <UnifiedWorkbenchPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "dashboard" ? <BusinessDashboardPage activeRole={activeRole} goPage={goPage} reviews={reviews} /> : null}{activePage === "performance" ? <PerformanceCenter reviews={reviews} onSave={saveReview} onBatchIssue={batchIssueReviews} onSaveAppeal={saveAppeal} activeRole={activeRoleMeta} departmentTemplates={departmentTemplates} onSaveDepartmentTemplate={saveDepartmentTemplate} onCreateDepartmentTemplate={createDepartmentTemplate} /> : null}{activePage === "reports" ? <WeeklyPage /> : null}{activePage === "recruitment" ? <RecruitmentCenterPage /> : null}{activePage === "topics" ? <TopicCenterPage goPage={goPage} /> : null}{activePage === "project-initiation" ? <ProjectInitiationPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "tasks" ? <TaskCenterPage activeRole={activeRole} /> : null}{activePage === "projects" ? <ProjectProductionPage /> : null}{activeSscView ? <SscDataMaintenancePage view={activeSscView} /> : null}{activePage === "governance" ? <GovernancePage /> : null}</>;
 
   return (
     <main className="app-shell">

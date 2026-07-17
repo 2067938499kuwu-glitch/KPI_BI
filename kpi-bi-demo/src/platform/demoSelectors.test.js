@@ -92,7 +92,8 @@ describe("演示数据统计选择器", () => {
               id: "APP-1",
               job: "编剧",
               status: "待部门确认",
-              interviewer: "负责人A",
+              departmentLeader: "部门负责人A",
+              interviewer: "面试官A",
             },
           ],
         },
@@ -106,7 +107,7 @@ describe("演示数据统计选择器", () => {
         businessId: "APP-1",
         sourceType: "recruitment",
         sourceId: "APP-1",
-        owner: "负责人A",
+        owner: "部门负责人A",
       }),
     ]);
 

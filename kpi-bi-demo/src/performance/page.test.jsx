@@ -36,27 +36,33 @@ describe("绩效中心交互与权限", () => {
     openPerformance();
     expect(document.body.textContent).not.toContain("OKR");
     expect(document.body.textContent).not.toContain("委员会");
-    expect(screen.getByText("绩效目标确认率")).toBeInTheDocument();
-    expect(screen.getByText("S级人数")).toBeInTheDocument();
+    expect(screen.getByText("综合绩效完成度")).toBeInTheDocument();
+    expect(screen.getByText("评分未完成")).toBeInTheDocument();
+    expect(screen.getByText("平均分")).toBeInTheDocument();
+    expect(screen.getByText("最高 / 最低")).toBeInTheDocument();
+    expect(screen.queryByText("周报按时提交率")).toBeNull();
+    expect(screen.queryByText("周报逾期人数")).toBeNull();
   });
 
   test("顶部指标卡是不可点击的展示卡片", () => {
     render(<App />);
     openPerformance();
-    const card = screen.getByText("绩效目标确认率").closest("article");
+    const card = screen.getByText("综合绩效完成度").closest("article");
     expect(card).toHaveClass("performance-summary-card");
     expect(card?.tagName).toBe("ARTICLE");
     expect(within(card).queryByRole("button")).toBeNull();
-    expect(within(card).getByText(/%$/).tagName).toBe("STRONG");
+    expect(within(card).getByText("15").tagName).toBe("STRONG");
+    expect(within(card).getByLabelText("完成率 83.3%")).toBeInTheDocument();
+    expect(screen.getByText("88.7")).toBeInTheDocument();
   });
 
   test("指标卡不随状态页签与等级筛选改变", () => {
     render(<App />);
     openPerformance();
-    const before = screen.getByText("绩效目标确认率").parentElement?.textContent;
+    const before = screen.getByText("综合绩效完成度").parentElement?.textContent;
     fireEvent.change(screen.getByLabelText("等级筛选"), { target: { value: "S" } });
     fireEvent.click(screen.getByRole("button", { name: /已结束/ }));
-    expect(screen.getByText("绩效目标确认率").parentElement?.textContent).toBe(before);
+    expect(screen.getByText("综合绩效完成度").parentElement?.textContent).toBe(before);
   });
 
   test("等级筛选支持正序和倒序展示", () => {

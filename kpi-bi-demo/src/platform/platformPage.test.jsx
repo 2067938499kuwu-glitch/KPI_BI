@@ -17,6 +17,55 @@ function openRowDetails(label) {
 }
 
 describe("KPI_BI 一体化管理平台", () => {
+  test("项目立项可配置人员并进入任务执行列表", () => {
+    render(<App />);
+
+    const navigation = screen.getByRole("navigation", { name: "主导航" });
+    const businessEntries = within(navigation)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+
+    expect(businessEntries.indexOf("项目立项")).toBe(
+      businessEntries.indexOf("选题管理") + 1,
+    );
+    expect(businessEntries.indexOf("任务列表")).toBe(
+      businessEntries.indexOf("项目立项") + 1,
+    );
+
+    fireEvent.click(within(navigation).getByRole("button", { name: "项目立项" }));
+    expect(within(navigation).getByRole("button", { name: "项目立项" })).toHaveClass(
+      "is-active",
+    );
+    expect(
+      screen.getByRole("heading", { name: "项目台账与人员分配" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "项目立项列表" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "人员配置" })[0]);
+    const assignmentDialog = screen.getByRole("dialog", {
+      name: "配置项目人员",
+    });
+    expect(within(assignmentDialog).getByText("按岗位分配执行负责人")).toBeInTheDocument();
+    expect(
+      within(assignmentDialog).getByRole("button", {
+        name: /确认分配并下发/,
+      }),
+    ).toBeEnabled();
+    fireEvent.click(within(assignmentDialog).getByRole("button", { name: "取消" }));
+
+    fireEvent.click(within(navigation).getByRole("button", { name: "任务列表" }));
+    expect(within(navigation).getByRole("button", { name: "任务列表" })).toHaveClass(
+      "is-active",
+    );
+    expect(
+      screen.getByRole("heading", { name: "项目任务执行列表" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "任务列表" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /编剧/ })).toBeInTheDocument();
+    expect(screen.getAllByText("《城市边缘》").length).toBeGreaterThan(0);
+  });
+
   test("工作台移除下属进度并让待办与风险卡片使用同一等高布局", () => {
     render(<App />);
 
@@ -33,9 +82,11 @@ describe("KPI_BI 一体化管理平台", () => {
     expect(screen.queryByRole("heading", { name: "下属进度" })).toBeNull();
     expect(screen.queryByText("仅展示当前数据范围")).toBeNull();
     expect(screen.queryByText("沈婉瑶")).toBeNull();
+    expect(screen.queryByText("数据状态")).toBeNull();
+    expect(screen.queryByRole("button", { name: "查看今日待办" })).toBeNull();
   });
 
-  test("工作台任务只能进入来源业务页面处理", () => {
+  test("工作台任务弹窗展示当前任务的真实业务详情", () => {
     render(<App />);
 
     expect(
@@ -48,9 +99,16 @@ describe("KPI_BI 一体化管理平台", () => {
     const dialog = screen.getByRole("dialog", {
       name: "确认候选人是否进入面试",
     });
-    expect(
-      within(dialog).getByText(/任务只能在来源业务页面完成/),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "周然" })).toBeInTheDocument();
+    expect(within(dialog).getByText("本次任务要求")).toBeInTheDocument();
+    expect(within(dialog).getByText("当前任务业务信息")).toBeInTheDocument();
+    expect(within(dialog).getByText("短剧编剧")).toBeInTheDocument();
+    expect(within(dialog).getByText("待部门确认")).toBeInTheDocument();
+    expect(within(dialog).getByText("BOSS直聘")).toBeInTheDocument();
+    expect(within(dialog).getByText("138****5621")).toBeInTheDocument();
+    expect(within(dialog).getByText(/结合候选人资料与岗位要求/)).toBeInTheDocument();
+    expect(within(dialog).queryByText("负责人已查看")).toBeNull();
+    expect(within(dialog).queryByText("系统自动创建")).toBeNull();
     fireEvent.click(
       within(dialog).getByRole("button", { name: /进入业务详情/ }),
     );
@@ -61,6 +119,32 @@ describe("KPI_BI 一体化管理平台", () => {
     expect(
       screen.getByRole("heading", { name: "岗位、候选人与招聘日报" }),
     ).toBeInTheDocument();
+  });
+
+  test("不同来源的工作台任务展示各自相关字段", () => {
+    render(<App />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /修改《十分钟便利店》选题方案/ }),
+    );
+    let dialog = screen.getByRole("dialog", {
+      name: "修改《十分钟便利店》选题方案",
+    });
+    expect(within(dialog).getByText("都市轻喜")).toBeInTheDocument();
+    expect(within(dialog).getByText("18-35岁职场人")).toBeInTheDocument();
+    expect(within(dialog).getByText("缺少成本与场景可行性说明")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "稍后处理" }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /更新《城市边缘》延期节点/ }),
+    );
+    dialog = screen.getByRole("dialog", {
+      name: "更新《城市边缘》延期节点",
+    });
+    expect(within(dialog).getByText("PRJ-20260518-0001")).toBeInTheDocument();
+    expect(within(dialog).getByText("制作环节进度")).toBeInTheDocument();
+    expect(within(dialog).getByText("剪辑一审")).toBeInTheDocument();
+    expect(within(dialog).getByText("延期")).toBeInTheDocument();
   });
 
   test("工作台进入业务详情后自动打开带任务上下文的处理界面", () => {
@@ -76,9 +160,8 @@ describe("KPI_BI 一体化管理平台", () => {
     );
 
     const dialog = screen.getByRole("dialog", { name: "候选人部门确认" });
-    expect(
-      within(dialog).getByText(/招聘 · APP-021/),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByText(/招聘 · 确认候选人是否进入面试/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/APP-021/)).toBeNull();
     expect(
       within(dialog).getByRole("button", { name: "提交部门结论" }),
     ).toBeEnabled();
@@ -267,8 +350,10 @@ describe("KPI_BI 一体化管理平台", () => {
     fireEvent.click(within(cityRow).getByRole("button", { name: /已归属 2 条/ }));
 
     const dialog = screen.getByRole("dialog", { name: "《城市边缘》" });
+    expect(within(dialog).getByText("项目人员消耗金额")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("¥82,000").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("运营上传数据")).toBeInTheDocument();
-    expect(within(dialog).getByText(/projectId = PRJ-009/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/项目编号 PRJ-20260518-0001/)).toBeInTheDocument();
     expect(within(dialog).getByText(/投流日报 · 抖音/)).toBeInTheDocument();
     expect(within(dialog).getByText(/素材表现 · 抖音 \/ 快手/)).toBeInTheDocument();
   });
@@ -284,9 +369,21 @@ describe("KPI_BI 一体化管理平台", () => {
     expect(within(dialog).getByText("内容策划")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "不进入面试" }));
 
+    const drawerBody = dialog.querySelector(".platform-drawer__body");
+    const drawerFooter = dialog.querySelector("footer");
     const submit = within(dialog).getByRole("button", {
       name: "确认结论并保留审计记录",
     });
+    expect(
+      within(drawerBody).queryByRole("button", {
+        name: "确认结论并保留审计记录",
+      }),
+    ).toBeNull();
+    expect(
+      within(drawerFooter).getByRole("button", {
+        name: "确认结论并保留审计记录",
+      }),
+    ).toBe(submit);
     expect(submit).toBeDisabled();
     fireEvent.change(
       within(dialog).getByRole("combobox", { name: "原因分类 *" }),
@@ -309,7 +406,85 @@ describe("KPI_BI 一体化管理平台", () => {
     ).toHaveTextContent("不进入面试");
   });
 
-  test("招聘可从部门确认连续推进到 Offer 待发", () => {
+  test("招聘简历库展示每位候选人的全部应聘情况并支持结果筛选", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "招聘管理" }));
+    fireEvent.click(screen.getByRole("tab", { name: /简历库 \/ 候选人/ }));
+
+    const resumeLibrary = screen
+      .getByRole("heading", { name: "招聘简历库" })
+      .closest(".platform-card");
+    const zhouRanRow = within(resumeLibrary)
+      .getByText("周然")
+      .closest(".platform-table__row");
+
+    expect(zhouRanRow).toHaveTextContent("短剧编剧");
+    expect(zhouRanRow).toHaveTextContent("待部门确认");
+    expect(zhouRanRow).toHaveTextContent("内容策划");
+    expect(zhouRanRow).toHaveTextContent("待面试反馈");
+    expect(zhouRanRow).toHaveTextContent("中级剪辑师");
+    expect(zhouRanRow).toHaveTextContent("不合适");
+    expect(zhouRanRow).toHaveTextContent("专业技能不匹配");
+
+    fireEvent.click(
+      within(resumeLibrary).getByRole("button", { name: /不合适.*应聘记录/ }),
+    );
+    const filteredZhouRanRow = within(resumeLibrary)
+      .getByText("周然")
+      .closest(".platform-table__row");
+    expect(filteredZhouRanRow).toHaveTextContent("不进入面试");
+    expect(filteredZhouRanRow).not.toHaveTextContent("待部门确认");
+
+    fireEvent.change(
+      within(resumeLibrary).getByRole("combobox", {
+        name: "招聘结果 / 进度",
+      }),
+      { target: { value: "offer" } },
+    );
+    const offerRow = within(resumeLibrary)
+      .getByText("林澈")
+      .closest(".platform-table__row");
+    expect(offerRow).toHaveTextContent("Offer已发");
+    expect(offerRow).toHaveTextContent("待候选人确认");
+    expect(offerRow).not.toHaveTextContent("Offer已拒绝");
+  });
+
+  test("招聘管理按年、月、自然周统一筛选全部业务内容", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "招聘管理" }));
+
+    const periodFilter = screen.getByRole("region", { name: "招聘统计周期" });
+    expect(periodFilter.closest(".platform-header")).toBeInTheDocument();
+    expect(screen.queryByText("数据状态")).toBeNull();
+    expect(within(periodFilter).getByText("2026 年 7 月")).toBeInTheDocument();
+    expect(within(periodFilter).getByText("2026-07-01 至 2026-07-31")).toBeInTheDocument();
+
+    fireEvent.click(within(periodFilter).getByRole("button", { name: "年" }));
+    fireEvent.change(within(periodFilter).getByLabelText("选择年份"), {
+      target: { value: "2025" },
+    });
+
+    expect(screen.getByRole("tab", { name: "岗位与需求0" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "简历库 / 候选人0" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "招聘日报0" })).toBeInTheDocument();
+    expect(screen.getByText("当前周期没有招聘岗位")).toBeInTheDocument();
+
+    fireEvent.change(within(periodFilter).getByLabelText("选择年份"), {
+      target: { value: "2026" },
+    });
+    fireEvent.click(within(periodFilter).getByRole("button", { name: "周" }));
+    fireEvent.change(within(periodFilter).getByLabelText("选择自然周"), {
+      target: { value: "2026-W29" },
+    });
+
+    expect(within(periodFilter).getByText("2026 年第 29 周")).toBeInTheDocument();
+    expect(within(periodFilter).getByText("2026-07-13 至 2026-07-19")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "岗位与需求4" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "简历库 / 候选人4" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "招聘日报3" })).toBeInTheDocument();
+  });
+
+  test("第一轮面试排期后直接进入面试结果并可推进到 Offer 待发", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "招聘管理" }));
     fireEvent.click(screen.getByRole("tab", { name: /简历库 \/ 候选人/ }));
@@ -327,6 +502,17 @@ describe("KPI_BI 一体化管理平台", () => {
         name: "确认第 1/1 轮面试安排",
       }),
     );
+    expect(
+      within(dialog.querySelector(".platform-drawer__body")).queryByRole(
+        "button",
+        { name: /确认并推进至「待面试反馈」/ },
+      ),
+    ).toBeNull();
+    expect(
+      within(dialog.querySelector("footer")).getByRole("button", {
+        name: /确认并推进至「待面试反馈」/,
+      }),
+    ).toBeInTheDocument();
     fireEvent.change(
       within(dialog).getByRole("combobox", {
         name: "第 1/1 轮面试官 *",
@@ -338,19 +524,17 @@ describe("KPI_BI 一体化管理平台", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: /确认并推进至「已安排面试」/,
-      }),
-    );
-    fireEvent.click(
-      within(dialog).getByRole("button", {
-        name: "登记第 1/1 轮面试完成",
-      }),
-    );
-    fireEvent.click(
-      within(dialog).getByRole("button", {
         name: /确认并推进至「待面试反馈」/,
       }),
     );
+    expect(
+      within(dialog).getByText("当前节点：待面试反馈"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "登记第 1/1 轮面试完成",
+      }),
+    ).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "面试通过" }));
 
     expect(within(dialog).getByText("当前节点：Offer待发")).toBeInTheDocument();
@@ -389,20 +573,13 @@ describe("KPI_BI 一体化管理平台", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: /确认并推进至「已安排面试」/,
-      }),
-    );
-    expect(within(dialog).getByText("2026-07-18 10:30")).toBeInTheDocument();
-    fireEvent.click(
-      within(dialog).getByRole("button", {
-        name: "登记第 2/2 轮面试完成",
-      }),
-    );
-    fireEvent.click(
-      within(dialog).getByRole("button", {
         name: /确认并推进至「待面试反馈」/,
       }),
     );
+    expect(within(dialog).getByText("2026-07-18 10:30")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("当前节点：待面试反馈"),
+    ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "面试通过" }));
 
     expect(within(dialog).getByText("当前节点：Offer待发")).toBeInTheDocument();
@@ -424,11 +601,11 @@ describe("KPI_BI 一体化管理平台", () => {
     const dialog = screen.getByRole("dialog", { name: "苏冉" });
     expect(within(dialog).getByText("SSC 到岗状态：实习期")).toBeInTheDocument();
     expect(within(dialog).getByText("到岗状态（SSC）")).toBeInTheDocument();
-    expect(within(dialog).getByText("ZY20260715")).toBeInTheDocument();
+    expect(within(dialog).queryByText("ZY20260715")).toBeNull();
     expect(within(dialog).queryByText(/15\s*天/)).toBeNull();
   });
 
-  test("SSC 建档消息可即时回写招聘人员的员工编号和到岗状态", () => {
+  test("SSC 建档消息可即时回写到岗状态但不展示员工编号", () => {
     render(<App />);
 
     fireEvent(
@@ -455,10 +632,10 @@ describe("KPI_BI 一体化管理平台", () => {
 
     const dialog = screen.getByRole("dialog", { name: "顾言" });
     expect(within(dialog).getByText("SSC 到岗状态：实习期")).toBeInTheDocument();
-    expect(within(dialog).getByText("ZY20260716")).toBeInTheDocument();
+    expect(within(dialog).queryByText("ZY20260716")).toBeNull();
   });
 
-  test("可新增岗位并上传候选人简历后创建待筛选应聘记录", () => {
+  test("新增岗位回显部门负责人，上传候选人后直接进入待部门确认", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "招聘管理" }));
     fireEvent.click(screen.getByRole("button", { name: "新增岗位" }));
@@ -467,6 +644,9 @@ describe("KPI_BI 一体化管理平台", () => {
       within(jobDialog).getByRole("combobox", { name: "所属部门 *" }),
       { target: { value: "经营管理部" } },
     );
+    expect(
+      within(jobDialog).getByRole("textbox", { name: "部门负责人" }),
+    ).toHaveValue("陈雨");
     fireEvent.change(
       within(jobDialog).getByRole("combobox", { name: "职位 *" }),
       { target: { value: "数据分析师" } },
@@ -517,13 +697,14 @@ describe("KPI_BI 一体化管理平台", () => {
       },
     });
     fireEvent.click(
-      within(candidateDialog).getByRole("button", { name: "上传并进入待筛选" }),
+      within(candidateDialog).getByRole("button", { name: "上传并进入待部门确认" }),
     );
 
     const createdCandidateDialog = screen.getByRole("dialog", { name: "赵新" });
     expect(
-      within(createdCandidateDialog).getByText("当前节点：待筛选"),
+      within(createdCandidateDialog).getByText("当前节点：待部门确认"),
     ).toBeInTheDocument();
+    expect(within(createdCandidateDialog).getByText("陈雨")).toBeInTheDocument();
     fireEvent.click(
       within(createdCandidateDialog).getByRole("button", { name: "zhao.pdf" }),
     );
@@ -541,15 +722,149 @@ describe("KPI_BI 一体化管理平台", () => {
     const dialog = screen.getByRole("dialog", { name: "《无声档案》" });
     expect(within(dialog).getByText("尚未立项")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "选为项目" }));
+    expect(within(dialog).getByLabelText("剧本集数")).toHaveValue(3);
+    expect(within(dialog).getByLabelText("视频集数")).toHaveValue(3);
+    expect(
+      within(dialog.querySelector(".platform-drawer__body")).queryByRole(
+        "button",
+        { name: "创建唯一项目并回写关联" },
+      ),
+    ).toBeNull();
+    expect(
+      within(dialog.querySelector("footer")).getByRole("button", {
+        name: "创建唯一项目并回写关联",
+      }),
+    ).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "创建唯一项目并回写关联" }),
     );
 
     expect(within(dialog).getAllByText("已转项目").length).toBeGreaterThan(0);
-    expect(within(dialog).getByText(/^PRJ-\d{6}$/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/^PRJ-\d{8}-\d{4}$/),
+    ).toBeInTheDocument();
     expect(
       within(dialog).queryByRole("button", { name: "创建唯一项目并回写关联" }),
     ).toBeNull();
+  });
+
+  test("选题库表格合并提交与审核信息并为长项目编码预留独立列", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "选题管理" }));
+
+    const returnedRow = screen
+      .getByText("《十分钟便利店》")
+      .closest(".platform-topic-table__row");
+    expect(returnedRow).not.toBeNull();
+    expect(
+      returnedRow.querySelector(".platform-topic-table__submission"),
+    ).toHaveTextContent("沈婉瑶版本 V2");
+    expect(
+      returnedRow.querySelector(".platform-topic-table__review"),
+    ).toHaveTextContent("已退回审核人 · 林制作");
+
+    const linkedRow = screen
+      .getByText("《城市边缘》")
+      .closest(".platform-topic-table__row");
+    const projectLink = linkedRow.querySelector(
+      ".platform-topic-table__project-link",
+    );
+    expect(projectLink).toHaveAttribute("title", expect.stringMatching(/^PRJ-/));
+    expect(linkedRow.querySelector(".platform-topic-table__updated")).toHaveTextContent(
+      "2026-07-13 18:06",
+    );
+  });
+
+  test("新建选题可指定审核人、上传附件并在详情中查看预览", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "选题管理" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建选题" }));
+
+    const createDialog = screen.getByRole("dialog", { name: "新建选题" });
+    expect(within(createDialog).queryByLabelText("模板")).toBeNull();
+    fireEvent.change(within(createDialog).getByLabelText("选题名称"), {
+      target: { value: "《附件选题》" },
+    });
+    fireEvent.change(within(createDialog).getByLabelText("题材类型"), {
+      target: { value: "都市剧情" },
+    });
+    fireEvent.change(within(createDialog).getByLabelText("目标受众"), {
+      target: { value: "青年用户" },
+    });
+    fireEvent.change(within(createDialog).getByLabelText("审核人"), {
+      target: { value: "林制作" },
+    });
+    fireEvent.change(within(createDialog).getByLabelText("选题摘要"), {
+      target: { value: "用于验证选题附件创建与预览链路。" },
+    });
+    const attachment = new File(["topic attachment"], "topic-brief.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(within(createDialog).getByLabelText("上传选题附件"), {
+      target: { files: [attachment] },
+    });
+    expect(within(createDialog).getByText("topic-brief.pdf")).toBeInTheDocument();
+    fireEvent.click(within(createDialog).getByRole("button", { name: "提交选题" }));
+
+    const createdRow = screen
+      .getByText("《附件选题》")
+      .closest(".platform-topic-table__row");
+    expect(createdRow).toHaveTextContent("审核人 · 林制作");
+    expect(createdRow).toHaveTextContent("用于验证选题附件创建与预览链路。");
+    fireEvent.click(within(createdRow).getByRole("button", { name: "详情" }));
+
+    const detailDialog = screen.getByRole("dialog", { name: "《附件选题》" });
+    expect(within(detailDialog).getByText("选题摘要")).toBeInTheDocument();
+    expect(
+      within(detailDialog).getByText("用于验证选题附件创建与预览链路。"),
+    ).toBeInTheDocument();
+    expect(within(detailDialog).getByText("topic-brief.pdf")).toBeInTheDocument();
+    expect(within(detailDialog).getByText(/PDF 文件/)).toBeInTheDocument();
+    fireEvent.click(
+      within(detailDialog).getByRole("button", { name: "查看 / 预览附件" }),
+    );
+
+    const previewDialog = screen.getByRole("dialog", { name: "选题附件" });
+    expect(within(previewDialog).getAllByText("topic-brief.pdf").length).toBeGreaterThan(0);
+    expect(within(previewDialog).getByText("PDF 文件")).toBeInTheDocument();
+  });
+
+  test("长选题摘要支持字数统计并在详情中展开和收起", () => {
+    const longSummary = `第一段：用于说明选题背景与核心创意。\n\n第二段：${"补充人物关系、故事方向与制作建议。".repeat(16)}`;
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "选题管理" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建选题" }));
+
+    const createDialog = screen.getByRole("dialog", { name: "新建选题" });
+    fireEvent.change(within(createDialog).getByLabelText("选题名称"), {
+      target: { value: "《长摘要选题》" },
+    });
+    fireEvent.change(within(createDialog).getByLabelText("选题摘要"), {
+      target: { value: longSummary },
+    });
+    expect(
+      within(createDialog).getByText(`${longSummary.length}/5000 字`),
+    ).toBeInTheDocument();
+    fireEvent.click(within(createDialog).getByRole("button", { name: "提交选题" }));
+
+    const createdRow = screen
+      .getByText("《长摘要选题》")
+      .closest(".platform-topic-table__row");
+    expect(createdRow.querySelector(".platform-topic-table__summary")).toHaveAttribute(
+      "title",
+      longSummary,
+    );
+    fireEvent.click(within(createdRow).getByRole("button", { name: "详情" }));
+
+    const detailDialog = screen.getByRole("dialog", { name: "《长摘要选题》" });
+    const toggle = within(detailDialog).getByRole("button", {
+      name: "展开完整摘要",
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(
+      within(detailDialog).getByRole("button", { name: "收起摘要" }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 
   test("外部制作立项时将内部环节切换为必填合同上传", () => {
@@ -588,7 +903,7 @@ describe("KPI_BI 一体化管理平台", () => {
     expect(createButton).toBeEnabled();
     fireEvent.click(createButton);
     expect(within(dialog).getAllByText("已转项目").length).toBeGreaterThan(0);
-    const projectId = within(dialog).getByText(/^PRJ-\d{6}$/).textContent;
+    const projectId = within(dialog).getByText(/^PRJ-\d{8}-\d{4}$/).textContent;
     fireEvent.click(
       within(dialog).getByRole("button", { name: "查看关联项目" }),
     );
@@ -598,6 +913,38 @@ describe("KPI_BI 一体化管理平台", () => {
     const projectDialog = screen.getByRole("dialog", { name: "《无声档案》" });
     expect(within(projectDialog).getByText("合同已归档")).toBeInTheDocument();
     expect(within(projectDialog).getByText("external-contract.pdf")).toBeInTheDocument();
+    fireEvent.click(
+      within(projectDialog).getByRole("button", {
+        name: "查看全部剧本编码",
+      }),
+    );
+    const scriptPreview = screen.getByRole("dialog", {
+      name: "剧本编码全部预览",
+    });
+    expect(within(scriptPreview).getByText(`${projectId}-SC-0001`)).toBeInTheDocument();
+    expect(
+      within(scriptPreview).getByText(`${projectId}-SC-0001-V01`),
+    ).toBeInTheDocument();
+    expect(within(scriptPreview).queryByText("当前状态")).toBeNull();
+    fireEvent.click(within(scriptPreview).getByRole("button", { name: "完成查看" }));
+    fireEvent.click(
+      within(projectDialog).getByRole("button", {
+        name: "查看全部视频编码",
+      }),
+    );
+    const videoPreview = screen.getByRole("dialog", {
+      name: "视频编码全部预览",
+    });
+    expect(within(videoPreview).getByText(`${projectId}-VD-0001`)).toBeInTheDocument();
+    fireEvent.click(within(videoPreview).getByRole("button", { name: "完成查看" }));
+    expect(within(projectDialog).queryByText("新增剧本")).toBeNull();
+    expect(within(projectDialog).queryByText("新增视频")).toBeNull();
+    expect(within(projectDialog).queryByText("生成新版本")).toBeNull();
+    expect(
+      within(projectDialog).queryByRole("button", {
+        name: /为 .*?-VD-\d+ 生成新版本/,
+      }),
+    ).toBeNull();
     fireEvent.click(
       within(projectDialog).getByRole("button", { name: "查看合同" }),
     );
@@ -645,7 +992,34 @@ describe("KPI_BI 一体化管理平台", () => {
     expect(
       within(dialog).getByText("40% + 60% + 80% ÷ 3 = 60%"),
     ).toBeInTheDocument();
+    expect(within(dialog).getByText("制作")).toBeInTheDocument();
+    expect(within(dialog).queryByText("视频")).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "进度 +10%" })).toBeNull();
+    expect(within(dialog).getByText(/环节进度由系统根据任务完成情况自动同步/)).toBeInTheDocument();
     expect(within(dialog).getByText("延期")).toBeInTheDocument();
+  });
+
+  test("项目制作表格合并来源、负责人和计划信息并保持成本独立展示", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "项目制作" }));
+
+    const projectRow = screen
+      .getByText("《城市边缘》")
+      .closest(".platform-production-table__row");
+    expect(projectRow).not.toBeNull();
+    expect(projectRow.children).toHaveLength(8);
+    expect(
+      projectRow.querySelector(".platform-production-table__source"),
+    ).toHaveTextContent("TOPIC-018内部制作");
+    expect(
+      projectRow.querySelector(".platform-production-table__owner"),
+    ).toHaveTextContent("沈婉瑶进行中");
+    expect(
+      projectRow.querySelector(".platform-production-table__schedule"),
+    ).toHaveTextContent("2026-08-05下一里程碑 · 剪辑一审");
+    expect(
+      projectRow.querySelector(".platform-production-table__cost"),
+    ).toHaveTextContent("¥171,000预算 ¥260,000");
   });
 
   test("内部短剧成本录入会形成真实成本并同步经营驾驶舱", () => {

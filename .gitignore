@@ -11,6 +11,7 @@ npm-cache/
 dist/
 build/
 coverage/
+kpi-bi-demo/desktop-release/
 
 # Logs
 *.log
@@ -33,4 +34,3 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
-
