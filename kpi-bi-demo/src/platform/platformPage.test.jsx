@@ -69,33 +69,40 @@ describe("KPI_BI 一体化管理平台", () => {
     expect(screen.getAllByText("《城市边缘》").length).toBeGreaterThan(0);
   });
 
-  test("工作台移除下属进度并让待办与风险卡片使用同一等高布局", () => {
+  test("工作台移除重复风险提醒并使用全宽任务看板", () => {
     render(<App />);
 
     const taskCard = screen
-      .getByRole("heading", { name: "跨业务待办" })
-      .closest(".platform-card");
-    const riskCard = screen
-      .getByRole("heading", { name: "业务风险提醒" })
+      .getByRole("heading", { name: "任务清单" })
       .closest(".platform-card");
 
     expect(taskCard).toHaveClass("platform-workbench-card");
-    expect(riskCard).toHaveClass("platform-workbench-card");
-    expect(document.querySelector(".platform-workbench-aside").children).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: "业务风险提醒" })).toBeNull();
+    expect(document.querySelector(".platform-workbench-aside")).toBeNull();
+    expect(document.querySelector(".platform-task-list--board")).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "下属进度" })).toBeNull();
     expect(screen.queryByText("仅展示当前数据范围")).toBeNull();
-    expect(screen.queryByText("沈婉瑶")).toBeNull();
-    expect(screen.queryByText("数据状态")).toBeNull();
+    expect(screen.getByText("数据状态")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "查看今日待办" })).toBeNull();
+    expect(screen.queryByText("今日到期")).toBeNull();
+    expect(screen.queryByText("已逾期")).toBeNull();
+    expect(screen.getByRole("tab", { name: /待处理/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /退回/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /已完成/ })).toBeInTheDocument();
     expect(within(taskCard).queryByText(/优先级/)).toBeNull();
+    expect(within(taskCard).queryByText(/负责人 · /)).toBeNull();
+    expect(within(taskCard).getAllByText(/来源 · /).length).toBeGreaterThan(0);
+    expect(within(taskCard).queryByText("张小北")).toBeNull();
+    expect(within(taskCard).queryByText("APP-021")).toBeNull();
+    expect(within(taskCard).queryByText("rv-editor-1")).toBeNull();
+    expect(within(taskCard).queryByText("2026-07-emp-011-W30")).toBeNull();
+    expect(within(taskCard).getAllByText("PRJ-20260518-0001").length).toBeGreaterThan(0);
   });
 
-  test("工作台任务弹窗展示当前任务的真实业务详情", () => {
+  test("工作台任务弹窗仅展示当前任务的主要信息", () => {
     render(<App />);
 
-    expect(
-      screen.getByRole("heading", { name: "今天需要你关注的业务" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "任务工作台" })).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: /确认候选人是否进入面试/ }),
     );
@@ -104,14 +111,17 @@ describe("KPI_BI 一体化管理平台", () => {
       name: "确认候选人是否进入面试",
     });
     expect(within(dialog).queryByText(/优先级/)).toBeNull();
-    expect(within(dialog).getByRole("heading", { name: "周然" })).toBeInTheDocument();
+    expect(within(dialog).queryByText("周然")).toBeNull();
     expect(within(dialog).getByText("本次任务要求")).toBeInTheDocument();
-    expect(within(dialog).getByText("当前任务业务信息")).toBeInTheDocument();
-    expect(within(dialog).getByText("短剧编剧")).toBeInTheDocument();
-    expect(within(dialog).getByText("待部门确认")).toBeInTheDocument();
-    expect(within(dialog).getByText("BOSS直聘")).toBeInTheDocument();
-    expect(within(dialog).getByText("138****5621")).toBeInTheDocument();
+    expect(within(dialog).getByText("处理角色")).toBeInTheDocument();
+    expect(within(dialog).getByText("任务来源")).toBeInTheDocument();
+    expect(within(dialog).getByText("任务下发时间")).toBeInTheDocument();
+    expect(within(dialog).queryByText("截止时间")).toBeNull();
+    expect(within(dialog).queryByText("任务标记")).toBeNull();
     expect(within(dialog).getByText(/结合候选人资料与岗位要求/)).toBeInTheDocument();
+    expect(within(dialog).queryByText("当前任务业务信息")).toBeNull();
+    expect(within(dialog).queryByText("138****5621")).toBeNull();
+    expect(within(dialog).queryByText("任务流转信息")).toBeNull();
     expect(within(dialog).queryByText("负责人已查看")).toBeNull();
     expect(within(dialog).queryByText("系统自动创建")).toBeNull();
     fireEvent.click(
@@ -126,55 +136,54 @@ describe("KPI_BI 一体化管理平台", () => {
     ).toBeInTheDocument();
   });
 
-  test("不同来源的工作台任务展示各自相关字段", () => {
+  test("不同来源的工作台任务使用统一标题且不展示人员姓名", () => {
     render(<App />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: /修改《十分钟便利店》选题方案/ }),
+      screen.getByRole("button", { name: /确认候选人是否进入面试/ }),
     );
     let dialog = screen.getByRole("dialog", {
-      name: "修改《十分钟便利店》选题方案",
+      name: "确认候选人是否进入面试",
     });
-    expect(within(dialog).getByText("都市轻喜")).toBeInTheDocument();
-    expect(within(dialog).getByText("18-35岁职场人")).toBeInTheDocument();
-    expect(within(dialog).getByText("缺少成本与场景可行性说明")).toBeInTheDocument();
+    expect(within(dialog).queryByText("周然")).toBeNull();
+    expect(within(dialog).getByText("部门负责人")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "稍后处理" }));
 
     fireEvent.click(
-      screen.getByRole("button", { name: /更新《城市边缘》延期节点/ }),
+      screen.getByRole("button", { name: /《城市边缘》 · 进行.*剧集的上传/ }),
     );
-    dialog = screen.getByRole("dialog", {
-      name: "更新《城市边缘》延期节点",
-    });
-    expect(within(dialog).getByText("PRJ-20260518-0001")).toBeInTheDocument();
-    expect(within(dialog).getByText("制作环节进度")).toBeInTheDocument();
-    expect(within(dialog).getByText("剪辑一审")).toBeInTheDocument();
-    expect(within(dialog).getByText("延期")).toBeInTheDocument();
+    dialog = screen.getByRole("dialog", { name: /《城市边缘》 · 进行.*剧集的上传/ });
+    expect(within(dialog).getByText(/PRJ-20260518-0001/)).toBeInTheDocument();
+    expect(within(dialog).queryByText("张小北")).toBeNull();
+    expect(within(dialog).queryByText("制作环节进度")).toBeNull();
+    expect(within(dialog).queryByText("剪辑一审")).toBeNull();
+    expect(within(dialog).queryByText("任务流转信息")).toBeNull();
   });
 
-  test("工作台完整展示五类任务入口以及绩效和周报专属详情", () => {
+  test("工作台恢复紧凑任务列表且各类任务详情保持精简", () => {
     render(<App />);
 
-    ["绩效任务", "招聘任务", "选题任务", "项目任务", "周报任务"].forEach((label) => {
-      expect(screen.getByRole("button", { name: new RegExp(`^${label}`) })).toBeInTheDocument();
+    ["绩效任务", "招聘任务", "项目任务", "周报任务", "SSC任务"].forEach((label) => {
+      expect(screen.queryByRole("button", { name: new RegExp(`^${label}`) })).toBeNull();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "陈组长 · 待一级领导评分" }));
-    let dialog = screen.getByRole("dialog", { name: "陈组长 · 待一级领导评分" });
+    fireEvent.click(screen.getByRole("button", { name: /进行2026-07绩效评分/ }));
+    let dialog = screen.getByRole("dialog", { name: "进行2026-07绩效评分" });
     expect(within(dialog).getByText("绩效任务对象")).toBeInTheDocument();
-    expect(within(dialog).getByText("任务数据摘要")).toBeInTheDocument();
-    expect(within(dialog).getByText("组内任务")).toBeInTheDocument();
-    expect(within(dialog).getByText("任务流转信息")).toBeInTheDocument();
+    expect(within(dialog).getByText("本次任务要求")).toBeInTheDocument();
+    expect(within(dialog).queryByText("任务数据摘要")).toBeNull();
+    expect(within(dialog).queryByText("组内任务")).toBeNull();
+    expect(within(dialog).queryByText("任务流转信息")).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "稍后处理" }));
 
-    fireEvent.click(screen.getByRole("button", { name: /^周报任务/ }));
-    fireEvent.click(screen.getByRole("button", { name: "许投流 · 提交2026年W30周报" }));
-    dialog = screen.getByRole("dialog", { name: "许投流 · 提交2026年W30周报" });
-    expect(within(dialog).getByText("周报内容结构")).toBeInTheDocument();
-    expect(within(dialog).getByText("本周成果")).toBeInTheDocument();
-    expect(within(dialog).getByText("风险与问题")).toBeInTheDocument();
-    expect(within(dialog).getByText("下周计划")).toBeInTheDocument();
-    expect(within(dialog).getByText("2026-07-20 至 2026-07-26")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "提交2026年W30周报" })[0]);
+    dialog = screen.getByRole("dialog", { name: "提交2026年W30周报" });
+    expect(within(dialog).getByText("本次任务要求")).toBeInTheDocument();
+    expect(within(dialog).queryByText("周报内容结构")).toBeNull();
+    expect(within(dialog).queryByText("本周成果")).toBeNull();
+    expect(within(dialog).queryByText("风险与问题")).toBeNull();
+    expect(within(dialog).queryByText("下周计划")).toBeNull();
+    expect(within(dialog).queryByText("2026-07-20 至 2026-07-26")).toBeNull();
   });
 
   test("工作台进入业务详情后自动打开带任务上下文的处理界面", () => {
@@ -220,7 +229,7 @@ describe("KPI_BI 一体化管理平台", () => {
     );
     expect(screen.queryByRole("button", { name: "招聘管理" })).toBeNull();
     expect(screen.queryByRole("button", { name: "系统配置" })).toBeNull();
-    expect(screen.getAllByText("为《无声档案》创建项目").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/《城市边缘》 · 进行\d+-\d+剧集的上传/).length).toBeGreaterThan(0);
     expect(screen.queryByText("确认候选人是否进入面试")).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("无权访问");
   });

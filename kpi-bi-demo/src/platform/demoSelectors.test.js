@@ -118,8 +118,14 @@ describe("演示数据统计选择器", () => {
         sourceType: "recruitment",
         sourceId: "APP-1",
         owner: "部门负责人A",
+        title: "确认候选人是否进入面试",
+        assigneeRole: "部门负责人",
+        status: "待处理",
+        issuedAt: "待记录",
       }),
     ]);
+    expect(tasks[0]).not.toHaveProperty("due");
+    expect(tasks[0]).not.toHaveProperty("flag");
 
     expect(
       selectWorkbenchTasks({
@@ -133,7 +139,12 @@ describe("演示数据统计选择器", () => {
         topics: [],
         projects: [],
       }),
-    ).toHaveLength(0);
+    ).toEqual([
+      expect.objectContaining({
+        title: "确认候选人面试的时间以及面试官",
+        assigneeRole: "招聘负责人",
+      }),
+    ]);
   });
 
   test("工作台可从绩效与周报来源生成专属任务详情", () => {
@@ -181,13 +192,23 @@ describe("演示数据统计选择器", () => {
     });
 
     expect(tasks.map((task) => task.module)).toEqual(["绩效", "周报"]);
+    expect(tasks.map((task) => task.title)).toEqual([
+      "确认2026-07绩效目标",
+      "提交2026年W30周报",
+    ]);
+    expect(tasks.map((task) => task.status)).toEqual(["待处理", "待处理"]);
+    expect(tasks.map((task) => task.issuedAt)).toEqual([
+      "2026-07-20 09:00",
+      "2026-07-20 09:00",
+    ]);
     expect(tasks[0].detail.fields).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ label: "绩效模板", value: "剪辑岗位绩效模板" }),
       ]),
     );
     expect(tasks[1]).toMatchObject({
-      title: "张小北 · 提交2026年W30周报",
+      title: "提交2026年W30周报",
+      assigneeRole: "周报填报人",
       dispatcher: "江晚",
       detail: {
         contentSections: expect.arrayContaining([
@@ -197,6 +218,57 @@ describe("演示数据统计选择器", () => {
         ]),
       },
     });
+  });
+
+  test("工作台映射招聘、项目与 SSC 的统一任务标题", () => {
+    const recruitmentAndSscTasks = selectWorkbenchTasks({
+      candidates: [
+        {
+          owner: "招聘负责人",
+          updatedAt: "2026-07-20 09:00",
+          applications: [
+            { id: "APP-1", job: "编剧", status: "待部门确认" },
+            { id: "APP-2", job: "编剧", status: "待安排面试" },
+            { id: "APP-3", job: "编剧", status: "待面试反馈" },
+            { id: "APP-4", job: "编剧", status: "Offer待发" },
+            { id: "APP-5", job: "编剧", status: "Offer已发" },
+            { id: "APP-6", job: "编剧", status: "待入职" },
+          ],
+        },
+      ],
+      projects: [
+        {
+          id: "PRJ-1",
+          projectCode: "PRJ-001",
+          name: "《示例项目》",
+          mode: "内部制作",
+          status: "进行中",
+          start: "2026-07-01",
+          videoEpisodes: 24,
+          taskAssignments: [
+            { role: "编剧", owner: "负责人A", issuedAt: "2026-07-01 09:00", completed: 6, total: 24 },
+            { role: "制作", owner: "负责人B", issuedAt: "2026-07-01 09:00", completed: 0, total: 24 },
+            { role: "剪辑", owner: "负责人C", issuedAt: "2026-07-01 09:00", completed: 12, total: 24 },
+            { role: "制片", owner: "负责人D", issuedAt: "2026-07-01 09:00", completed: 18, total: 24 },
+          ],
+        },
+      ],
+    });
+
+    expect(recruitmentAndSscTasks.map((task) => task.title)).toEqual(
+      expect.arrayContaining([
+        "确认候选人是否进入面试",
+        "确认候选人面试的时间以及面试官",
+        "提交候选人面试反馈",
+        "确认是否发放 Offer",
+        "确认是否已接受（同步到 SSC）",
+        "《示例项目》 · 进行7-12剧集的上传",
+        "《示例项目》 · 进行1-6剧集的制作",
+        "《示例项目》 · 进行13-18剧集的剪辑",
+        "《示例项目》 · 进行19-24剧集的审核",
+        "进行人员花名册的添加",
+      ]),
+    );
   });
 
   test("招聘结论按流失原因和面试官结构化汇总", () => {

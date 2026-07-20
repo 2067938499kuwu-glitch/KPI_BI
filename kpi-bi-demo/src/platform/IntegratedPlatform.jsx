@@ -12,9 +12,7 @@ import {
   CalendarCheck,
   ChartLineUp,
   CheckCircle,
-  Clock,
   FileText,
-  Funnel,
   Image,
   Info,
   Lightbulb,
@@ -89,6 +87,12 @@ const workbenchModuleConfig = {
     label: "周报任务",
     description: "成果、风险与下周计划",
     className: "is-weekly",
+  },
+  SSC: {
+    icon: Buildings,
+    label: "SSC任务",
+    description: "人员花名册与入职建档",
+    className: "is-ssc",
   },
 };
 
@@ -290,6 +294,12 @@ const candidatesSeed = [
           { round: 1, interviewer: "赵启", status: "已通过" },
           { round: 2, interviewer: "王敏", status: "已通过" },
         ],
+      },
+      {
+        id: "APP-052",
+        job: "增长运营",
+        status: "待入职",
+        interviewer: "赵启",
       },
     ],
     owner: "陈璐",
@@ -2109,8 +2119,8 @@ export function BusinessTaskProcessingDrawer({
           <PlatformBadge>{task.status}</PlatformBadge>
         </div>
         <div>
-          <span>截止时间</span>
-          <strong>{task.due}</strong>
+          <span>任务下发时间</span>
+          <strong>{task.issuedAt || "待记录"}</strong>
         </div>
       </div>
       {task.module === "招聘" ? (
@@ -2197,17 +2207,13 @@ export function BusinessTaskProcessingDrawer({
 
 function WorkbenchTaskDetailDrawer({ task, onClose, onEnter }) {
   const detail = task.detail ?? {};
-  const fields = detail.fields ?? [];
-  const progressItems = detail.progressItems ?? [];
-  const highlights = detail.highlights ?? [];
-  const contentSections = detail.contentSections ?? [];
   const moduleConfig = workbenchModuleConfig[task.module] ?? workbenchModuleConfig.项目;
   const ModuleIcon = moduleConfig.icon;
 
   return (
     <PlatformDrawer
       title={task.title}
-      subtitle={`${task.module}${["选题", "项目"].includes(task.module) ? ` · ${task.businessId}` : ""}`}
+      subtitle={`${task.module}${["选题", "项目"].includes(task.module) && task.businessId ? ` · ${task.businessId}` : ""}`}
       onClose={onClose}
       footer={
         <>
@@ -2236,26 +2242,18 @@ function WorkbenchTaskDetailDrawer({ task, onClose, onEnter }) {
         </div>
       </section>
 
-      <div className="platform-task-detail-overview" aria-label="任务关键信息">
+      <div className="platform-task-detail-overview platform-task-detail-overview--three" aria-label="任务关键信息">
         <div>
-          <span>任务负责人</span>
-          <strong>{task.owner}</strong>
+          <span>处理角色</span>
+          <strong>{task.assigneeRole || `${task.module}处理人`}</strong>
         </div>
         <div>
-          <span>下发人 / 来源</span>
-          <strong>{task.dispatcher || detail.sourceLabel || task.module}</strong>
+          <span>任务来源</span>
+          <strong>{detail.sourceLabel || task.module}</strong>
         </div>
         <div>
-          <span>截止时间</span>
-          <strong className={task.flag === "已逾期" ? "is-danger" : ""}>
-            {task.due}
-          </strong>
-        </div>
-        <div>
-          <span>任务标记</span>
-          <strong className={task.flag === "已逾期" ? "is-danger" : ""}>
-            {task.flag}
-          </strong>
+          <span>任务下发时间</span>
+          <strong>{task.issuedAt || "待记录"}</strong>
         </div>
       </div>
 
@@ -2279,115 +2277,6 @@ function WorkbenchTaskDetailDrawer({ task, onClose, onEnter }) {
           </div>
         </section>
       ) : null}
-
-      {highlights.length ? (
-        <section className="platform-task-detail-section">
-          <header>
-            <span><ChartLineUp size={17} weight="duotone" /></span>
-            <div>
-              <h3>任务数据摘要</h3>
-              <small>当前节点最需要核对的关键业务数据</small>
-            </div>
-          </header>
-          <div className="platform-task-detail-highlights">
-            {highlights.map((item) => (
-              <div key={`${item.label}-${item.value}`}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {fields.length ? (
-        <section className="platform-task-detail-section">
-          <header>
-            <span><FileText size={17} weight="duotone" /></span>
-            <div>
-              <h3>当前任务业务信息</h3>
-              <small>仅展示与本次处理直接相关的来源单据信息</small>
-            </div>
-          </header>
-          <dl className="platform-task-detail-fields">
-            {fields.map((field) => (
-              <div key={`${field.label}-${field.value}`}>
-                <dt>{field.label}</dt>
-                <dd title={String(field.value)}>{field.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ) : null}
-
-      {progressItems.length ? (
-        <section className="platform-task-detail-section">
-          <header>
-            <span><ChartLineUp size={17} weight="duotone" /></span>
-            <div>
-              <h3>制作环节进度</h3>
-              <small>用于判断延期节点和后续处理重点</small>
-            </div>
-          </header>
-          <div className="platform-task-detail-progress">
-            {progressItems.map((item) => (
-              <div key={item.label}>
-                <div>
-                  <strong>{item.label}</strong>
-                  <span>{item.owner} · {item.status}</span>
-                </div>
-                <div className="platform-progress">
-                  <div><i style={{ width: `${item.progress}%` }} /></div>
-                  <strong>{item.progress}%</strong>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {contentSections.length ? (
-        <section className="platform-task-detail-section">
-          <header>
-            <span><FileText size={17} weight="duotone" /></span>
-            <div>
-              <h3>周报内容结构</h3>
-              <small>点击任务后可一次查看三个必填部分的当前内容</small>
-            </div>
-          </header>
-          <div className="platform-task-detail-content">
-            {contentSections.map((section) => (
-              <article key={section.title}>
-                <strong>{section.title}</strong>
-                {section.items.map((item) => <p key={item}>{item}</p>)}
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="platform-task-detail-section">
-        <header>
-          <span><Clock size={17} weight="duotone" /></span>
-          <div>
-            <h3>任务流转信息</h3>
-            <small>下发、来源与最近更新时间完整保留</small>
-          </div>
-        </header>
-        <dl className="platform-task-detail-fields platform-task-detail-fields--flow">
-          <div><dt>任务类型</dt><dd>{moduleConfig.label}</dd></div>
-          <div><dt>下发人</dt><dd>{task.dispatcher || detail.sourceLabel || task.module}</dd></div>
-          <div><dt>下发时间</dt><dd>{task.issuedAt || "随业务节点自动生成"}</dd></div>
-          <div><dt>数据来源</dt><dd>{detail.sourceLabel || "来源业务单据"}</dd></div>
-          <div><dt>基础状态</dt><dd>{task.status}</dd></div>
-          <div><dt>时效标记</dt><dd>{task.flag}</dd></div>
-        </dl>
-      </section>
-
-      <PlatformNotice>
-        信息来自{detail.sourceLabel || "来源业务单据"}
-        {detail.updatedAt ? `，最近更新：${detail.updatedAt}` : ""}。进入业务详情后可查看完整记录并完成处理。
-      </PlatformNotice>
     </PlatformDrawer>
   );
 }
@@ -2401,7 +2290,6 @@ export function UnifiedWorkbenchPage({
 }) {
   const { candidates, topics, projects, updatedAt } = useDemoData();
   const [tab, setTab] = useState("todo");
-  const [moduleFilter, setModuleFilter] = useState("全部");
   const [selectedTask, setSelectedTask] = useState(null);
   const scopedTasks = useMemo(
     () =>
@@ -2418,25 +2306,14 @@ export function UnifiedWorkbenchPage({
           if (activeRole === "leader")
             return ["张小北", "江晚", "林制作", "沈婉瑶"].includes(item.owner);
           if (activeRole === "hr")
-            return ["绩效", "招聘", "周报"].includes(item.module);
+            return ["绩效", "招聘", "周报", "SSC"].includes(item.module);
           return true;
         }),
     [activeRole, candidates, people, projects, reviews, topics, weeklyReports],
   );
-  const moduleCounts = useMemo(
-    () => Object.fromEntries(
-      Object.keys(workbenchModuleConfig).map((module) => [
-        module,
-        scopedTasks.filter((item) => item.module === module).length,
-      ]),
-    ),
-    [scopedTasks],
-  );
   const taskCounts = useMemo(
     () => ({
-      todo: scopedTasks.filter((item) => item.status !== "已完成").length,
-      dueToday: scopedTasks.filter((item) => item.flag === "今日到期").length,
-      overdue: scopedTasks.filter((item) => item.flag === "已逾期").length,
+      todo: scopedTasks.filter((item) => item.status === "待处理").length,
       returned: scopedTasks.filter((item) => item.status === "已退回").length,
       done: scopedTasks.filter((item) => item.status === "已完成").length,
     }),
@@ -2445,176 +2322,130 @@ export function UnifiedWorkbenchPage({
   const tasks = useMemo(
     () =>
       scopedTasks.filter((item) => {
-        if (moduleFilter !== "全部" && item.module !== moduleFilter) return false;
-        if (tab === "overdue") return item.flag === "已逾期";
         if (tab === "returned") return item.status === "已退回";
         if (tab === "done") return item.status === "已完成";
-        return item.status !== "已完成";
+        return item.status === "待处理";
       }),
-    [moduleFilter, scopedTasks, tab],
+    [scopedTasks, tab],
   );
+  const activeStatusLabel = {
+    todo: "待处理",
+    returned: "已退回",
+    done: "已完成",
+  }[tab];
 
   return (
-    <div className="platform-page">
+    <div className="platform-page platform-workbench-page">
       <PlatformHeader
-        eyebrow="统一工作台"
-        title="今天需要你关注的业务"
-        description="跨绩效、招聘、选题、项目与周报汇总真实业务待办，工作台本身不允许脱离业务单据完成任务。"
-        meta={null}
+        eyebrow="统一任务中心"
+        title="任务工作台"
+        description="集中查看绩效、招聘、项目、周报与 SSC 任务，并返回来源业务完成处理。"
+        meta={`更新于 ${updatedAt}`}
       />
       <PlatformMetrics
         items={[
           {
+            id: "todo",
             label: "我的待处理",
             value: taskCounts.todo,
             unit: "项",
             meta: `来源业务单据 ${taskCounts.todo} 条`,
             tone: "blue",
+            icon: <FileText size={19} weight="duotone" />,
           },
           {
-            label: "今日到期",
-            value: taskCounts.dueToday,
-            unit: "项",
-            meta: "按业务单据截止时间计算",
-            tone: "amber",
-          },
-          {
-            label: "已逾期",
-            value: taskCounts.overdue,
-            unit: "项",
-            meta: "逾期任务自动进入风险清单",
-            tone: "red",
-          },
-          {
+            id: "returned",
             label: "已退回",
             value: taskCounts.returned,
             unit: "项",
-            meta: "来源业务退回状态",
+            meta: "需要修改后重新提交",
             tone: "purple",
+            icon: <WarningCircle size={19} weight="duotone" />,
           },
           {
+            id: "done",
             label: "当前已完成",
             value: taskCounts.done,
             unit: "项",
-            meta: `数据更新 ${updatedAt}`,
+            meta: "已完成的来源业务任务",
             tone: "green",
+            icon: <CheckCircle size={19} weight="duotone" />,
           },
         ]}
+        onSelect={(item) => setTab(item.id)}
       />
-      <section className="platform-task-types" aria-label="五类任务快捷筛选">
-        <button
-          className={`platform-task-type platform-task-type--all ${moduleFilter === "全部" ? "is-active" : ""}`}
-          onClick={() => setModuleFilter("全部")}
-          type="button"
+      <PlatformCard
+        className="platform-workbench-card platform-workbench-card--tasks"
+        title="任务清单"
+        description="任务按状态归类，点击卡片可查看要求并进入来源业务"
+        action={
+          <PlatformTabs
+            items={[
+              { id: "todo", label: "待处理", count: taskCounts.todo },
+              { id: "returned", label: "退回", count: taskCounts.returned },
+              { id: "done", label: "已完成", count: taskCounts.done },
+            ]}
+            value={tab}
+            onChange={setTab}
+            ariaLabel="工作台任务筛选"
+          />
+        }
+      >
+        <div className="platform-workbench-list-summary" aria-live="polite">
+          <div>
+            <span>{activeStatusLabel}</span>
+            <strong>{tasks.length} 项任务</strong>
+          </div>
+          <small>按任务下发时间展示，处理结果会自动同步至工作台</small>
+        </div>
+        <div
+          className={`platform-task-list platform-task-list--board ${tasks.length === 1 ? "is-single" : ""}`.trim()}
         >
-          <span className="platform-task-type__icon"><Funnel size={19} weight="duotone" /></span>
-          <span><strong>全部任务</strong><small>统一查看五类业务任务</small></span>
-          <b>{scopedTasks.length}</b>
-        </button>
-        {Object.entries(workbenchModuleConfig).map(([module, config]) => {
-          const ModuleIcon = config.icon;
-          return (
-            <button
-              className={`platform-task-type ${config.className} ${moduleFilter === module ? "is-active" : ""}`}
-              key={module}
-              onClick={() => setModuleFilter(module)}
-              type="button"
-            >
-              <span className="platform-task-type__icon"><ModuleIcon size={19} weight="duotone" /></span>
-              <span><strong>{config.label}</strong><small>{config.description}</small></span>
-              <b>{moduleCounts[module]}</b>
-            </button>
-          );
-        })}
-      </section>
-      <div className="platform-workbench-grid">
-        <PlatformCard
-          className="platform-workbench-card platform-workbench-card--tasks"
-          title="跨业务待办"
-          description="基础状态与逾期标记分离展示"
-          action={
-            <PlatformTabs
-              items={[
-                { id: "todo", label: "待处理", count: taskCounts.todo },
-                { id: "overdue", label: "逾期", count: taskCounts.overdue },
-                { id: "returned", label: "退回", count: taskCounts.returned },
-                { id: "done", label: "已完成", count: taskCounts.done },
-              ]}
-              value={tab}
-              onChange={setTab}
-              ariaLabel="工作台任务筛选"
-            />
-          }
-        >
-          <div className="platform-task-list">
-            {tasks.map((task) => (
-              <article className={workbenchModuleConfig[task.module]?.className} key={task.id}>
+          {tasks.map((task) => {
+            const moduleConfig = workbenchModuleConfig[task.module] ?? workbenchModuleConfig.项目;
+            const TaskIcon = moduleConfig.icon;
+            return (
+              <article className={moduleConfig.className} key={task.id}>
                 <button
-                  aria-label={task.title}
+                  aria-label={`${task.title}${["选题", "项目"].includes(task.module) && task.businessId ? ` · ${task.businessId}` : ""}`}
                   className="platform-task-list__main"
                   onClick={() => setSelectedTask(task)}
                   type="button"
                 >
                   <span className="platform-task-list__icon">
-                    {(() => {
-                      const TaskIcon = workbenchModuleConfig[task.module]?.icon ?? Briefcase;
-                      return <TaskIcon size={19} weight="duotone" />;
-                    })()}
+                    <TaskIcon size={20} weight="duotone" />
                   </span>
                   <div className="platform-task-list__content">
+                    <div className="platform-task-list__meta">
+                      <span>{task.module}</span>
+                      {["选题", "项目"].includes(task.module) && task.businessId ? (
+                        <i>{task.businessId}</i>
+                      ) : null}
+                      <time>{task.issuedAt || "待记录"}</time>
+                    </div>
                     <strong>{task.title}</strong>
-                    <small>{task.description}</small>
-                    <span>
-                      <em>{workbenchModuleConfig[task.module]?.label ?? task.module}</em>
-                      {["选题", "项目"].includes(task.module) ? <i>{task.businessId}</i> : null}
-                      <i>负责人：{task.owner}</i>
-                    </span>
+                    <p>{task.description}</p>
+                    <footer>
+                      <span>来源 · {task.detail?.sourceLabel || task.module}</span>
+                      <PlatformBadge>{task.status}</PlatformBadge>
+                      <b>
+                        查看详情
+                        <ArrowRight size={15} />
+                      </b>
+                    </footer>
                   </div>
-                  <PlatformBadge>{task.status}</PlatformBadge>
-                  <span className={`platform-task-list__due ${task.flag === "已逾期" ? "is-danger" : ""}`}>
-                    <strong>{task.due}</strong>
-                    <small>{task.flag}</small>
-                  </span>
-                  <ArrowRight size={18} />
                 </button>
               </article>
-            ))}
-            {!tasks.length ? (
-              <PlatformEmpty
-                title="当前视图暂无任务"
-                description="业务节点完成后，工作台任务会自动同步关闭。"
-              />
-            ) : null}
-          </div>
-        </PlatformCard>
-        <aside className="platform-workbench-aside">
-          <PlatformCard
-            className="platform-workbench-card platform-workbench-card--risks"
-            title="业务风险提醒"
-            description="按影响范围与截止时间排序"
-          >
-            <div className="platform-alert-list">
-              {scopedTasks
-                .filter((task) => ["已逾期", "今日到期", "已退回", "延期风险", "本周到期"].includes(task.flag))
-                .slice(0, 3)
-                .map((task) => (
-                  <article key={task.id}>
-                    <span className={task.flag === "已逾期" ? "is-red" : "is-amber"}>
-                      {task.flag === "已逾期" ? <WarningCircle size={18} /> : <Clock size={18} />}
-                    </span>
-                    <div>
-                      <strong>{task.title}</strong>
-                      <p>{["选题", "项目"].includes(task.module) ? `${task.businessId} · ` : ""}{task.description}</p>
-                    </div>
-                  </article>
-                ))}
-              {!scopedTasks.length ? (
-                <PlatformEmpty title="当前没有业务风险" description="风险提醒随来源业务单据实时更新。" />
-              ) : null}
-            </div>
-          </PlatformCard>
-        </aside>
-      </div>
+            );
+          })}
+          {!tasks.length ? (
+            <PlatformEmpty
+              title={`当前没有${activeStatusLabel}任务`}
+              description="任务状态变化后，工作台会自动同步更新。"
+            />
+          ) : null}
+        </div>
+      </PlatformCard>
       {selectedTask ? (
         <WorkbenchTaskDetailDrawer
           task={selectedTask}

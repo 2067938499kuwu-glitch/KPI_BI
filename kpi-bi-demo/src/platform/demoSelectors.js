@@ -350,39 +350,61 @@ export function selectWorkbenchTasks({
   people = [],
   referenceDate = "2026-07-20",
 }) {
+  const recruitmentTaskConfig = {
+    待部门确认: {
+      title: "确认候选人是否进入面试",
+      assigneeRole: "部门负责人",
+      requirement: "结合候选人资料与岗位要求，确认是否进入面试；不进入时需填写原因。",
+    },
+    待安排面试: {
+      title: "确认候选人面试的时间以及面试官",
+      assigneeRole: "招聘负责人",
+      requirement: "确认面试轮次、面试时间和面试官，完成后进入面试反馈节点。",
+    },
+    待面试反馈: {
+      title: "提交候选人面试反馈",
+      assigneeRole: "面试官",
+      requirement: "提交面试结论和可追溯的反馈说明，确认是否进入下一招聘节点。",
+    },
+    Offer待发: {
+      title: "确认是否发放 Offer",
+      assigneeRole: "招聘负责人",
+      requirement: "复核面试结论与录用条件，确认是否向候选人发放 Offer。",
+    },
+    Offer已发: {
+      title: "确认是否已接受（同步到 SSC）",
+      assigneeRole: "招聘负责人",
+      requirement: "确认候选人是否接受 Offer；接受后将入职建档任务同步至 SSC。",
+    },
+  };
   const recruitmentTasks = candidates.flatMap((candidate) =>
     (candidate.applications ?? [])
-      .filter((application) =>
-        ["待部门确认", "待面试反馈"].includes(application.status),
-      )
-      .map((application) => ({
-        id: `WB-${application.id}`,
-        businessId: application.id,
-        sourceType: "recruitment",
-        sourceId: application.id,
-        module: "招聘",
-        title:
-          application.status === "待部门确认"
-            ? "确认候选人是否进入面试"
-            : "提交候选人面试反馈",
-        owner:
-          application.status === "待部门确认"
-            ? application.departmentLeader || application.interviewer || candidate.owner
-            : application.interviewer || candidate.owner,
-        status: "待处理",
-        due: application.status === "待部门确认" ? "逾期 1 天" : "今天 18:00",
-        flag: application.status === "待部门确认" ? "已逾期" : "今日到期",
-        priority: "高",
-        destination: "recruitment",
-        description: `${candidate.name}应聘${application.job}，需在招聘业务单据中完成当前节点。`,
-        detail: {
-          subjectLabel: "候选人",
-          subject: candidate.name,
-          summary: `${candidate.name}通过${candidate.source || "招聘渠道"}应聘${application.job}，当前申请处于“${application.status}”节点。`,
-          requirement:
-            application.status === "待部门确认"
-              ? "结合候选人资料与岗位要求，确认是否进入面试；如不进入面试，需同步填写原因分类和具体说明。"
-              : `完成第 ${application.currentInterviewRound || 1}/${application.interviewTotal || application.interviews?.length || 1} 轮面试评价，提交面试结论和可追溯的反馈说明。`,
+      .filter((application) => recruitmentTaskConfig[application.status])
+      .map((application) => {
+        const config = recruitmentTaskConfig[application.status];
+        const owner = application.status === "待部门确认"
+          ? application.departmentLeader || application.interviewer || candidate.owner
+          : application.status === "待面试反馈"
+            ? application.interviewer || candidate.owner
+            : candidate.owner || application.interviewer;
+        return {
+          id: `WB-${application.id}`,
+          businessId: application.id,
+          sourceType: "recruitment",
+          sourceId: application.id,
+          module: "招聘",
+          title: config.title,
+          owner,
+          assigneeRole: config.assigneeRole,
+          status: "待处理",
+          issuedAt: application.updatedAt || candidate.updatedAt || "待记录",
+          destination: "recruitment",
+          description: `当前招聘申请处于“${application.status}”节点，需完成${config.title}。`,
+          detail: {
+            subjectLabel: "招聘流程",
+            subject: config.title,
+            summary: `${application.job || "当前岗位"}的招聘申请处于“${application.status}”节点。`,
+            requirement: config.requirement,
           fields: [
             { label: "应聘岗位", value: application.job },
             { label: "当前招聘节点", value: application.status },
@@ -406,128 +428,9 @@ export function selectWorkbenchTasks({
           sourceLabel: "招聘申请单",
           updatedAt: candidate.updatedAt,
         },
-      })),
+        };
+      }),
   );
-
-  const topicTasks = topics
-    .filter((topic) => topic.status === "已退回")
-    .map((topic) => ({
-      id: `WB-${topic.id}`,
-      businessId: topic.id,
-      sourceType: "topic",
-      sourceId: topic.id,
-      module: "选题",
-      title: `修改${topic.name}选题方案`,
-      owner: topic.submitter,
-      status: "已退回",
-      due: "明天 12:00",
-      flag: "已退回",
-      priority: "高",
-      destination: "topics",
-      description: topic.reason || "按审核意见补充选题信息后重新提交。",
-      detail: {
-        subjectLabel: "选题方案",
-        subject: topic.name,
-        summary: topic.summary,
-        requirement: "根据退回意见补齐方案内容，检查题材、目标受众与制作可行性后重新提交审核。",
-        fields: [
-          { label: "选题编号", value: topic.id },
-          { label: "题材类型", value: topic.genre },
-          { label: "目标受众", value: topic.audience },
-          { label: "当前版本", value: `V${topic.version}` },
-          { label: "提交人", value: topic.submitter },
-          { label: "审核人", value: topic.reviewer },
-          { label: "当前状态", value: topic.status },
-          { label: "使用模板", value: topic.template },
-        ].filter((item) => item.value),
-        noteLabel: "退回意见",
-        note: topic.reason,
-        sourceLabel: "选题单",
-        updatedAt: topic.updatedAt,
-      },
-    }));
-
-  const topicProjectTasks = topics
-    .filter((topic) => topic.status === "已通过待立项" && !topic.projectId)
-    .map((topic) => ({
-      id: `WB-PROJECT-${topic.id}`,
-      businessId: topic.id,
-      sourceType: "topic-project",
-      sourceId: topic.id,
-      module: "选题",
-      title: `为${topic.name}创建项目`,
-      owner: topic.submitter,
-      status: "待处理",
-      due: "今天 18:00",
-      flag: "今日到期",
-      priority: "普通",
-      destination: "topics",
-      quickAction: false,
-      description: "该选题已审核通过，需要在选题详情中配置负责人、预算和制作方式后创建项目。",
-      detail: {
-        subjectLabel: "待立项选题",
-        subject: topic.name,
-        summary: topic.summary,
-        requirement: "在选题详情中确认项目负责人、计划周期、制作方式和项目预算，信息完整后创建正式项目。",
-        fields: [
-          { label: "选题编号", value: topic.id },
-          { label: "题材类型", value: topic.genre },
-          { label: "目标受众", value: topic.audience },
-          { label: "审核状态", value: topic.status },
-          { label: "当前版本", value: `V${topic.version}` },
-          { label: "方案提交人", value: topic.submitter },
-          { label: "审核人", value: topic.reviewer },
-          { label: "使用模板", value: topic.template },
-        ].filter((item) => item.value),
-        sourceLabel: "已通过选题单",
-        updatedAt: topic.updatedAt,
-      },
-    }));
-
-  const projectTasks = projects
-    .filter((project) =>
-      (project.flags ?? []).some((flag) => String(flag).includes("延期")),
-    )
-    .map((project) => ({
-      id: `WB-${project.id}`,
-      businessId: project.projectCode ?? project.id,
-      sourceType: "project",
-      sourceId: project.id,
-      module: "项目",
-      title: `更新${project.name}延期节点`,
-      owner: project.owner,
-      status: "待处理",
-      due: "今天 18:00",
-      flag: "今日到期",
-      priority: "高",
-      destination: "projects",
-      description: "更新当前制作环节进度与风险说明，数据将同步到项目台账和驾驶舱。",
-      detail: {
-        subjectLabel: "项目",
-        subject: project.name,
-        summary: `${project.name}当前处于“${project.status}”状态，下一节点为${project.next || "待确认"}。`,
-        requirement: "核对各制作环节的实际完成情况，更新当前节点进度、延期原因与后续处理计划。",
-        fields: [
-          { label: "项目编号", value: project.projectCode ?? project.id },
-          { label: "制作方式", value: project.mode },
-          { label: "项目状态", value: project.status },
-          { label: "项目负责人", value: project.owner },
-          { label: "计划周期", value: `${project.start} 至 ${project.due}` },
-          { label: "下一节点", value: project.next },
-          { label: "协作中心", value: project.centers?.join("、") },
-        ].filter((item) => item.value),
-        noteLabel: "当前风险",
-        note: project.flags?.join("、"),
-        progressItems: (project.stages ?? []).map((stage) => ({
-          label: stage.name,
-          owner: stage.owner,
-          progress: stage.progress,
-          status: stage.status,
-        })),
-        sourceLabel: "项目台账",
-        updatedAt: "随项目台账实时更新",
-      },
-    }));
 
   const projectAssignmentTasks = projects.flatMap((project) =>
     selectProjectTaskAssignments(project)
@@ -539,16 +442,18 @@ export function selectWorkbenchTasks({
           assignment.status !== "已完成",
       )
       .map((assignment) => {
-        const isDelayed = (project.flags ?? []).some((flag) =>
-          String(flag).includes("延期"),
+        const action = {
+          编剧: "上传",
+          制作: "制作",
+          剪辑: "剪辑",
+          制片: "审核",
+        }[assignment.role] || assignment.role;
+        const batchStart = Math.min(
+          Math.max(Number(assignment.completed) + 1, 1),
+          assignment.total,
         );
-        const dueFlag = assignment.due < "2026-07-17"
-          ? "已逾期"
-          : assignment.due === "2026-07-17"
-            ? "今日到期"
-            : isDelayed
-              ? "延期风险"
-              : "按期";
+        const batchEnd = Math.min(batchStart + 5, assignment.total);
+        const title = `${project.name} · 进行${batchStart}-${batchEnd}剧集的${action}`;
         return {
           id: `WB-${assignment.id}`,
           businessId: project.projectCode ?? project.id,
@@ -558,18 +463,17 @@ export function selectWorkbenchTasks({
           stageName: assignment.stage,
           assignmentRole: assignment.role,
           module: "项目",
-          title: `${project.name} · ${assignment.role}任务`,
+          title,
           owner: assignment.owner,
-          status: assignment.status,
-          due: assignment.due,
-          flag: dueFlag,
-          priority: isDelayed ? "高" : "普通",
+          assigneeRole: `${action}负责人`,
+          status: "待处理",
+          issuedAt: assignment.issuedAt,
           destination: "tasks",
           description: assignment.requirement,
           detail: {
             subjectLabel: "项目任务",
-            subject: `${project.name} · ${assignment.role}`,
-            summary: `${assignment.owner}负责${project.name}${assignment.role}任务，当前完成 ${assignment.completed}/${assignment.total}。`,
+            subject: title,
+            summary: `当前任务处理第 ${batchStart}-${batchEnd} 集，整体完成 ${assignment.completed}/${assignment.total} 集。`,
             requirement: assignment.requirement,
             fields: [
               { label: "项目编号", value: project.projectCode ?? project.id },
@@ -614,31 +518,46 @@ export function selectWorkbenchTasks({
 
   const performanceTasks = reviews
     .filter((review) => review.status && review.status !== "已结束")
-    .map((review, index) => {
+    .map((review) => {
       const isAppeal = String(review.status).includes("申诉") || String(review.status).includes("调查") || String(review.status).includes("裁决");
-      const isEmployeeAction = review.owner === review.employee;
-      const due = isAppeal ? "今天 17:00" : index % 3 === 0 ? "今天 18:00" : "07-22 18:00";
+      const cycle = review.cycle || referenceDate.slice(0, 7);
+      const isDispute = isAppeal || String(review.status).includes("异议");
+      const isScoring = review.status === "待一级领导评分";
+      const isAudit = ["待二级领导复评", "待HR复审", "待CEO审批", "待反馈与面谈"].includes(review.status);
+      const title = review.status === "绩效目标待下发"
+        ? `绩效目标${cycle}待下发`
+        : isDispute
+          ? `进行${cycle}目标异议处理`
+          : isScoring
+            ? `进行${cycle}绩效评分`
+            : isAudit
+              ? `进行${cycle}绩效审核`
+              : `确认${cycle}绩效目标`;
       return {
         id: `WB-PERFORMANCE-${review.id}`,
+        businessId: review.id,
         sourceType: "performance",
         sourceId: review.id,
         module: "绩效",
-        title: isEmployeeAction
-          ? `${review.employee} · 确认${review.cycle}绩效目标`
-          : `${review.employee} · ${review.status}`,
+        title,
         owner: review.owner,
+        assigneeRole: isDispute
+          ? "绩效异议处理人"
+          : isScoring
+            ? "绩效评分人"
+            : isAudit
+              ? "绩效审核人"
+              : "绩效流程处理人",
         dispatcher: review.directLeader || "绩效中心",
         issuedAt: review.lastActionAt,
-        status: isAppeal ? "待复核" : "待处理",
-        due,
-        flag: isAppeal ? "今日到期" : index % 3 === 0 ? "今日到期" : "按期",
+        status: "待处理",
         destination: "performance",
         quickAction: false,
         description: performanceActionByStatus[review.status] || "进入绩效中心处理当前流程节点。",
         detail: {
           subjectLabel: "绩效任务对象",
-          subject: `${review.employee} · ${review.cycle}月度绩效`,
-          summary: `${review.department}${review.role}的${review.cycle}绩效当前处于“${review.status}”，由${review.owner}处理。`,
+          subject: `${cycle}月度绩效`,
+          summary: `当前${cycle}绩效流程处于“${review.status}”节点。`,
           requirement: performanceActionByStatus[review.status] || "核对绩效任务信息并完成当前节点处理。",
           fields: [
             { label: "考核周期", value: review.cycle },
@@ -673,27 +592,27 @@ export function selectWorkbenchTasks({
       const isMissing = report.status === "missing";
       return {
         id: `WB-WEEKLY-${report.id}`,
+        businessId: report.id,
         sourceType: "weekly",
         sourceId: report.id,
         module: "周报",
         title: isMissing
-          ? `${person.name || report.employeeId} · 提交${report.period.label}周报`
-          : `${person.name || report.employeeId} · 确认${report.period.label}周报补充项`,
+          ? `提交${report.period.label}周报`
+          : `确认${report.period.label}周报补充项`,
         owner: person.name || report.employeeId || "待确认",
+        assigneeRole: "周报填报人",
         dispatcher: person.leader || "周报中心",
-        issuedAt: report.period.start,
-        status: isMissing ? "待提交" : "待补充",
-        due: `${report.period.end.slice(5)} 18:00`,
-        flag: isMissing ? "本周到期" : "延期风险",
+        issuedAt: report.period.start ? `${report.period.start} 09:00` : "待记录",
+        status: "待处理",
         destination: "reports",
         quickAction: false,
         description: isMissing
           ? "补充本周成果、风险问题与下周计划后提交周报。"
           : "核对延迟提交原因，并确认风险与下周计划是否完整。",
         detail: {
-          subjectLabel: "周报填报人",
-          subject: `${person.name || report.employeeId} · ${report.period.label}`,
-          summary: `${person.department || "所在部门"}${person.role ? ` · ${person.role}` : ""}的周报任务，统计周期为${report.period.start}至${report.period.end}。`,
+          subjectLabel: "周报任务",
+          subject: report.period.label,
+          summary: `当前周报统计周期为${report.period.start}至${report.period.end}。`,
           requirement: isMissing
             ? "完整填写本周成果、风险与问题、下周计划三个部分，确认内容可追溯后提交。"
             : "补充延迟原因，核对成果、风险和下周计划，并确认正式提交版本。",
@@ -729,14 +648,41 @@ export function selectWorkbenchTasks({
       };
     });
 
+  const sscTasks = candidates.flatMap((candidate) =>
+    (candidate.applications ?? [])
+      .filter((application) => application.status === "待入职")
+      .map((application) => ({
+        id: `WB-SSC-${application.id}`,
+        businessId: application.id,
+        sourceType: "ssc-personnel",
+        sourceId: application.id,
+        module: "SSC",
+        title: "进行人员花名册的添加",
+        owner: candidate.owner || "SSC人事专员",
+        assigneeRole: "SSC人事专员",
+        dispatcher: "招聘管理",
+        issuedAt: application.updatedAt || candidate.updatedAt || "待记录",
+        status: "待处理",
+        destination: "ssc-org",
+        quickAction: false,
+        description: "候选人已确认接受 Offer，需要在 SSC 建立人员花名册档案。",
+        detail: {
+          subjectLabel: "SSC 人员档案",
+          subject: "人员花名册新增",
+          summary: "招聘流程已进入待入职节点，需要补充花名册必填信息。",
+          requirement: "在 SSC 服务中心录入人员编号、组织归属、岗位和入职信息，完成花名册建档。",
+          sourceLabel: "SSC 服务中心 · 人员花名册",
+          updatedAt: application.updatedAt || candidate.updatedAt,
+        },
+      })),
+  );
+
   return [
     ...performanceTasks,
     ...recruitmentTasks,
-    ...topicTasks,
-    ...topicProjectTasks,
     ...projectAssignmentTasks,
-    ...projectTasks,
     ...weeklyTasks,
+    ...sscTasks,
   ];
 }
 
