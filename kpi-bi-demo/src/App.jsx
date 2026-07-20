@@ -68,6 +68,10 @@ import {
   useDemoData,
 } from "./platform/IntegratedPlatform";
 import { SscDataMaintenancePage } from "./ssc/SscDataMaintenancePage";
+import { ModelListPage } from "./resources/ModelListPage";
+import { AgentManagementPage } from "./resources/AgentManagementPage";
+import { AssetLibraryPage } from "./resources/AssetLibraryPage";
+import { ProjectSubjectPage } from "./resources/ProjectSubjectPage";
 
 const CURRENT_MONTH = "2026-07";
 
@@ -144,41 +148,68 @@ const processNodes = [
   "绩效申诉",
 ];
 
+const primarySidebarItems = [
+  { id: "workspace", label: "统一工作台", icon: House },
+  { id: "dashboard", label: "经营驾驶舱", icon: ChartLineUp },
+];
+
 const sidebarGroups = [
   {
-    label: "总览",
+    id: "ai-resources",
+    label: "AI与资源",
     items: [
-      { id: "workspace", label: "工作台", icon: House },
-      { id: "dashboard", label: "经营驾驶舱", icon: ChartLineUp },
+      { id: "agents", label: "智能体管理", icon: GearSix },
+      {
+        id: "resource-center",
+        label: "资源中心",
+        items: [
+          { id: "model-list", label: "模型列表", icon: Database },
+          { id: "asset-library", label: "素材库", icon: FileCsv },
+          { id: "project-subjects", label: "项目题材", icon: Lightbulb },
+        ],
+      },
     ],
   },
   {
-    label: "人效管理",
+    id: "content-projects",
+    label: "内容与项目",
     items: [
-      { id: "performance", label: "绩效中心", icon: Trophy },
-      { id: "reports", label: "周报", icon: ClipboardText },
+      { id: "topics", label: "选题库", icon: Lightbulb },
+      {
+        id: "project-management",
+        label: "项目管理",
+        items: [
+          { id: "project-initiation", label: "项目立项", icon: Briefcase },
+          { id: "tasks", label: "任务列表", icon: ClipboardText },
+        ],
+      },
+      { id: "projects", label: "项目总览", icon: ChartLineUp },
+      { id: "delivery", label: "交付中心", icon: Briefcase },
+      { id: "works", label: "作品库", icon: FileCsv },
+      { id: "cost-time", label: "成本与工时", icon: ClipboardText },
     ],
   },
   {
-    label: "业务管理",
+    id: "people-organization",
+    label: "人力与组织",
     items: [
       { id: "recruitment", label: "招聘管理", icon: UsersThree },
-      { id: "topics", label: "选题管理", icon: Lightbulb },
-      { id: "project-initiation", label: "项目立项", icon: Briefcase },
-      { id: "tasks", label: "任务列表", icon: ClipboardText },
-      { id: "projects", label: "项目制作", icon: Briefcase },
+      { id: "performance", label: "绩效中心", icon: Trophy },
+      { id: "reports", label: "周报", icon: ClipboardText },
+      {
+        id: "ssc-service",
+        label: "SSC服务中心",
+        items: [
+          { id: "ssc-org", label: "组织架构与花名册", icon: UsersThree },
+          { id: "ssc-tables", label: "人事表格管理", icon: Database },
+          { id: "ssc-templates", label: "人事模板管理", icon: FileCsv },
+        ],
+      },
     ],
   },
   {
-    label: "SSC服务中心",
-    items: [
-      { id: "ssc-org", label: "组织架构与花名册", icon: UsersThree },
-      { id: "ssc-tables", label: "表格管理", icon: Database },
-      { id: "ssc-templates", label: "模板管理", icon: FileCsv },
-    ],
-  },
-  {
-    label: "系统",
+    id: "system-governance",
+    label: "系统治理",
     items: [
       { id: "governance", label: "系统配置", icon: GearSix },
     ],
@@ -197,6 +228,10 @@ const SSC_ACCESS_ROLES = ["hr", "ceo"];
 const platformPageAccess = {
   workspace: ["employee", "leader", "hr", "ceo"],
   dashboard: ["employee", "leader", "hr", "ceo"],
+  agents: ["employee", "leader", "hr", "ceo"],
+  "model-list": ["employee", "leader", "hr", "ceo"],
+  "asset-library": ["employee", "leader", "hr", "ceo"],
+  "project-subjects": ["employee", "leader", "hr", "ceo"],
   performance: ["employee", "leader", "hr", "ceo"],
   reports: ["employee", "leader", "hr", "ceo"],
   recruitment: ["leader", "hr", "ceo"],
@@ -204,6 +239,9 @@ const platformPageAccess = {
   "project-initiation": ["employee", "leader", "hr", "ceo"],
   tasks: ["employee", "leader", "hr", "ceo"],
   projects: ["employee", "leader", "hr", "ceo"],
+  "cost-time": ["employee", "leader", "hr", "ceo"],
+  delivery: ["employee", "leader", "hr", "ceo"],
+  works: ["employee", "leader", "hr", "ceo"],
   "ssc-org": SSC_ACCESS_ROLES,
   "ssc-tables": SSC_ACCESS_ROLES,
   "ssc-templates": SSC_ACCESS_ROLES,
@@ -218,6 +256,86 @@ const sscPageViews = {
 
 function canAccessPlatformPage(roleId, pageId) {
   return platformPageAccess[pageId]?.includes(roleId) ?? false;
+}
+
+const blankDirectoryPages = new Set([
+  "cost-time",
+  "delivery",
+  "works",
+]);
+
+function filterSidebarItems(items, roleId) {
+  return items.reduce((visible, item) => {
+    if (item.items) {
+      const nestedItems = filterSidebarItems(item.items, roleId);
+      if (nestedItems.length) visible.push({ ...item, items: nestedItems });
+      return visible;
+    }
+    if (canAccessPlatformPage(roleId, item.id)) visible.push(item);
+    return visible;
+  }, []);
+}
+
+function findSidebarItem(items, pageId) {
+  for (const item of items) {
+    if (item.id === pageId && !item.items) return item;
+    if (item.items) {
+      const nestedItem = findSidebarItem(item.items, pageId);
+      if (nestedItem) return nestedItem;
+    }
+  }
+  return null;
+}
+
+function findSidebarGroupPath(items, pageId, path = []) {
+  for (const item of items) {
+    if (!item.items && item.id === pageId) return path;
+    if (item.items) {
+      const nestedPath = findSidebarGroupPath(item.items, pageId, [...path, item.id]);
+      if (nestedPath) return nestedPath;
+    }
+  }
+  return null;
+}
+
+function SidebarItems({ activePage, depth = 0, expandedGroups, goPage, items, toggleGroup }) {
+  return items.map((item) => {
+    if (item.items) {
+      const isExpanded = expandedGroups.has(item.id);
+      const containsActivePage = Boolean(findSidebarItem(item.items, activePage));
+      return (
+        <div className={`sidebar__subgroup sidebar__subgroup--depth-${depth}`} key={item.id}>
+          <button
+            aria-controls={`${item.id}-items`}
+            aria-expanded={isExpanded}
+            className={`sidebar__subgroup-toggle ${containsActivePage ? "is-current" : ""}`}
+            onClick={() => toggleGroup(item.id)}
+            type="button"
+          >
+            <span className="sidebar__subgroup-label">{item.label}</span>
+            <span aria-hidden="true" className="sidebar__toggle-caret">›</span>
+          </button>
+          {isExpanded ? (
+            <div className="sidebar__subgroup-items" id={`${item.id}-items`}>
+              <SidebarItems activePage={activePage} depth={depth + 1} expandedGroups={expandedGroups} goPage={goPage} items={item.items} toggleGroup={toggleGroup} />
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+    const Icon = item.icon;
+    return (
+      <button
+        key={item.id}
+        className={`sidebar__item sidebar__item--depth-${depth} ${activePage === item.id ? "is-active" : ""}`}
+        onClick={() => goPage(item.id)}
+        type="button"
+      >
+        <Icon size={19} weight="duotone" />
+        {item.label}
+      </button>
+    );
+  });
 }
 
 const projects = [
@@ -2662,6 +2780,15 @@ function AppContent() {
   const { completeWorkbenchTask } = useDemoData();
   const [activeRole, setActiveRole] = useState("ceo");
   const [activePage, setActivePage] = useState("workspace");
+  const [expandedSidebarGroups, setExpandedSidebarGroups] = useState(() => new Set([
+    "ai-resources",
+    "resource-center",
+    "content-projects",
+    "project-management",
+    "people-organization",
+    "ssc-service",
+    "system-governance",
+  ]));
   const [accessFeedback, setAccessFeedback] = useState("");
   const [entryTask, setEntryTask] = useState(null);
   const [reviews, setReviews] = useState(() => {
@@ -2709,6 +2836,14 @@ function AppContent() {
       setActivePage("workspace");
       return;
     }
+    const groupPath = findSidebarGroupPath(sidebarGroups, page);
+    if (groupPath?.length) {
+      setExpandedSidebarGroups((current) => {
+        const next = new Set(current);
+        groupPath.forEach((groupId) => next.add(groupId));
+        return next;
+      });
+    }
     setAccessFeedback("");
     setEntryTask(context.task ?? null);
     setActivePage(page);
@@ -2724,7 +2859,17 @@ function AppContent() {
     setAccessFeedback(`“${task.title}”已回写来源业务单据，工作台与驾驶舱已同步更新。`);
   };
 
-  const visibleSidebarGroups = sidebarGroups.map((group) => ({ ...group, items: group.items.filter((item) => canAccessPlatformPage(activeRole, item.id)) })).filter((group) => group.items.length);
+  const toggleSidebarGroup = (groupId) => {
+    setExpandedSidebarGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const visiblePrimarySidebarItems = primarySidebarItems.filter((item) => canAccessPlatformPage(activeRole, item.id));
+  const visibleSidebarGroups = sidebarGroups.map((group) => ({ ...group, items: filterSidebarItems(group.items, activeRole) })).filter((group) => group.items.length);
 
   const saveReview = (draft) => {
     setReviews((current) => current.map((item) => (item.id === draft.id ? draft : item)));
@@ -2810,13 +2955,15 @@ function AppContent() {
   };
 
   const activeSscView = sscPageViews[activePage];
-  const activePageContent = <>{!["workspace", "project-initiation", "tasks", "reports"].includes(activePage) ? <RoleScopeBanner activeRole={activeRole} page={sidebarGroups.flatMap((group) => group.items).find((item) => item.id === activePage)?.label ?? "业务页面"} /> : null}{activePage === "workspace" ? <UnifiedWorkbenchPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "dashboard" ? <BusinessDashboardPage activeRole={activeRole} goPage={goPage} reviews={reviews} /> : null}{activePage === "performance" ? <PerformanceCenter reviews={reviews} onSave={saveReview} onBatchIssue={batchIssueReviews} onSaveAppeal={saveAppeal} activeRole={activeRoleMeta} departmentTemplates={departmentTemplates} onSaveDepartmentTemplate={saveDepartmentTemplate} onCreateDepartmentTemplate={createDepartmentTemplate} /> : null}{activePage === "reports" ? <WeeklyPage /> : null}{activePage === "recruitment" ? <RecruitmentCenterPage /> : null}{activePage === "topics" ? <TopicCenterPage goPage={goPage} /> : null}{activePage === "project-initiation" ? <ProjectInitiationPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "tasks" ? <TaskCenterPage activeRole={activeRole} /> : null}{activePage === "projects" ? <ProjectProductionPage /> : null}{activeSscView ? <SscDataMaintenancePage view={activeSscView} /> : null}{activePage === "governance" ? <GovernancePage /> : null}</>;
+  const activeSidebarItem = findSidebarItem([...primarySidebarItems, ...sidebarGroups.flatMap((group) => group.items)], activePage);
+  const isBlankDirectoryPage = blankDirectoryPages.has(activePage);
+  const activePageContent = <>{!isBlankDirectoryPage && !["workspace", "project-initiation", "tasks", "reports", "model-list", "agents", "asset-library", "project-subjects"].includes(activePage) ? <RoleScopeBanner activeRole={activeRole} page={activeSidebarItem?.label ?? "业务页面"} /> : null}{activePage === "workspace" ? <UnifiedWorkbenchPage activeRole={activeRole} goPage={goPage} people={dashboardPeople} reviews={reviews} weeklyReports={dashboardWeeklyReports} /> : null}{activePage === "dashboard" ? <BusinessDashboardPage activeRole={activeRole} goPage={goPage} reviews={reviews} /> : null}{activePage === "performance" ? <PerformanceCenter reviews={reviews} onSave={saveReview} onBatchIssue={batchIssueReviews} onSaveAppeal={saveAppeal} activeRole={activeRoleMeta} departmentTemplates={departmentTemplates} onSaveDepartmentTemplate={saveDepartmentTemplate} onCreateDepartmentTemplate={createDepartmentTemplate} /> : null}{activePage === "reports" ? <WeeklyPage /> : null}{activePage === "recruitment" ? <RecruitmentCenterPage /> : null}{activePage === "topics" ? <TopicCenterPage goPage={goPage} /> : null}{activePage === "project-initiation" ? <ProjectInitiationPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "tasks" ? <TaskCenterPage activeRole={activeRole} /> : null}{activePage === "projects" ? <ProjectProductionPage /> : null}{activePage === "model-list" ? <ModelListPage /> : null}{activePage === "agents" ? <AgentManagementPage /> : null}{activePage === "asset-library" ? <AssetLibraryPage /> : null}{activePage === "project-subjects" ? <ProjectSubjectPage /> : null}{activeSscView ? <SscDataMaintenancePage view={activeSscView} /> : null}{activePage === "governance" ? <GovernancePage /> : null}{isBlankDirectoryPage ? <section aria-label={activeSidebarItem?.label ?? "空白页面"} className="blank-directory-page" /> : null}</>;
 
   return (
     <main className="app-shell">
-      <aside className="sidebar"><div className="brand"><div className="brand__logo"><ChartLineUp size={22} weight="duotone" /></div><div><strong>KPI_BI</strong><span>一体化管理平台</span></div></div><nav className="sidebar__nav" aria-label="主导航">{visibleSidebarGroups.map((group) => <section className="sidebar__group" key={group.label}><span>{group.label}</span>{group.items.map((item) => { const Icon = item.icon; return <button key={item.id} className={`sidebar__item ${activePage === item.id ? "is-active" : ""}`} onClick={() => goPage(item.id)} type="button"><Icon size={19} weight="duotone" />{item.label}</button>; })}</section>)}</nav><div className="role-switcher">{roles.map((role) => <button key={role.id} className={`ghost-chip ${activeRole === role.id ? "ghost-chip--active" : ""}`} onClick={() => setActiveRole(role.id)} type="button"><span>{role.label}</span><small>{role.badge}</small></button>)}</div></aside>
+      <aside className="sidebar"><div className="brand"><div className="brand__logo"><ChartLineUp size={22} weight="duotone" /></div><div><strong>KPI_BI</strong><span>一体化管理平台</span></div></div><nav className="sidebar__nav" aria-label="主导航"><div className="sidebar__primary"><SidebarItems activePage={activePage} expandedGroups={expandedSidebarGroups} goPage={goPage} items={visiblePrimarySidebarItems} toggleGroup={toggleSidebarGroup} /></div>{visibleSidebarGroups.map((group) => { const isExpanded = expandedSidebarGroups.has(group.id); const containsActivePage = Boolean(findSidebarItem(group.items, activePage)); return <section className="sidebar__group" key={group.id}><button aria-controls={`${group.id}-items`} aria-expanded={isExpanded} className={`sidebar__group-toggle ${containsActivePage ? "is-current" : ""}`} onClick={() => toggleSidebarGroup(group.id)} type="button"><span>{group.label}</span><span aria-hidden="true" className="sidebar__toggle-caret">›</span></button>{isExpanded ? <div className="sidebar__group-items" id={`${group.id}-items`}><SidebarItems activePage={activePage} expandedGroups={expandedSidebarGroups} goPage={goPage} items={group.items} toggleGroup={toggleSidebarGroup} /></div> : null}</section>; })}</nav><div className="role-switcher">{roles.map((role) => <button key={role.id} className={`ghost-chip ${activeRole === role.id ? "ghost-chip--active" : ""}`} onClick={() => setActiveRole(role.id)} type="button"><span>{role.label}</span><small>{role.badge}</small></button>)}</div></aside>
       <div className="app-main">
-        <div className="content">{accessFeedback ? <div className="platform-access-feedback" role="status">{accessFeedback}</div> : null}{activePageContent}{entryTask ? <BusinessTaskProcessingDrawer activeRole={activeRole} onClose={() => setEntryTask(null)} onComplete={completeTask} task={entryTask} /> : null}</div>
+        <div className={`content ${isBlankDirectoryPage ? "content--blank-directory" : ""} ${activePage === "model-list" ? "content--model-list" : ""} ${activePage === "agents" ? "content--agent-management" : ""} ${activePage === "asset-library" ? "content--asset-library" : ""} ${activePage === "project-subjects" ? "content--project-subjects" : ""}`}>{accessFeedback ? <div className="platform-access-feedback" role="status">{accessFeedback}</div> : null}{activePageContent}{entryTask ? <BusinessTaskProcessingDrawer activeRole={activeRole} onClose={() => setEntryTask(null)} onComplete={completeTask} task={entryTask} /> : null}</div>
       </div>
     </main>
   );

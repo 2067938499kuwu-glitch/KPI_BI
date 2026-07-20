@@ -1,11 +1,8 @@
 const FUNNEL_FIELDS = [
   ["打招呼", "hello"],
-  ["回复", "reply"],
-  ["获取简历", "resume"],
-  ["有效简历", "valid"],
-  ["邀约", "invite"],
   ["面试", "interview"],
   ["通过", "passed"],
+  ["Offer发放", "offer"],
   ["Offer接受", "accepted"],
   ["入职", "onboarded"],
 ];
@@ -344,7 +341,15 @@ export function selectProjectTaskAssignments(project = {}) {
   });
 }
 
-export function selectWorkbenchTasks({ candidates = [], topics = [], projects = [] }) {
+export function selectWorkbenchTasks({
+  candidates = [],
+  topics = [],
+  projects = [],
+  reviews = [],
+  weeklyReports = [],
+  people = [],
+  referenceDate = "2026-07-20",
+}) {
   const recruitmentTasks = candidates.flatMap((candidate) =>
     (candidate.applications ?? [])
       .filter((application) =>
@@ -591,12 +596,147 @@ export function selectWorkbenchTasks({ candidates = [], topics = [], projects = 
       }),
   );
 
+  const performanceActionByStatus = {
+    绩效目标待下发: "核对绩效模板与目标权重，完成本月绩效目标下发。",
+    待员工确认绩效目标: "逐项确认本月绩效目标；如有异议，需填写具体原因后提交。",
+    目标异议处理中: "结合员工异议调整目标内容，并重新下发确认。",
+    绩效目标已生效: "持续更新目标执行进展与相关证明材料。",
+    待员工填报结果: "填写本月目标完成结果、数据口径与证明材料。",
+    待一级领导评分: "依据员工结果与证明材料完成逐项评分和评语。",
+    待二级领导复评: "复核一级评分、异常项与评价依据并提交复评结论。",
+    待HR复审: "核验评分规则、证明材料与加减分项，提交复审结论。",
+    待CEO审批: "审阅最终评分、等级与例外说明，完成最终审批。",
+    待反馈与面谈: "完成绩效结果反馈，并记录面谈结论和改进计划。",
+    申诉已提交: "受理绩效申诉，核对争议指标、证据与原评分依据。",
+    HR调查中: "补充申诉调查结论和证据链，提交后续裁决。",
+    待CEO裁决: "审阅申诉调查材料并完成最终裁决。",
+  };
+
+  const performanceTasks = reviews
+    .filter((review) => review.status && review.status !== "已结束")
+    .map((review, index) => {
+      const isAppeal = String(review.status).includes("申诉") || String(review.status).includes("调查") || String(review.status).includes("裁决");
+      const isEmployeeAction = review.owner === review.employee;
+      const due = isAppeal ? "今天 17:00" : index % 3 === 0 ? "今天 18:00" : "07-22 18:00";
+      return {
+        id: `WB-PERFORMANCE-${review.id}`,
+        sourceType: "performance",
+        sourceId: review.id,
+        module: "绩效",
+        title: isEmployeeAction
+          ? `${review.employee} · 确认${review.cycle}绩效目标`
+          : `${review.employee} · ${review.status}`,
+        owner: review.owner,
+        dispatcher: review.directLeader || "绩效中心",
+        issuedAt: review.lastActionAt,
+        status: isAppeal ? "待复核" : "待处理",
+        due,
+        flag: isAppeal ? "今日到期" : index % 3 === 0 ? "今日到期" : "按期",
+        destination: "performance",
+        quickAction: false,
+        description: performanceActionByStatus[review.status] || "进入绩效中心处理当前流程节点。",
+        detail: {
+          subjectLabel: "绩效任务对象",
+          subject: `${review.employee} · ${review.cycle}月度绩效`,
+          summary: `${review.department}${review.role}的${review.cycle}绩效当前处于“${review.status}”，由${review.owner}处理。`,
+          requirement: performanceActionByStatus[review.status] || "核对绩效任务信息并完成当前节点处理。",
+          fields: [
+            { label: "考核周期", value: review.cycle },
+            { label: "被考核人", value: review.employee },
+            { label: "所属部门", value: review.department },
+            { label: "岗位", value: review.role },
+            { label: "当前节点", value: review.status },
+            { label: "绩效模板", value: review.roleTemplateName },
+            { label: "直接上级", value: review.directLeader },
+            { label: "间接上级", value: review.indirectLeader },
+            { label: "当前处理人", value: review.owner },
+            { label: "目标版本", value: review.pendingTargetVersion ? `V${review.pendingTargetVersion}（待确认）` : review.activeTargetVersion ? `V${review.activeTargetVersion}` : "待下发" },
+            { label: "证明材料", value: review.evidence },
+          ].filter((item) => item.value),
+          highlights: review.templateHighlights ?? [],
+          noteLabel: isAppeal ? "申诉与调查说明" : "任务备注",
+          note: review.comment,
+          sourceLabel: "绩效中心 · 月度绩效单",
+          updatedAt: review.lastActionAt,
+        },
+      };
+    });
+
+  const peopleById = new Map(people.map((person) => [person.employeeId, person]));
+  const currentWeeklyReports = weeklyReports.filter((report) =>
+    report.period?.start <= referenceDate && report.period?.end >= referenceDate,
+  );
+  const weeklyTasks = currentWeeklyReports
+    .filter((report) => ["missing", "late"].includes(report.status))
+    .map((report) => {
+      const person = peopleById.get(report.employeeId) ?? {};
+      const isMissing = report.status === "missing";
+      return {
+        id: `WB-WEEKLY-${report.id}`,
+        sourceType: "weekly",
+        sourceId: report.id,
+        module: "周报",
+        title: isMissing
+          ? `${person.name || report.employeeId} · 提交${report.period.label}周报`
+          : `${person.name || report.employeeId} · 确认${report.period.label}周报补充项`,
+        owner: person.name || report.employeeId || "待确认",
+        dispatcher: person.leader || "周报中心",
+        issuedAt: report.period.start,
+        status: isMissing ? "待提交" : "待补充",
+        due: `${report.period.end.slice(5)} 18:00`,
+        flag: isMissing ? "本周到期" : "延期风险",
+        destination: "reports",
+        quickAction: false,
+        description: isMissing
+          ? "补充本周成果、风险问题与下周计划后提交周报。"
+          : "核对延迟提交原因，并确认风险与下周计划是否完整。",
+        detail: {
+          subjectLabel: "周报填报人",
+          subject: `${person.name || report.employeeId} · ${report.period.label}`,
+          summary: `${person.department || "所在部门"}${person.role ? ` · ${person.role}` : ""}的周报任务，统计周期为${report.period.start}至${report.period.end}。`,
+          requirement: isMissing
+            ? "完整填写本周成果、风险与问题、下周计划三个部分，确认内容可追溯后提交。"
+            : "补充延迟原因，核对成果、风险和下周计划，并确认正式提交版本。",
+          fields: [
+            { label: "报告周期", value: report.period.label },
+            { label: "起止日期", value: `${report.period.start} 至 ${report.period.end}` },
+            { label: "填报人", value: person.name || report.employeeId },
+            { label: "所属部门", value: person.department },
+            { label: "岗位", value: person.role },
+            { label: "直属上级", value: person.leader },
+            { label: "提交状态", value: isMissing ? "未提交" : "延迟提交" },
+            { label: "提交时间", value: report.submittedAt || "尚未提交" },
+          ].filter((item) => item.value),
+          contentSections: [
+            {
+              title: "本周成果",
+              items: report.achievements?.length ? report.achievements : ["尚未填写本周成果"],
+            },
+            {
+              title: "风险与问题",
+              items: report.risks?.length ? report.risks : ["尚未填写风险与问题"],
+            },
+            {
+              title: "下周计划",
+              items: report.nextPlan?.length ? report.nextPlan : ["尚未填写下周计划"],
+            },
+          ],
+          noteLabel: isMissing ? "提交提醒" : "时效提醒",
+          note: isMissing ? "当前周期尚未形成正式周报，请在截止时间前完成。" : "该周报晚于规定时间提交，需要确认延迟原因。",
+          sourceLabel: "智能周报中心",
+          updatedAt: report.submittedAt || "等待提交",
+        },
+      };
+    });
+
   return [
+    ...performanceTasks,
     ...recruitmentTasks,
     ...topicTasks,
     ...topicProjectTasks,
     ...projectAssignmentTasks,
     ...projectTasks,
+    ...weeklyTasks,
   ];
 }
 

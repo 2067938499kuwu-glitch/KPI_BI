@@ -15,12 +15,15 @@ import {
   Clock,
   FileText,
   Funnel,
+  Image,
   Info,
   Lightbulb,
   MagnifyingGlass,
   Plus,
   ShieldCheck,
+  Trophy,
   TrendUp,
+  UploadSimple,
   UserCirclePlus,
   UsersThree,
   WarningCircle,
@@ -55,6 +58,39 @@ import {
   selectTopicSummary,
   selectWorkbenchTasks,
 } from "./demoSelectors";
+
+const workbenchModuleConfig = {
+  绩效: {
+    icon: Trophy,
+    label: "绩效任务",
+    description: "目标确认、结果填报与审批",
+    className: "is-performance",
+  },
+  招聘: {
+    icon: UserCirclePlus,
+    label: "招聘任务",
+    description: "候选人确认与面试反馈",
+    className: "is-recruitment",
+  },
+  选题: {
+    icon: Lightbulb,
+    label: "选题任务",
+    description: "方案修改、审核与立项",
+    className: "is-topic",
+  },
+  项目: {
+    icon: Briefcase,
+    label: "项目任务",
+    description: "角色执行、节点与风险更新",
+    className: "is-project",
+  },
+  周报: {
+    icon: CalendarCheck,
+    label: "周报任务",
+    description: "成果、风险与下周计划",
+    className: "is-weekly",
+  },
+};
 
 const jobsSeed = [
   {
@@ -289,16 +325,28 @@ const recruitmentDailySeed = [
     platform: "BOSS直聘",
     job: "中级剪辑师",
     hello: 120,
-    reply: 36,
-    resume: 20,
-    valid: 12,
-    invite: 8,
     interview: 6,
     passed: 3,
     offer: 2,
     accepted: 1,
     onboarded: 1,
     screenshots: 2,
+    screenshotFiles: [
+      {
+        id: "SHOT-RD-0714-01-1",
+        name: "陈璐-BOSS直聘-沟通记录.png",
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600"><rect width="960" height="600" fill="#f5f7ff"/><rect x="40" y="36" width="880" height="72" rx="14" fill="#6268df"/><text x="76" y="82" font-family="Arial,sans-serif" font-size="26" fill="white">BOSS直聘 · 招聘沟通日报</text><rect x="40" y="136" width="880" height="420" rx="18" fill="white" stroke="#dce4f2"/><text x="76" y="196" font-family="Arial,sans-serif" font-size="22" fill="#24324a">中级剪辑师</text><text x="76" y="244" font-family="Arial,sans-serif" font-size="18" fill="#66758d">打招呼 120 · 面试 6 · Offer 2</text><rect x="76" y="292" width="680" height="22" rx="11" fill="#dfe4ff"/><rect x="76" y="292" width="520" height="22" rx="11" fill="#6268df"/><rect x="76" y="344" width="680" height="22" rx="11" fill="#e7edf7"/><rect x="76" y="344" width="360" height="22" rx="11" fill="#8d94eb"/></svg>',
+        )}`,
+      },
+      {
+        id: "SHOT-RD-0714-01-2",
+        name: "陈璐-候选人跟进记录.png",
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600"><rect width="960" height="600" fill="#f3f6fb"/><rect x="42" y="38" width="876" height="524" rx="20" fill="white" stroke="#d9e3f0"/><text x="78" y="96" font-family="Arial,sans-serif" font-size="26" fill="#253552">候选人跟进记录</text><line x1="78" y1="128" x2="882" y2="128" stroke="#e4eaf3"/><text x="78" y="182" font-family="Arial,sans-serif" font-size="18" fill="#617089">面试 6 人 · 通过 3 人 · Offer 2 人</text><circle cx="100" cy="248" r="16" fill="#6268df"/><rect x="136" y="232" width="540" height="18" rx="9" fill="#dfe4ff"/><rect x="136" y="270" width="420" height="14" rx="7" fill="#edf1f7"/><circle cx="100" cy="354" r="16" fill="#8d94eb"/><rect x="136" y="338" width="620" height="18" rx="9" fill="#dfe4ff"/><rect x="136" y="376" width="360" height="14" rx="7" fill="#edf1f7"/></svg>',
+        )}`,
+      },
+    ],
     status: "已提交",
     difference: 1,
   },
@@ -309,16 +357,21 @@ const recruitmentDailySeed = [
     platform: "猎聘",
     job: "制片经理",
     hello: 54,
-    reply: 18,
-    resume: 11,
-    valid: 6,
-    invite: 4,
     interview: 2,
     passed: 1,
     offer: 1,
     accepted: 0,
     onboarded: 0,
     screenshots: 1,
+    screenshotFiles: [
+      {
+        id: "SHOT-RD-0714-02-1",
+        name: "许晴-猎聘-招聘日报.png",
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600"><rect width="960" height="600" fill="#f5f8fc"/><rect x="44" y="42" width="872" height="516" rx="20" fill="white" stroke="#d8e3f0"/><rect x="44" y="42" width="872" height="86" rx="20" fill="#273a58"/><text x="82" y="96" font-family="Arial,sans-serif" font-size="26" fill="white">猎聘 · 制片经理招聘日报</text><text x="82" y="190" font-family="Arial,sans-serif" font-size="20" fill="#31415a">许晴 · 2026-07-14</text><text x="82" y="244" font-family="Arial,sans-serif" font-size="18" fill="#6d7d93">打招呼 54 · 面试 2 · Offer 1</text><rect x="82" y="302" width="760" height="132" rx="16" fill="#eef0ff"/><text x="118" y="358" font-family="Arial,sans-serif" font-size="18" fill="#565dcc">面试 2 人</text><text x="118" y="400" font-family="Arial,sans-serif" font-size="18" fill="#565dcc">Offer 发放 1 人</text></svg>',
+        )}`,
+      },
+    ],
     status: "已提交",
     difference: 0,
   },
@@ -329,16 +382,13 @@ const recruitmentDailySeed = [
     platform: "BOSS直聘",
     job: "海外发行运营",
     hello: 86,
-    reply: 28,
-    resume: 15,
-    valid: 9,
-    invite: 5,
     interview: 3,
     passed: 1,
     offer: 0,
     accepted: 0,
     onboarded: 0,
     screenshots: 0,
+    screenshotFiles: [],
     status: "草稿",
     difference: 2,
   },
@@ -2149,6 +2199,10 @@ function WorkbenchTaskDetailDrawer({ task, onClose, onEnter }) {
   const detail = task.detail ?? {};
   const fields = detail.fields ?? [];
   const progressItems = detail.progressItems ?? [];
+  const highlights = detail.highlights ?? [];
+  const contentSections = detail.contentSections ?? [];
+  const moduleConfig = workbenchModuleConfig[task.module] ?? workbenchModuleConfig.项目;
+  const ModuleIcon = moduleConfig.icon;
 
   return (
     <PlatformDrawer
@@ -2167,16 +2221,19 @@ function WorkbenchTaskDetailDrawer({ task, onClose, onEnter }) {
         </>
       }
     >
-      <section className="platform-task-detail-hero">
+      <section className={`platform-task-detail-hero ${moduleConfig.className}`}>
         <span className="platform-task-detail-hero__icon">
-          <Briefcase size={21} weight="duotone" />
+          <ModuleIcon size={21} weight="duotone" />
         </span>
         <div>
           <small>{detail.subjectLabel || "任务对象"}</small>
           <h3>{detail.subject || task.title}</h3>
           <p>{detail.summary || task.description}</p>
         </div>
-        <PlatformBadge>{task.status}</PlatformBadge>
+        <div className="platform-task-detail-hero__status">
+          <span>{moduleConfig.label}</span>
+          <PlatformBadge>{task.status}</PlatformBadge>
+        </div>
       </section>
 
       <div className="platform-task-detail-overview" aria-label="任务关键信息">
@@ -2185,14 +2242,14 @@ function WorkbenchTaskDetailDrawer({ task, onClose, onEnter }) {
           <strong>{task.owner}</strong>
         </div>
         <div>
+          <span>下发人 / 来源</span>
+          <strong>{task.dispatcher || detail.sourceLabel || task.module}</strong>
+        </div>
+        <div>
           <span>截止时间</span>
           <strong className={task.flag === "已逾期" ? "is-danger" : ""}>
             {task.due}
           </strong>
-        </div>
-        <div>
-          <span>优先级</span>
-          <strong>{task.priority}优先级</strong>
         </div>
         <div>
           <span>任务标记</span>
@@ -2219,6 +2276,26 @@ function WorkbenchTaskDetailDrawer({ task, onClose, onEnter }) {
           <div>
             <strong>{detail.noteLabel || "需要关注"}</strong>
             <p>{detail.note}</p>
+          </div>
+        </section>
+      ) : null}
+
+      {highlights.length ? (
+        <section className="platform-task-detail-section">
+          <header>
+            <span><ChartLineUp size={17} weight="duotone" /></span>
+            <div>
+              <h3>任务数据摘要</h3>
+              <small>当前节点最需要核对的关键业务数据</small>
+            </div>
+          </header>
+          <div className="platform-task-detail-highlights">
+            {highlights.map((item) => (
+              <div key={`${item.label}-${item.value}`}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
           </div>
         </section>
       ) : null}
@@ -2269,6 +2346,44 @@ function WorkbenchTaskDetailDrawer({ task, onClose, onEnter }) {
         </section>
       ) : null}
 
+      {contentSections.length ? (
+        <section className="platform-task-detail-section">
+          <header>
+            <span><FileText size={17} weight="duotone" /></span>
+            <div>
+              <h3>周报内容结构</h3>
+              <small>点击任务后可一次查看三个必填部分的当前内容</small>
+            </div>
+          </header>
+          <div className="platform-task-detail-content">
+            {contentSections.map((section) => (
+              <article key={section.title}>
+                <strong>{section.title}</strong>
+                {section.items.map((item) => <p key={item}>{item}</p>)}
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="platform-task-detail-section">
+        <header>
+          <span><Clock size={17} weight="duotone" /></span>
+          <div>
+            <h3>任务流转信息</h3>
+            <small>下发、来源与最近更新时间完整保留</small>
+          </div>
+        </header>
+        <dl className="platform-task-detail-fields platform-task-detail-fields--flow">
+          <div><dt>任务类型</dt><dd>{moduleConfig.label}</dd></div>
+          <div><dt>下发人</dt><dd>{task.dispatcher || detail.sourceLabel || task.module}</dd></div>
+          <div><dt>下发时间</dt><dd>{task.issuedAt || "随业务节点自动生成"}</dd></div>
+          <div><dt>数据来源</dt><dd>{detail.sourceLabel || "来源业务单据"}</dd></div>
+          <div><dt>基础状态</dt><dd>{task.status}</dd></div>
+          <div><dt>时效标记</dt><dd>{task.flag}</dd></div>
+        </dl>
+      </section>
+
       <PlatformNotice>
         信息来自{detail.sourceLabel || "来源业务单据"}
         {detail.updatedAt ? `，最近更新：${detail.updatedAt}` : ""}。进入业务详情后可查看完整记录并完成处理。
@@ -2280,13 +2395,24 @@ function WorkbenchTaskDetailDrawer({ task, onClose, onEnter }) {
 export function UnifiedWorkbenchPage({
   goPage,
   activeRole = "ceo",
+  people = [],
+  reviews = [],
+  weeklyReports = [],
 }) {
   const { candidates, topics, projects, updatedAt } = useDemoData();
   const [tab, setTab] = useState("todo");
+  const [moduleFilter, setModuleFilter] = useState("全部");
   const [selectedTask, setSelectedTask] = useState(null);
   const scopedTasks = useMemo(
     () =>
-      selectWorkbenchTasks({ candidates, topics, projects })
+      selectWorkbenchTasks({
+        candidates,
+        topics,
+        projects,
+        reviews,
+        weeklyReports,
+        people,
+      })
         .filter((item) => {
           if (activeRole === "employee") return item.owner === "张小北";
           if (activeRole === "leader")
@@ -2295,7 +2421,16 @@ export function UnifiedWorkbenchPage({
             return ["绩效", "招聘", "周报"].includes(item.module);
           return true;
         }),
-    [activeRole, candidates, projects, topics],
+    [activeRole, candidates, people, projects, reviews, topics, weeklyReports],
+  );
+  const moduleCounts = useMemo(
+    () => Object.fromEntries(
+      Object.keys(workbenchModuleConfig).map((module) => [
+        module,
+        scopedTasks.filter((item) => item.module === module).length,
+      ]),
+    ),
+    [scopedTasks],
   );
   const taskCounts = useMemo(
     () => ({
@@ -2310,12 +2445,13 @@ export function UnifiedWorkbenchPage({
   const tasks = useMemo(
     () =>
       scopedTasks.filter((item) => {
+        if (moduleFilter !== "全部" && item.module !== moduleFilter) return false;
         if (tab === "overdue") return item.flag === "已逾期";
         if (tab === "returned") return item.status === "已退回";
         if (tab === "done") return item.status === "已完成";
         return item.status !== "已完成";
       }),
-    [scopedTasks, tab],
+    [moduleFilter, scopedTasks, tab],
   );
 
   return (
@@ -2365,6 +2501,32 @@ export function UnifiedWorkbenchPage({
           },
         ]}
       />
+      <section className="platform-task-types" aria-label="五类任务快捷筛选">
+        <button
+          className={`platform-task-type platform-task-type--all ${moduleFilter === "全部" ? "is-active" : ""}`}
+          onClick={() => setModuleFilter("全部")}
+          type="button"
+        >
+          <span className="platform-task-type__icon"><Funnel size={19} weight="duotone" /></span>
+          <span><strong>全部任务</strong><small>统一查看五类业务任务</small></span>
+          <b>{scopedTasks.length}</b>
+        </button>
+        {Object.entries(workbenchModuleConfig).map(([module, config]) => {
+          const ModuleIcon = config.icon;
+          return (
+            <button
+              className={`platform-task-type ${config.className} ${moduleFilter === module ? "is-active" : ""}`}
+              key={module}
+              onClick={() => setModuleFilter(module)}
+              type="button"
+            >
+              <span className="platform-task-type__icon"><ModuleIcon size={19} weight="duotone" /></span>
+              <span><strong>{config.label}</strong><small>{config.description}</small></span>
+              <b>{moduleCounts[module]}</b>
+            </button>
+          );
+        })}
+      </section>
       <div className="platform-workbench-grid">
         <PlatformCard
           className="platform-workbench-card platform-workbench-card--tasks"
@@ -2386,25 +2548,32 @@ export function UnifiedWorkbenchPage({
         >
           <div className="platform-task-list">
             {tasks.map((task) => (
-              <article key={task.id}>
+              <article className={workbenchModuleConfig[task.module]?.className} key={task.id}>
                 <button
+                  aria-label={task.title}
                   className="platform-task-list__main"
                   onClick={() => setSelectedTask(task)}
                   type="button"
                 >
-                  <span
-                    className={`platform-task-priority is-${task.priority === "高" ? "high" : "normal"}`}
-                  >
-                    <i />
-                    {task.priority}优先级
+                  <span className="platform-task-list__icon">
+                    {(() => {
+                      const TaskIcon = workbenchModuleConfig[task.module]?.icon ?? Briefcase;
+                      return <TaskIcon size={19} weight="duotone" />;
+                    })()}
                   </span>
-                  <div>
+                  <div className="platform-task-list__content">
                     <strong>{task.title}</strong>
-                    <small>{task.module}{["选题", "项目"].includes(task.module) ? ` · ${task.businessId}` : ""}</small>
+                    <small>{task.description}</small>
+                    <span>
+                      <em>{workbenchModuleConfig[task.module]?.label ?? task.module}</em>
+                      {["选题", "项目"].includes(task.module) ? <i>{task.businessId}</i> : null}
+                      <i>负责人：{task.owner}</i>
+                    </span>
                   </div>
                   <PlatformBadge>{task.status}</PlatformBadge>
-                  <span className={task.flag === "已逾期" ? "is-danger" : ""}>
-                    {task.due}
+                  <span className={`platform-task-list__due ${task.flag === "已逾期" ? "is-danger" : ""}`}>
+                    <strong>{task.due}</strong>
+                    <small>{task.flag}</small>
                   </span>
                   <ArrowRight size={18} />
                 </button>
@@ -2426,7 +2595,7 @@ export function UnifiedWorkbenchPage({
           >
             <div className="platform-alert-list">
               {scopedTasks
-                .filter((task) => ["已逾期", "今日到期", "已退回", "延期风险"].includes(task.flag))
+                .filter((task) => ["已逾期", "今日到期", "已退回", "延期风险", "本周到期"].includes(task.flag))
                 .slice(0, 3)
                 .map((task) => (
                   <article key={task.id}>
@@ -3264,21 +3433,26 @@ function DashboardDomainView({ view, goPage }) {
     const includedDailyRows = selectIncludedRecruitmentReports(dailyRows);
     const totals = includedDailyRows.reduce(
       (result, row) => ({
-        hello: result.hello + row.hello,
-        valid: result.valid + row.valid,
-        interview: result.interview + row.interview,
-        accepted: result.accepted + row.accepted,
-        onboarded: result.onboarded + row.onboarded,
+        hello: result.hello + Number(row.hello ?? 0),
+        interview: result.interview + Number(row.interview ?? 0),
+        passed: result.passed + Number(row.passed ?? 0),
+        offer: result.offer + Number(row.offer ?? 0),
+        accepted: result.accepted + Number(row.accepted ?? 0),
+        onboarded: result.onboarded + Number(row.onboarded ?? 0),
       }),
-      { hello: 0, valid: 0, interview: 0, accepted: 0, onboarded: 0 },
+      {
+        hello: 0,
+        interview: 0,
+        passed: 0,
+        offer: 0,
+        accepted: 0,
+        onboarded: 0,
+      },
     );
     return {
       recruiter,
       jobCount: recruiterJobs.length,
       ...totals,
-      validRate: totals.hello
-        ? `${((totals.valid / totals.hello) * 100).toFixed(1)}%`
-        : "—",
     };
   });
   return (
@@ -3370,12 +3544,12 @@ function DashboardDomainView({ view, goPage }) {
                 columns={[
                   { label: "招聘人员" },
                   { label: "负责岗位" },
-                  { label: "触达人数" },
-                  { label: "有效简历" },
+                  { label: "打招呼" },
                   { label: "面试" },
+                  { label: "面试通过" },
+                  { label: "Offer 发放" },
                   { label: "Offer 接受" },
                   { label: "入职" },
-                  { label: "有效简历率" },
                 ]}
                 minWidth={0}
               >
@@ -3391,11 +3565,11 @@ function DashboardDomainView({ view, goPage }) {
                     <strong>{row.recruiter}</strong>
                     <span>{row.jobCount}</span>
                     <span>{row.hello}</span>
-                    <span>{row.valid}</span>
                     <span>{row.interview}</span>
+                    <span>{row.passed}</span>
+                    <span>{row.offer}</span>
                     <span>{row.accepted}</span>
                     <strong>{row.onboarded}</strong>
-                    <span>{row.validRate}</span>
                   </div>
                 ))}
               </DataTable>
@@ -4618,6 +4792,16 @@ function recruitmentPeriodRange(period) {
       label: `${year} 年`,
     };
   }
+  if (period.mode === "day") {
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(period.day)
+      ? period.day
+      : RECRUITMENT_CURRENT_DATE;
+    return {
+      start: day,
+      end: day,
+      label: day,
+    };
+  }
   if (period.mode === "week") {
     const weekValue = /^\d{4}-W\d{2}$/.test(period.week) ? period.week : "2026-W29";
     const [yearText, weekText] = weekValue.split("-W");
@@ -4661,6 +4845,91 @@ function recruitmentRangesOverlap(start, end, range) {
   const normalizedStart = recruitmentDate(start);
   const normalizedEnd = recruitmentDate(end, normalizedStart);
   return normalizedStart <= range.end && normalizedEnd >= range.start;
+}
+
+function RecruitmentDirectoryPeriodFilter({
+  directory,
+  value,
+  onChange,
+  resultCount,
+}) {
+  const range = recruitmentPeriodRange(value);
+  const selectedLabel =
+    value.mode === "year" ? "年份" : value.mode === "month" ? "月份" : "日期";
+  return (
+    <section
+      aria-label={`${directory}时间筛选`}
+      className="recruitment-directory-period"
+    >
+      <div className="recruitment-directory-period__title">
+        <span>
+          <CalendarCheck size={18} weight="duotone" />
+        </span>
+        <div>
+          <strong>时间筛选</strong>
+          <small>{directory}目录</small>
+        </div>
+      </div>
+      <div className="recruitment-directory-period__controls">
+        <div
+          aria-label={`${directory}时间维度`}
+          className="recruitment-directory-period__modes"
+          role="group"
+        >
+          {[
+            { id: "year", label: "年" },
+            { id: "month", label: "月" },
+            { id: "day", label: "日" },
+          ].map((item) => (
+            <button
+              aria-pressed={value.mode === item.id}
+              className={value.mode === item.id ? "is-active" : ""}
+              key={item.id}
+              onClick={() => onChange({ ...value, mode: item.id })}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <label>
+          <span>选择{selectedLabel}</span>
+          {value.mode === "year" ? (
+            <select
+              aria-label={`${directory}选择年份`}
+              onChange={(event) => onChange({ ...value, year: event.target.value })}
+              value={value.year}
+            >
+              {[2027, 2026, 2025, 2024].map((year) => (
+                <option key={year} value={year}>{year} 年</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              aria-label={`${directory}选择${selectedLabel}`}
+              max={value.mode === "month" ? "2027-12" : "2027-12-31"}
+              min={value.mode === "month" ? "2024-01" : "2024-01-01"}
+              onChange={(event) =>
+                onChange({ ...value, [value.mode]: event.target.value })
+              }
+              type={value.mode === "month" ? "month" : "date"}
+              value={value[value.mode]}
+            />
+          )}
+        </label>
+        <div className="recruitment-directory-period__range" aria-live="polite">
+          <span>当前范围</span>
+          <strong>
+            {range.start === range.end ? range.start : `${range.start} 至 ${range.end}`}
+          </strong>
+        </div>
+      </div>
+      <div className="recruitment-directory-period__result">
+        <strong>{resultCount}</strong>
+        <span>条结果</span>
+      </div>
+    </section>
+  );
 }
 
 const rejectionStageMeta = {
@@ -4857,6 +5126,9 @@ export function RecruitmentCenterPage() {
   const [interviewer, setInterviewer] = useState("");
   const [dailyOpen, setDailyOpen] = useState(false);
   const [dailyError, setDailyError] = useState("");
+  const [dailyScreenshotFiles, setDailyScreenshotFiles] = useState([]);
+  const [dailyReportDetail, setDailyReportDetail] = useState(null);
+  const [dailyImagePreview, setDailyImagePreview] = useState(null);
   const [jobEditor, setJobEditor] = useState(null);
   const [jobDraft, setJobDraft] = useState({});
   const [candidateEntry, setCandidateEntry] = useState(null);
@@ -4870,28 +5142,37 @@ export function RecruitmentCenterPage() {
     status: "all",
     owner: "",
   });
-  const [recruitmentPeriod, setRecruitmentPeriod] = useState({
+  const [directoryPeriods, setDirectoryPeriods] = useState({
+    jobs: {
+      mode: "month",
+      year: "2026",
+      month: "2026-07",
+      day: RECRUITMENT_CURRENT_DATE,
+    },
+    candidates: {
+      mode: "month",
+      year: "2026",
+      month: "2026-07",
+      day: RECRUITMENT_CURRENT_DATE,
+    },
+  });
+  const dailyReportPeriod = {
     mode: "month",
     year: "2026",
     month: "2026-07",
-    week: "2026-W29",
-  });
+  };
   const [dailyDraft, setDailyDraft] = useState({
     date: "2026-07-15",
     recruiter: "陈璐",
     platform: "BOSS直聘",
     job: "中级剪辑师",
     hello: 0,
-    reply: 0,
-    resume: 0,
-    valid: 0,
-    invite: 0,
     interview: 0,
     passed: 0,
     offer: 0,
     accepted: 0,
     onboarded: 0,
-    screenshots: 1,
+    screenshots: 0,
   });
   const interviewerOptions = [
     ...new Set([
@@ -5234,43 +5515,130 @@ export function RecruitmentCenterPage() {
       employmentSource: "SSC花名册",
     });
   };
+  const openDailyEditor = () => {
+    setDailyOpen(true);
+    setDailyError("");
+    setDailyScreenshotFiles([]);
+    setDailyDraft((draft) => ({ ...draft, screenshots: 0 }));
+  };
+  const handleDailyScreenshotChange = (event) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const validFiles = selectedFiles.filter(
+      (file) => file.type.startsWith("image/") && file.size <= 10 * 1024 * 1024,
+    );
+    if (validFiles.length !== selectedFiles.length) {
+      setDailyError("日报贴图仅支持图片格式，且单张不超过 10 MB。");
+    } else {
+      setDailyError("");
+    }
+    const nextFiles = validFiles.map((file, index) => ({
+      id: `SHOT-${Date.now()}-${index}`,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      url:
+        typeof URL.createObjectURL === "function"
+          ? URL.createObjectURL(file)
+          : "",
+    }));
+    setDailyScreenshotFiles((items) => [...items, ...nextFiles]);
+    event.target.value = "";
+  };
+  const removeDailyScreenshot = (fileId) => {
+    setDailyScreenshotFiles((items) => {
+      const removed = items.find((item) => item.id === fileId);
+      if (removed?.url?.startsWith("blob:") && typeof URL.revokeObjectURL === "function") {
+        URL.revokeObjectURL(removed.url);
+      }
+      return items.filter((item) => item.id !== fileId);
+    });
+    setDailyImagePreview((currentPreview) =>
+      currentPreview?.id === fileId ? null : currentPreview,
+    );
+  };
   const submitDaily = () => {
-    if (!dailyDraft.screenshots) {
-      setDailyError("至少上传 1 张工作截图后才能正式提交。 ");
+    if (!dailyScreenshotFiles.length) {
+      setDailyError("至少上传 1 张日报贴图后才能正式提交。");
       return;
     }
     setDailyReportsState((items) => [
       {
         ...dailyDraft,
         id: `RD-${Date.now()}`,
+        screenshots: dailyScreenshotFiles.length,
+        screenshotFiles: dailyScreenshotFiles,
         status: "已提交",
-        difference: 0,
       },
       ...items,
     ]);
     setDailyOpen(false);
     setDailyError("");
+    setDailyScreenshotFiles([]);
   };
-  const periodRange = recruitmentPeriodRange(recruitmentPeriod);
+  const jobsPeriodRange = recruitmentPeriodRange(directoryPeriods.jobs);
+  const candidatesPeriodRange = recruitmentPeriodRange(directoryPeriods.candidates);
+  const dailyReportPeriodRange = recruitmentPeriodRange(dailyReportPeriod);
   const timeScopedJobs = jobs.filter((job) =>
-    recruitmentRangesOverlap(job.startDate, job.endDate, periodRange),
+    recruitmentRangesOverlap(job.startDate, job.endDate, jobsPeriodRange),
   );
   const timeScopedCandidates = candidates
     .map((candidate) => {
       const applications = candidate.applications.filter((item) => {
         const historyDates = (item.history ?? []).map((entry) => entry.time);
         return historyDates.length
-          ? historyDates.some((date) => dateInRecruitmentPeriod(date, periodRange))
-          : dateInRecruitmentPeriod(candidate.updatedAt, periodRange);
+          ? historyDates.some((date) =>
+              dateInRecruitmentPeriod(date, candidatesPeriodRange),
+            )
+          : dateInRecruitmentPeriod(candidate.updatedAt, candidatesPeriodRange);
       });
       return applications.length ? { ...candidate, applications } : null;
     })
     .filter(Boolean);
-  const timeScopedDailyReports = dailyReportsState.filter((item) =>
-    dateInRecruitmentPeriod(item.date, periodRange),
-  );
+  const withDailyScreenshotFiles = (report) => ({
+    ...report,
+    screenshotFiles:
+      report.screenshotFiles ??
+      recruitmentDailySeed.find((seedReport) => seedReport.id === report.id)
+        ?.screenshotFiles ??
+      [],
+  });
+  const timeScopedDailyReports = dailyReportsState
+    .filter((item) => dateInRecruitmentPeriod(item.date, dailyReportPeriodRange))
+    .map(withDailyScreenshotFiles);
+  const dailyRecruiterSummaries = Object.values(
+    timeScopedDailyReports.reduce((summary, report) => {
+      const currentSummary = summary[report.recruiter] ?? {
+        recruiter: report.recruiter,
+        reports: [],
+        screenshotCount: 0,
+      };
+      currentSummary.reports.push(report);
+      currentSummary.screenshotCount += report.screenshotFiles?.length ?? report.screenshots ?? 0;
+      summary[report.recruiter] = currentSummary;
+      return summary;
+    }, {}),
+  )
+    .map((summary) => ({
+      ...summary,
+      reports: [...summary.reports].sort((left, right) =>
+        right.date.localeCompare(left.date),
+      ),
+    }))
+    .sort((left, right) =>
+      right.reports[0].date.localeCompare(left.reports[0].date),
+    );
+  const selectedDailyReports = dailyReportDetail
+    ? dailyReportsState
+        .filter((report) => report.recruiter === dailyReportDetail.recruiter)
+        .map(withDailyScreenshotFiles)
+        .sort((left, right) => right.date.localeCompare(left.date))
+    : [];
+  const selectedDailyReport =
+    selectedDailyReports.find(
+      (report) => report.id === dailyReportDetail?.reportId,
+    ) ?? selectedDailyReports[0] ?? null;
   const timeScopedSscPersonnel = sscPersonnel.filter((person) =>
-    dateInRecruitmentPeriod(person.date, periodRange),
+    dateInRecruitmentPeriod(person.date, candidatesPeriodRange),
   );
   const stageCount = (status) =>
     timeScopedCandidates.reduce(
@@ -5408,90 +5776,6 @@ export function RecruitmentCenterPage() {
         meta={null}
         actions={
           <div className="recruitment-header-actions">
-            <div
-              className="recruitment-time-filter__controls recruitment-header-period"
-              role="region"
-              aria-label="招聘统计周期"
-            >
-              <div className="recruitment-time-filter__modes" role="group" aria-label="时间维度">
-                {[
-                  { id: "year", label: "年" },
-                  { id: "month", label: "月" },
-                  { id: "week", label: "周" },
-                ].map((item) => (
-                  <button
-                    aria-pressed={recruitmentPeriod.mode === item.id}
-                    className={recruitmentPeriod.mode === item.id ? "is-active" : ""}
-                    key={item.id}
-                    onClick={() =>
-                      setRecruitmentPeriod((currentPeriod) => ({
-                        ...currentPeriod,
-                        mode: item.id,
-                      }))
-                    }
-                    type="button"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-              {recruitmentPeriod.mode === "year" ? (
-                <label>
-                  <select
-                    aria-label="选择年份"
-                    onChange={(event) =>
-                      setRecruitmentPeriod((currentPeriod) => ({
-                        ...currentPeriod,
-                        year: event.target.value,
-                      }))
-                    }
-                    value={recruitmentPeriod.year}
-                  >
-                    {[2027, 2026, 2025, 2024].map((year) => (
-                      <option key={year} value={year}>{year} 年</option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              {recruitmentPeriod.mode === "month" ? (
-                <label>
-                  <input
-                    aria-label="选择月份"
-                    max="2027-12"
-                    min="2024-01"
-                    onChange={(event) =>
-                      setRecruitmentPeriod((currentPeriod) => ({
-                        ...currentPeriod,
-                        month: event.target.value,
-                      }))
-                    }
-                    type="month"
-                    value={recruitmentPeriod.month}
-                  />
-                </label>
-              ) : null}
-              {recruitmentPeriod.mode === "week" ? (
-                <label>
-                  <input
-                    aria-label="选择自然周"
-                    max="2027-W52"
-                    min="2024-W01"
-                    onChange={(event) =>
-                      setRecruitmentPeriod((currentPeriod) => ({
-                        ...currentPeriod,
-                        week: event.target.value,
-                      }))
-                    }
-                    type="week"
-                    value={recruitmentPeriod.week}
-                  />
-                </label>
-              ) : null}
-              <div className="recruitment-header-period__range" aria-live="polite">
-                <strong>{periodRange.label}</strong>
-                <small>{periodRange.start} 至 {periodRange.end}</small>
-              </div>
-            </div>
             <button
               className="primary-btn"
               onClick={() => {
@@ -5574,6 +5858,17 @@ export function RecruitmentCenterPage() {
           title="招聘岗位与需求"
           description="岗位负责人、需求缺口和候选人数量在同一台账中跟踪。"
         >
+          <RecruitmentDirectoryPeriodFilter
+            directory="岗位与需求"
+            onChange={(nextPeriod) =>
+              setDirectoryPeriods((periods) => ({
+                ...periods,
+                jobs: nextPeriod,
+              }))
+            }
+            resultCount={timeScopedJobs.length}
+            value={directoryPeriods.jobs}
+          />
           <DataTable
             columns={[
               { label: "岗位", width: "1.3fr" },
@@ -5648,8 +5943,8 @@ export function RecruitmentCenterPage() {
             ))}
             {!timeScopedJobs.length ? (
               <PlatformEmpty
-                title="当前周期没有招聘岗位"
-                description="可切换年份、月份或自然周查看其他招聘周期。"
+                title="当前时间范围没有招聘岗位"
+                description="可切换年份、月份或日期查看其他招聘记录。"
               />
             ) : null}
           </DataTable>
@@ -5658,8 +5953,19 @@ export function RecruitmentCenterPage() {
       {view === "candidates" ? (
         <PlatformCard
           title="招聘简历库"
-          description={`${periodRange.label}共 ${timeScopedCandidates.length} 位候选人、${candidateApplicationCount} 条岗位应聘记录；每条招聘结论均独立保留。`}
+          description={`${candidatesPeriodRange.label}共 ${timeScopedCandidates.length} 位候选人、${candidateApplicationCount} 条岗位应聘记录；每条招聘结论均独立保留。`}
         >
+          <RecruitmentDirectoryPeriodFilter
+            directory="简历库 / 候选人"
+            onChange={(nextPeriod) =>
+              setDirectoryPeriods((periods) => ({
+                ...periods,
+                candidates: nextPeriod,
+              }))
+            }
+            resultCount={timeScopedCandidates.length}
+            value={directoryPeriods.candidates}
+          />
           <div className="recruitment-resume-summary" aria-label="简历库招聘情况概览">
             {[
               { label: "候选人总数", value: candidateStats.total, filter: "all", tone: "blue" },
@@ -5835,46 +6141,64 @@ export function RecruitmentCenterPage() {
             <RecruitmentFunnel reports={timeScopedDailyReports} />
           </PlatformCard>
           <PlatformCard
-            title="日报提交与流程差异"
-            description="日报数据与候选人流程数据分开记录，存在差异时需要复核。"
+            title="日报"
+            description="按招聘人员查看当期招聘数据、历史日报与已上传贴图。"
             action={
               <button
                 className="primary-btn"
-                onClick={() => setDailyOpen(true)}
+                onClick={openDailyEditor}
                 type="button"
               >
                 <Plus size={16} />
-                填写招聘日报
+                填写日报
               </button>
             }
           >
-            <div className="platform-difference-list">
-              {timeScopedDailyReports.map((row) => (
-                <article key={row.id}>
+            <div className="recruitment-daily-people">
+              {dailyRecruiterSummaries.map((summary) => (
+                <article key={summary.recruiter}>
+                  <span className="recruitment-daily-people__avatar" aria-hidden="true">
+                    {summary.recruiter.slice(0, 1)}
+                  </span>
                   <div>
-                    <strong>
-                      {row.recruiter} · {row.platform}
-                    </strong>
+                    <strong>{summary.recruiter}</strong>
                     <span>
-                      {row.job} · {row.date}
+                      最近日报：{summary.reports[0].date} · {summary.reports[0].platform}
                     </span>
+                    <small>{summary.reports[0].job}</small>
                   </div>
-                  <PlatformBadge>{row.status}</PlatformBadge>
-                  <span>截图 {row.screenshots} 张</span>
-                  <b className={row.difference ? "is-danger" : ""}>
-                    {row.difference ? `${row.difference} 项差异` : "无差异"}
-                  </b>
+                  <div className="recruitment-daily-people__meta">
+                    <strong>{summary.reports.length}</strong>
+                    <span>历史日报</span>
+                  </div>
+                  <div className="recruitment-daily-people__meta">
+                    <strong>{summary.screenshotCount}</strong>
+                    <span>日报贴图</span>
+                  </div>
+                  <button
+                    aria-label={`查看${summary.recruiter}日报`}
+                    className="table-link"
+                    onClick={() =>
+                      setDailyReportDetail({
+                        recruiter: summary.recruiter,
+                        reportId: summary.reports[0].id,
+                      })
+                    }
+                    type="button"
+                  >
+                    查看
+                  </button>
                 </article>
               ))}
-              {!timeScopedDailyReports.length ? (
+              {!dailyRecruiterSummaries.length ? (
                 <PlatformEmpty
-                  title="当前周期没有招聘日报"
-                  description="可切换时间周期，或填写该周期的招聘日报。"
+                  title="暂无招聘日报"
+                  description="填写日报并上传贴图后，可按人员查看历史记录。"
                 />
               ) : null}
             </div>
-            <PlatformNotice tone="warning">
-              草稿、退回或缺少工作截图的日报不会进入正式统计。
+            <PlatformNotice>
+              正式日报必须包含至少 1 张日报贴图，提交后可在人员历史中随时查看。
             </PlatformNotice>
           </PlatformCard>
         </div>
@@ -6664,12 +6988,123 @@ export function RecruitmentCenterPage() {
           </section>
         </PlatformDrawer>
       ) : null}
+      {dailyReportDetail && selectedDailyReport ? (
+        <PlatformDrawer
+          wide
+          title={`${dailyReportDetail.recruiter}的招聘日报`}
+          subtitle={`共 ${selectedDailyReports.length} 份历史日报 · 当前查看 ${selectedDailyReport.date}`}
+          onClose={() => {
+            setDailyReportDetail(null);
+            setDailyImagePreview(null);
+          }}
+        >
+          <section className="recruitment-daily-detail-hero">
+            <span className="recruitment-daily-detail-hero__icon">
+              <FileText size={24} weight="duotone" />
+            </span>
+            <div>
+              <small>{selectedDailyReport.date} · {selectedDailyReport.platform}</small>
+              <h3>{selectedDailyReport.job}</h3>
+              <p>{selectedDailyReport.recruiter}提交的招聘工作记录</p>
+            </div>
+            <PlatformBadge>{selectedDailyReport.status}</PlatformBadge>
+          </section>
+          <section className="recruitment-daily-kpis" aria-label="招聘日报数据">
+            {[
+              ["打招呼", selectedDailyReport.hello],
+              ["面试", selectedDailyReport.interview],
+              ["面试通过", selectedDailyReport.passed],
+              ["Offer 发放", selectedDailyReport.offer],
+              ["Offer 接受", selectedDailyReport.accepted],
+              ["正式入职", selectedDailyReport.onboarded],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <strong>{value ?? 0}</strong>
+              </div>
+            ))}
+          </section>
+          <section className="recruitment-daily-detail-section">
+            <header>
+              <div>
+                <h3>日报贴图</h3>
+                <p>点击缩略图可查看完整图片。</p>
+              </div>
+              <span>{selectedDailyReport.screenshotFiles?.length ?? 0} 张</span>
+            </header>
+            {selectedDailyReport.screenshotFiles?.length ? (
+              <div className="recruitment-daily-gallery">
+                {selectedDailyReport.screenshotFiles.map((file) => (
+                  <button
+                    aria-label={`查看图片${file.name}`}
+                    className={dailyImagePreview?.id === file.id ? "is-active" : ""}
+                    key={file.id}
+                    onClick={() => setDailyImagePreview(file)}
+                    type="button"
+                  >
+                    {file.url ? <img alt={file.name} src={file.url} /> : <Image size={26} />}
+                    <span>{file.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <PlatformEmpty
+                title="该历史日报未保留贴图"
+                description="后续上传的日报贴图会展示在这里。"
+              />
+            )}
+            {dailyImagePreview ? (
+              <figure className="recruitment-daily-image-preview">
+                {dailyImagePreview.url ? (
+                  <img alt={dailyImagePreview.name} src={dailyImagePreview.url} />
+                ) : (
+                  <Image size={40} />
+                )}
+                <figcaption>{dailyImagePreview.name}</figcaption>
+              </figure>
+            ) : null}
+          </section>
+          <section className="recruitment-daily-detail-section">
+            <header>
+              <div>
+                <h3>历史日报</h3>
+                <p>保留该招聘人员的全部历史招聘记录。</p>
+              </div>
+              <span>{selectedDailyReports.length} 份</span>
+            </header>
+            <div className="recruitment-daily-history">
+              {selectedDailyReports.map((report) => (
+                <button
+                  aria-pressed={selectedDailyReport.id === report.id}
+                  className={selectedDailyReport.id === report.id ? "is-active" : ""}
+                  key={report.id}
+                  onClick={() => {
+                    setDailyReportDetail((detail) => ({ ...detail, reportId: report.id }));
+                    setDailyImagePreview(null);
+                  }}
+                  type="button"
+                >
+                  <span>{report.date}</span>
+                  <strong>{report.platform} · {report.job}</strong>
+                  <small>
+                    打招呼 {report.hello ?? 0} · 面试 {report.interview ?? 0} · Offer {report.offer ?? 0}
+                  </small>
+                  <PlatformBadge>{report.status}</PlatformBadge>
+                </button>
+              ))}
+            </div>
+          </section>
+        </PlatformDrawer>
+      ) : null}
       {dailyOpen ? (
         <PlatformDrawer
           wide
-          title="填写招聘日报"
+          title="填写日报"
           subtitle="日期 + 招聘人员 + 平台 + 岗位"
-          onClose={() => setDailyOpen(false)}
+          onClose={() => {
+            setDailyOpen(false);
+            setDailyImagePreview(null);
+          }}
           footer={
             <>
               <button
@@ -6690,7 +7125,7 @@ export function RecruitmentCenterPage() {
           }
         >
           <PlatformNotice>
-            正式提交前必须上传工作截图；提交后该日报进入招聘经营统计。
+            正式提交前必须上传日报贴图；提交后可按招聘人员查看当前数据与历史记录。
           </PlatformNotice>
           <div className="platform-form-grid">
             {[
@@ -6699,21 +7134,15 @@ export function RecruitmentCenterPage() {
               ["platform", "招聘平台", "text"],
               ["job", "岗位", "text"],
               ["hello", "打招呼数", "number"],
-              ["reply", "回复数", "number"],
-              ["resume", "获取简历", "number"],
-              ["valid", "有效简历", "number"],
-              ["invite", "邀约", "number"],
               ["interview", "面试", "number"],
               ["passed", "面试通过", "number"],
               ["offer", "Offer 发放", "number"],
               ["accepted", "Offer 接受", "number"],
               ["onboarded", "正式入职", "number"],
-              ["screenshots", "工作截图数量", "number"],
             ].map(([key, label, type]) => (
               <label key={key}>
                 <span>
                   {label}
-                  {key === "screenshots" ? <b> *</b> : null}
                 </span>
                 <input
                   min="0"
@@ -6732,6 +7161,62 @@ export function RecruitmentCenterPage() {
               </label>
             ))}
           </div>
+          <div className="recruitment-daily-upload">
+            <label>
+              <span className="recruitment-daily-upload__icon">
+                <UploadSimple size={24} weight="duotone" />
+              </span>
+              <span>
+                <strong>上传日报贴图 <b>*</b></strong>
+                <small>支持 JPG、PNG、WEBP 等图片格式，可多选，单张不超过 10 MB</small>
+              </span>
+              <span className="recruitment-daily-upload__action">选择图片</span>
+              <input
+                accept="image/*"
+                aria-label="上传日报贴图"
+                multiple
+                onChange={handleDailyScreenshotChange}
+                type="file"
+              />
+            </label>
+            {dailyScreenshotFiles.length ? (
+              <div className="recruitment-daily-upload__files">
+                {dailyScreenshotFiles.map((file) => (
+                  <article key={file.id}>
+                    <button
+                      aria-label={`查看图片${file.name}`}
+                      onClick={() => setDailyImagePreview(file)}
+                      type="button"
+                    >
+                      {file.url ? <img alt={file.name} src={file.url} /> : <Image size={24} />}
+                    </button>
+                    <div>
+                      <strong>{file.name}</strong>
+                      <span>{formatContractSize(file.size)}</span>
+                    </div>
+                    <button
+                      aria-label={`移除图片${file.name}`}
+                      className="platform-icon-button"
+                      onClick={() => removeDailyScreenshot(file.id)}
+                      type="button"
+                    >
+                      <X size={16} />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {dailyImagePreview ? (
+            <figure className="recruitment-daily-image-preview is-upload-preview">
+              {dailyImagePreview.url ? (
+                <img alt={dailyImagePreview.name} src={dailyImagePreview.url} />
+              ) : (
+                <Image size={40} />
+              )}
+              <figcaption>{dailyImagePreview.name}</figcaption>
+            </figure>
+          ) : null}
           {dailyError ? (
             <PlatformNotice tone="warning">{dailyError}</PlatformNotice>
           ) : null}

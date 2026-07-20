@@ -13,9 +13,9 @@ import { SscDataMaintenancePage } from "./SscDataMaintenancePage";
 afterEach(cleanup);
 
 const sscEntries = [
-  { label: "组织架构与花名册", view: "org" },
-  { label: "表格管理", view: "tables" },
-  { label: "模板管理", view: "templates" },
+  { label: "组织架构与花名册", frameLabel: "组织架构与花名册", view: "org" },
+  { label: "人事表格管理", frameLabel: "表格管理", view: "tables" },
+  { label: "人事模板管理", frameLabel: "模板管理", view: "templates" },
 ];
 
 function getMainNavigation() {
@@ -46,7 +46,7 @@ describe("SSC服务中心接入", () => {
 
   test.each(sscEntries)(
     "外层入口 $label 打开对应的 $view 视图",
-    ({ label, view }) => {
+    ({ label, frameLabel, view }) => {
       render(<App />);
 
       const entry = within(getMainNavigation()).getByRole("button", {
@@ -55,7 +55,7 @@ describe("SSC服务中心接入", () => {
       fireEvent.click(entry);
 
       expect(entry).toHaveClass("is-active");
-      const frame = screen.getByTitle(`SSC服务中心 - ${label}`);
+      const frame = screen.getByTitle(`SSC服务中心 - ${frameLabel}`);
       const frameUrl = new URL(
         frame.getAttribute("src"),
         "http://localhost",
@@ -115,7 +115,7 @@ describe("SSC服务中心接入", () => {
     );
 
     expect(screen.queryByLabelText("SSC服务中心")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "工作台" })).toHaveClass(
+    expect(screen.getByRole("button", { name: "统一工作台" })).toHaveClass(
       "is-active",
     );
   });

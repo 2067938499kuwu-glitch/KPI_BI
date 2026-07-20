@@ -52,6 +52,7 @@ describe("演示数据统计选择器", () => {
         invite: 10,
         interview: 8,
         passed: 4,
+        offer: 3,
         accepted: 2,
         onboarded: 1,
         difference: 1,
@@ -66,6 +67,7 @@ describe("演示数据统计选择器", () => {
         invite: 999,
         interview: 999,
         passed: 999,
+        offer: 999,
         accepted: 999,
         onboarded: 999,
         difference: 9,
@@ -76,6 +78,14 @@ describe("演示数据统计选择器", () => {
     const summary = selectRecruitmentSummary({ reports });
 
     expect(funnel[0]).toMatchObject({ label: "打招呼", value: 100 });
+    expect(funnel.map((item) => item.label)).toEqual([
+      "打招呼",
+      "面试",
+      "通过",
+      "Offer发放",
+      "Offer接受",
+      "入职",
+    ]);
     expect(funnel.at(-1)).toMatchObject({ label: "入职", value: 1 });
     expect(summary.includedReports).toHaveLength(1);
     expect(summary.excludedReports).toHaveLength(1);
@@ -124,6 +134,69 @@ describe("演示数据统计选择器", () => {
         projects: [],
       }),
     ).toHaveLength(0);
+  });
+
+  test("工作台可从绩效与周报来源生成专属任务详情", () => {
+    const tasks = selectWorkbenchTasks({
+      reviews: [
+        {
+          id: "RV-1",
+          employee: "张小北",
+          department: "剪辑中心",
+          role: "中级剪辑师",
+          cycle: "2026-07",
+          status: "待员工填报结果",
+          owner: "张小北",
+          directLeader: "江晚",
+          indirectLeader: "磊姐",
+          roleTemplateName: "剪辑岗位绩效模板",
+          evidence: "剪辑交付记录",
+          lastActionAt: "2026-07-20 09:00",
+        },
+      ],
+      weeklyReports: [
+        {
+          id: "WR-1",
+          employeeId: "emp-001",
+          period: {
+            label: "2026年W30",
+            start: "2026-07-20",
+            end: "2026-07-26",
+          },
+          status: "missing",
+          achievements: [],
+          risks: [],
+          nextPlan: [],
+        },
+      ],
+      people: [
+        {
+          employeeId: "emp-001",
+          name: "张小北",
+          department: "剪辑中心",
+          role: "中级剪辑师",
+          leader: "江晚",
+        },
+      ],
+    });
+
+    expect(tasks.map((task) => task.module)).toEqual(["绩效", "周报"]);
+    expect(tasks[0].detail.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "绩效模板", value: "剪辑岗位绩效模板" }),
+      ]),
+    );
+    expect(tasks[1]).toMatchObject({
+      title: "张小北 · 提交2026年W30周报",
+      dispatcher: "江晚",
+      detail: {
+        contentSections: expect.arrayContaining([
+          expect.objectContaining({ title: "本周成果" }),
+          expect.objectContaining({ title: "风险与问题" }),
+          expect.objectContaining({ title: "下周计划" }),
+        ]),
+      },
+    });
   });
 
   test("招聘结论按流失原因和面试官结构化汇总", () => {

@@ -48,6 +48,8 @@ On the unified workbench, do not show the subordinate-progress card. Keep the cr
 
 On the unified workbench, keep the page title area focused on its heading and description. Do not show the data-status block or the `查看今日待办` action in the upper-right corner.
 
+On the unified workbench, do not show task priority in either the cross-business task list or the task-detail drawer; keep deadline, status, and exception markers as the visible urgency signals.
+
 For internal short-drama projects, collect manpower, compute, and traffic-acquisition costs in project production. Treat their sum as the project's actual cost and surface both the total and the three-part breakdown in the business dashboard.
 
 For project initiation and task execution, configure岗位人员 in the project-initiation ledger, materialize one task per assigned role, and synchronize each dispatched task to both the task list and the assignee's unified workbench. Task acceptance, progress, submission, and completion must write back to the same project task assignment and its mapped project stage.
@@ -71,3 +73,9 @@ Keep project content-code cards compact and status-free. Each script or video ca
 On recruitment management, keep the global year/month/week period selector compact inside the page title card beside the primary action. Do not show a separate recruitment-period banner or the generic data-status block there; keep the active date range visible within the compact selector.
 
 On the weekly report leadership overview, place the personnel-report entry directly beside the team selector. The personnel-report drawer must provide its own visible reporting-period filter and keep the period context synchronized across its heading, person detail, and scope summary.
+
+On recruitment management, do not show the recruitment-period control in the page header. In the recruitment daily-report view, use a concise `日报` card grouped by recruiter, let users inspect each recruiter's current recruiting data and complete report history, and do not show data-difference labels or review prompts. Daily-report evidence must be uploaded as actual image files with visible thumbnails and an image-viewing interaction instead of entering a screenshot count manually.
+
+In recruitment management, place independent time filters inside the `岗位与需求` and `简历库 / 候选人` directories. Each directory filter must support year, month, and exact-day modes, update that directory's result count and empty state, and preserve its selection when switching tabs. Keep these filters out of the page header and out of the recruitment daily-report directory.
+
+Recruitment daily reports do not collect or display reply count, resumes acquired, valid resumes, or invitations. Exclude those four legacy fields from daily-report forms, person-detail metrics, history summaries, recruitment funnels, and recruiter-level operating statistics. Use the supported sequence `打招呼` → `面试` → `通过` → `Offer发放` → `Offer接受` → `入职`; legacy stored values for the removed fields must not affect current statistics.
