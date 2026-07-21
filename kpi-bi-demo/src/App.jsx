@@ -1,9 +1,14 @@
 ﻿
 import { Children, useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
+  BookOpenText,
   Briefcase,
+  CalendarBlank,
   ChartLineUp,
+  CheckCircle,
   ClipboardText,
+  ClockCounterClockwise,
   Database,
   FileCsv,
   GearSix,
@@ -57,11 +62,11 @@ import {
   BusinessDashboardPage,
   DemoDataProvider,
   GovernancePage,
-  ProjectInitiationPage,
-  ProjectProductionPage,
+  ProjectManagementPage,
   RecruitmentCenterPage,
   RoleScopeBanner,
   ReportsCenterPage,
+  ScriptLibraryPage,
   TopicCenterPage,
   TaskCenterPage,
   UnifiedWorkbenchPage,
@@ -175,15 +180,9 @@ const sidebarGroups = [
     label: "内容与项目",
     items: [
       { id: "topics", label: "选题库", icon: Lightbulb },
-      {
-        id: "project-management",
-        label: "项目管理",
-        items: [
-          { id: "project-initiation", label: "项目立项", icon: Briefcase },
-          { id: "tasks", label: "任务列表", icon: ClipboardText },
-        ],
-      },
-      { id: "projects", label: "项目总览", icon: ChartLineUp },
+      { id: "scripts", label: "剧本库", icon: BookOpenText },
+      { id: "project-management", label: "项目管理", icon: Briefcase },
+      { id: "tasks", label: "任务列表", icon: ClipboardText },
       { id: "delivery", label: "交付中心", icon: Briefcase },
       { id: "works", label: "作品库", icon: FileCsv },
       { id: "cost-time", label: "成本与工时", icon: ClipboardText },
@@ -236,9 +235,9 @@ const platformPageAccess = {
   reports: ["employee", "leader", "hr", "ceo"],
   recruitment: ["leader", "hr", "ceo"],
   topics: ["employee", "leader", "hr", "ceo"],
-  "project-initiation": ["employee", "leader", "hr", "ceo"],
+  scripts: ["employee", "leader", "hr", "ceo"],
+  "project-management": ["employee", "leader", "hr", "ceo"],
   tasks: ["employee", "leader", "hr", "ceo"],
-  projects: ["employee", "leader", "hr", "ceo"],
   "cost-time": ["employee", "leader", "hr", "ceo"],
   delivery: ["employee", "leader", "hr", "ceo"],
   works: ["employee", "leader", "hr", "ceo"],
@@ -454,6 +453,8 @@ function getWorkflowDefaultDraft(review, action) {
     targetChangeReason: review.targetDisputeReason ?? "",
     firstDecision: "score",
     returnReason: "",
+    secondDecision: review.secondReviewConclusion === "退回员工补充" ? "return" : "score",
+    secondReviewComment: review.secondReviewComment ?? "",
     hrReviewComment: review.hrReviewComment ?? "",
     hrDecision: "submit",
     committeeDecision: "approve",
@@ -539,7 +540,17 @@ function getWorkflowSubmitPayload(review, action, draft) {
   }
 
   if (action.type === "second_review") {
-    note ||= "二级负责人已完成复评与评语。";
+    if (!draft.secondReviewComment.trim()) return { validationError: "请填写二级结果审核意见" };
+    updates.secondReviewComment = draft.secondReviewComment.trim();
+    if (draft.secondDecision === "return") {
+      nextStatus = REVIEW_STATUS.resultEntry;
+      updates.resultStatus = "已退回补充";
+      updates.secondReviewConclusion = "退回员工补充";
+      note = `二级结果审核退回员工补充：${draft.secondReviewComment.trim()}`;
+    } else {
+      updates.secondReviewConclusion = "结果完整，复评通过";
+      note = `二级结果审核通过：${draft.secondReviewComment.trim()}`;
+    }
   }
 
   if (action.type === "hr_review") {
@@ -792,7 +803,8 @@ function exportPerformanceDetailExcel(review, hongguoUploads = []) {
       ["岗位模板", getReviewTemplate(review).name], ["流程状态", review.status], ["目标版本", `V${review.activeTargetVersion ?? 1}`],
       ["申诉状态", review.appealStatus], ["基础绩效分", calcBaseScore(review)], ["加减分", calcAdjustmentScore(review)],
       ["最终绩效分", calcScore(review)], ["绩效等级", getGrade(calcScore(review))], ["直属Leader", review.directLeader],
-      ["二级Leader", review.indirectLeader], ["最后操作时间", review.lastActionAt], ["导出时间", getActionTimestamp()],
+      ["二级Leader", review.indirectLeader], ["二级结果审核结论", review.secondReviewConclusion || "--"], ["二级结果审核意见", review.secondReviewComment || "--"],
+      ["最后操作时间", review.lastActionAt], ["导出时间", getActionTimestamp()],
     ]),
     buildExcelWorksheet("评分明细", ["分组", "指标", "类型", "权重", "评定标准", "数据来源", "完成结果", "完成说明", "证明材料", "一级评分", "一级评语", "二级评分", "二级评语", "综合得分", "计入结果"], metricRows.map((row) => [
       row.section, row.label, row.type === "adjustment" ? "加减分" : "绩效目标", row.type === "adjustment" ? "--" : `${Number(row.weight || 0) * 100}%`, row.standard,
@@ -886,6 +898,13 @@ function PerformanceReferencePanel({ review, hongguoUploads = [] }) {
           </div>
         ) : <p className="weekly-reference-empty">该员工当月暂无周报记录</p>}
       </section>
+      <div className="performance-reference-subhead">
+        <div>
+          <strong>项目交付与业务表现</strong>
+          <span>横向查看该周期内参与项目的编剧、制作、剪辑与红果表现数据</span>
+        </div>
+        <span>{data.projectRows.length} 个项目</span>
+      </div>
       <div className="project-data-table-wrap">
         <table className="project-data-table">
           <thead>
@@ -974,22 +993,23 @@ function PerformanceReferencePanel({ review, hongguoUploads = [] }) {
 
 function OkrSheetPreview({ review, categories, actionType = "readonly", rows: controlledRows, onRowsChange }) {
   const rows = controlledRows ?? getReviewMetricRows(review, categories);
-  const displayRows = rows.some((row) => row.type === "section")
-    ? rows.reduce((items, row) => {
-        if (row.type === "section") return items;
-        return [...items, row];
-      }, [])
-    : rows;
+  const displayRows = rows.filter((row) => row.type !== "section");
   const needsSecondReview = requiresSecondReview(review);
-  const title = review ? `${review.roleTemplateName} 绩效目标评分表` : "月度绩效目标下发模板";
+  const title = review ? `${review.roleTemplateName} 绩效任务` : "月度绩效目标下发模板";
   const totalScore = review ? calcScore({ ...review, rows }) : null;
   const totalGrade = totalScore === null ? "--" : `${getGrade(totalScore)}-${getLevelLabel(totalScore)}`;
-  const employeePlaceholder = actionType === "enter_result" || actionType === "finish_execution" ? "员工填写完成情况、核心数据、未完成原因与佐证说明" : "员工确认后填写本月完成情况";
-  const firstPlaceholder = actionType === "first_score" ? "一级评分" : "待一级上级评分";
-  const secondPlaceholder = needsSecondReview ? (actionType === "second_review" ? "二级评分" : "待二级上级评分") : "无需二级评分";
   const canEditResult = actionType === "enter_result";
   const canEditFirst = actionType === "first_score";
   const canEditSecond = actionType === "second_review" && needsSecondReview;
+  const isScoring = canEditFirst || canEditSecond;
+  const showLiveScore = ["first_score", "second_review", "hr_review", "committee_approve", "interview_feedback", "readonly"].includes(actionType);
+  const modeCopy = canEditResult
+    ? { eyebrow: "员工填报", title: "填写本月完成结果", description: "逐项补充实际结果、说明与证明材料，评分区域暂不参与本次操作。" }
+    : canEditFirst
+      ? { eyebrow: "一级评分", title: "核验结果并完成一级评分", description: "先核对员工填报与证明材料，再填写本级分数、评语及加减分依据。" }
+      : canEditSecond
+        ? { eyebrow: "二级复评", title: "审核结果并完成二级复评", description: "对照员工结果与一级评分进行复核，并在右侧提交结果审核结论。" }
+        : { eyebrow: "绩效任务", title, description: "查看目标要求、完成结果与各级评分记录。" };
   const updateRow = (key, patch) => {
     if (!onRowsChange) return;
     onRowsChange(rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
@@ -998,72 +1018,69 @@ function OkrSheetPreview({ review, categories, actionType = "readonly", rows: co
   return (
     <div className="okr-sheet-card">
       <div className="okr-sheet-card__header">
-        <div>
-          <strong>{title}</strong>
-          <span>{review ? `${review.employee} / ${review.department} / ${review.cycle}` : "岗位通用目标与个人月度目标确认后，由员工逐项填报完成结果"}</span>
+        <div className="okr-sheet-card__intro">
+          <span>{modeCopy.eyebrow}</span>
+          <strong>{modeCopy.title}</strong>
+          <p>{modeCopy.description}</p>
         </div>
         <div className="okr-sheet-card__summary">
-          {review ? <span><small>最终绩效分</small><strong>{Number(totalScore.toFixed(2))}<em>分</em></strong><i>{totalGrade}</i></span> : null}
-          <b>{review ? review.status : "待下发"}</b>
+          {showLiveScore && review ? <span><small>当前综合分</small><strong>{Number(totalScore.toFixed(2))}<em>分</em></strong><i>{totalGrade}</i></span> : null}
+          <div><small>待处理指标</small><strong>{displayRows.length}<em>项</em></strong></div>
         </div>
       </div>
-      <div className="okr-sheet-scroll">
-        <table className="okr-sheet-table">
-          <thead>
-            <tr>
-              <td>指标名称</td>
-              <td>评定标准</td>
-              <td>数据来源</td>
-              <td>权重</td>
-              <td>完成情况（被考核人自填）</td>
-              <td>第一级上级评分</td>
-              <td>评语</td>
-              <td>第二级上级评分</td>
-              <td>评语</td>
-              <td>单项综合得分</td>
-            </tr>
-          </thead>
-          <tbody>
-            {displayRows.map((row) => {
-              const rowComposite = review ? calcRowComposite(row, review) : "";
-              return (
-                <tr key={row.key ?? row.id ?? row.label}>
-                  <td>
-                    <strong>{row.label}</strong>
-                    <small>{row.section}</small>
-                  </td>
-                  <td>
-                    <div className="okr-score-bands">
-                      {getScoreBands(row).map((band) => <p key={band}>{band}</p>)}
+      <div className="okr-metric-list">
+        {displayRows.map((row, index) => {
+          const rowComposite = review ? calcRowComposite(row, review) : "";
+          const scoreMin = row.type === "adjustment" ? -10 : 0;
+          const scoreMax = row.type === "adjustment" ? 10 : 100;
+          return (
+            <article className={`okr-metric-card${canEditResult ? " is-result-entry" : ""}${isScoring ? " is-scoring" : ""}`} key={row.key ?? row.id ?? row.label}>
+              <header className="okr-metric-card__header">
+                <span className="okr-metric-card__index">{String(index + 1).padStart(2, "0")}</span>
+                <div><small>{row.section || "绩效指标"}</small><h3>{row.label}</h3></div>
+                <div className="okr-metric-card__tags"><span>{row.type === "adjustment" ? "独立加减分" : `${Math.round((row.weight ?? 0) * 100)}% 权重`}</span>{showLiveScore ? <b>综合 {rowComposite === "" ? "--" : Number(rowComposite.toFixed(1))}</b> : null}</div>
+              </header>
+              <div className="okr-metric-card__body">
+                <details className="okr-metric-standard" open={isScoring || undefined}>
+                  <summary>评定标准与数据来源</summary>
+                  <div className="okr-score-bands">{getScoreBands(row).map((band) => <p key={band}>{band}</p>)}</div>
+                  <p className="okr-metric-source"><span>数据来源</span>{row.source || "月度绩效目标 / 工作平台记录 / 负责人评价"}</p>
+                </details>
+
+                <section className="okr-result-panel">
+                  <header><div><span>01</span><strong>员工完成结果</strong></div><small>{canEditResult ? "本次填写" : "只读参考"}</small></header>
+                  {canEditResult ? (
+                    <div className="okr-result-fields">
+                      <label className="is-full"><span>实际完成结果 <b>必填</b></span><textarea aria-label={`${row.label} 实际完成结果`} value={row.selfText ?? ""} onChange={(event) => updateRow(row.key, { selfText: event.target.value })} placeholder="填写实际完成内容、核心数据或未完成原因" rows={4} /></label>
+                      {row.type !== "adjustment" ? <>
+                        <label><span>完成情况说明 <b>必填</b></span><textarea aria-label={`${row.label} 完成情况说明`} value={row.completionNote ?? ""} onChange={(event) => updateRow(row.key, { completionNote: event.target.value })} placeholder="说明完成口径与关键过程" rows={3} /></label>
+                        <label><span>证明材料 <b>必填</b></span><textarea aria-label={`${row.label} 证明材料`} value={row.evidence ?? ""} onChange={(event) => updateRow(row.key, { evidence: event.target.value })} placeholder="填写材料名称、链接或存放位置" rows={3} /></label>
+                        <label className="is-full"><span>关联业务记录</span><input aria-label={`${row.label} 关联业务记录`} value={row.reference ?? ""} onChange={(event) => updateRow(row.key, { reference: event.target.value })} placeholder="引用项目、任务或周报（选填）" /></label>
+                      </> : null}
                     </div>
-                  </td>
-                  <td>{row.source || "月度绩效目标 / 工作平台记录 / 负责人评价"}</td>
-                  <td>{row.type === "adjustment" ? "加减分" : `${Math.round((row.weight ?? 0) * 100)}%`}</td>
-                  <td className="okr-sheet-table__completion">
-                    <span className="okr-inline-label">员工填写</span>
-                    <textarea
-                      disabled={!canEditResult}
-                      value={row.selfText ?? ""}
-                      onChange={(event) => updateRow(row.key, { selfText: event.target.value })}
-                      placeholder={employeePlaceholder}
-                      rows={4}
-                    />
-                    {canEditResult && row.type !== "adjustment" ? <>
-                      <textarea value={row.completionNote ?? ""} onChange={(event) => updateRow(row.key, { completionNote: event.target.value })} placeholder="完成情况说明（必填）" rows={2} />
-                      <textarea value={row.evidence ?? ""} onChange={(event) => updateRow(row.key, { evidence: event.target.value })} placeholder="证明材料（必填）" rows={2} />
-                      <input value={row.reference ?? ""} onChange={(event) => updateRow(row.key, { reference: event.target.value })} placeholder="引用项目、任务或周报" />
-                    </> : null}
-                  </td>
-                  <td><input disabled={!canEditFirst} value={row.firstScore ?? ""} onChange={(event) => updateRow(row.key, { firstScore: normalizeScore(event.target.value) })} placeholder={firstPlaceholder} type="number" /></td>
-                  <td><textarea disabled={!canEditFirst} value={row.firstComment ?? ""} onChange={(event) => updateRow(row.key, { firstComment: event.target.value })} placeholder={row.type === "adjustment" ? "加减分原因（必填）" : "一级评语"} rows={4} />{canEditFirst && row.type === "adjustment" ? <input value={row.evidence ?? ""} onChange={(event) => updateRow(row.key, { evidence: event.target.value })} placeholder="加减分证明材料（必填）" /> : null}</td>
-                  <td><input value={needsSecondReview ? row.secondScore ?? "" : ""} disabled={!canEditSecond} onChange={(event) => updateRow(row.key, { secondScore: normalizeScore(event.target.value) })} placeholder={secondPlaceholder} type="number" /></td>
-                  <td><textarea value={needsSecondReview ? row.secondComment ?? "" : ""} disabled={!canEditSecond} onChange={(event) => updateRow(row.key, { secondComment: event.target.value })} placeholder={needsSecondReview ? "二级评语" : "无需二级评语"} rows={4} /></td>
-                  <td><strong>{rowComposite === "" ? "--" : Number(rowComposite.toFixed(1))}</strong></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  ) : (
+                    <div className="okr-result-readonly">
+                      <p>{row.selfText || "员工暂未填写完成结果"}</p>
+                      {row.completionNote ? <div><span>完成说明</span><strong>{row.completionNote}</strong></div> : null}
+                      {row.evidence ? <div><span>证明材料</span><strong>{row.evidence}</strong></div> : null}
+                      {row.reference ? <div><span>关联记录</span><strong>{row.reference}</strong></div> : null}
+                    </div>
+                  )}
+                </section>
+
+                {(isScoring || showLiveScore) ? <section className="okr-score-panel">
+                  <header><div><span>02</span><strong>{canEditSecond ? "评分复核" : "上级评分"}</strong></div><small>{canEditFirst || canEditSecond ? "本次处理" : "评分记录"}</small></header>
+                  <div className="okr-score-panel__content">
+                    {(canEditSecond || (!canEditFirst && row.firstScore !== "" && row.firstScore != null)) ? <div className="okr-score-snapshot"><span>一级评分</span><strong>{row.firstScore ?? "--"}<small>分</small></strong><p>{row.firstComment || "暂无一级评语"}</p></div> : null}
+                    {canEditFirst ? <div className="okr-score-editor"><label><span>{row.type === "adjustment" ? "加减分值" : "一级评分"}</span><input aria-label={`${row.label} 一级评分`} min={scoreMin} max={scoreMax} value={row.firstScore ?? ""} onChange={(event) => updateRow(row.key, { firstScore: normalizeScore(event.target.value) })} placeholder="请输入分数" type="number" /></label><label className="is-comment"><span>{row.type === "adjustment" ? "加减分原因" : "一级评语"}</span><textarea aria-label={`${row.label} 一级评语`} value={row.firstComment ?? ""} onChange={(event) => updateRow(row.key, { firstComment: event.target.value })} placeholder={row.type === "adjustment" ? "必填；说明加减分原因" : "填写评分依据与改进建议"} rows={3} /></label>{row.type === "adjustment" ? <label className="is-evidence"><span>加减分证明材料</span><input aria-label={`${row.label} 加减分证明材料`} value={row.evidence ?? ""} onChange={(event) => updateRow(row.key, { evidence: event.target.value })} placeholder="必填；填写材料名称或链接" /></label> : null}</div> : null}
+                    {canEditSecond ? <div className="okr-score-editor"><label><span>{row.type === "adjustment" ? "二级复核分" : "二级评分"}</span><input aria-label={`${row.label} 二级评分`} min={scoreMin} max={scoreMax} value={row.secondScore ?? ""} onChange={(event) => updateRow(row.key, { secondScore: normalizeScore(event.target.value) })} placeholder="请输入复评分数" type="number" /></label><label className="is-comment"><span>二级复评意见</span><textarea aria-label={`${row.label} 二级复评意见`} value={row.secondComment ?? ""} onChange={(event) => updateRow(row.key, { secondComment: event.target.value })} placeholder="说明与一级评分一致或调整的依据" rows={3} /></label></div> : null}
+                    {!canEditFirst && !canEditSecond && needsSecondReview && row.secondScore !== "" && row.secondScore != null ? <div className="okr-score-snapshot"><span>二级评分</span><strong>{row.secondScore}<small>分</small></strong><p>{row.secondComment || "暂无二级评语"}</p></div> : null}
+                  </div>
+                </section> : null}
+              </div>
+            </article>
+          );
+        })}
       </div>
     </div>
   );
@@ -1131,8 +1148,24 @@ function HongguoUploadModal({ onClose, onImport }) {
 function WorkflowActionPage({ review, action, onBack, onSubmit, hongguoUploads }) {
   const [draft, setDraft] = useState(() => getWorkflowDefaultDraft(review, action));
   const [submitError, setSubmitError] = useState("");
+  useEffect(() => {
+    if (!review?.id || !action?.type) return;
+    const scrollContainer = document.querySelector(".app-main");
+    if (scrollContainer) scrollContainer.scrollTop = 0;
+  }, [review?.id, action?.type]);
   if (!review || !action) return null;
   const updateDraft = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
+  const metricRows = draft.rows.filter((row) => row.type !== "section");
+  const resultReadyCount = metricRows.filter((row) => row.type === "adjustment" || (String(row.selfText || "").trim() && String(row.completionNote || "").trim() && String(row.evidence || "").trim())).length;
+  const firstScoreCount = metricRows.filter((row) => row.firstScore !== "" && row.firstScore != null).length;
+  const secondScoreCount = metricRows.filter((row) => row.secondScore !== "" && row.secondScore != null).length;
+  const currentScore = calcScore({ ...review, rows: draft.rows });
+  const hasSecondReview = requiresSecondReview(review);
+  const activeStage = (hasSecondReview
+    ? { confirm_target: 0, finish_execution: 1, enter_result: 1, first_score: 2, second_review: 3, hr_review: 4, committee_approve: 5, interview_feedback: 6 }
+    : { confirm_target: 0, finish_execution: 1, enter_result: 1, first_score: 2, hr_review: 3, committee_approve: 4, interview_feedback: 5 })[action.type] ?? 0;
+  const workflowStages = ["目标确认", "结果填报", "一级评分", ...(hasSecondReview ? ["二级复评"] : []), "HR复审", "CEO审批", "反馈归档"];
+  const submitLabel = action.type === "enter_result" ? "提交完成结果" : action.type === "first_score" ? "提交一级评分" : action.type === "second_review" ? "提交二级审核" : `确认${action.label}`;
   const submit = () => {
     const payload = getWorkflowSubmitPayload(review, action, draft);
     if (payload.validationError) {
@@ -1144,68 +1177,73 @@ function WorkflowActionPage({ review, action, onBack, onSubmit, hongguoUploads }
   };
 
   return (
-    <div className="workflow-page">
-      <div className="workflow-page__header">
-        <button className="ghost-chip" onClick={onBack} type="button">返回列表</button>
-        <div className="workflow-page__title-line">
-          <strong>{action.label}处理</strong>
-          <div className="workflow-header-meta">
-            <span>考核人：{review.employee}</span>
-            <span>考核周期：{review.cycle}</span>
-          </div>
+    <div className="workflow-page performance-workflow-page">
+      <header className="workflow-page__header performance-workflow-header">
+        <button className="ghost-chip performance-detail-back" onClick={onBack} type="button"><ArrowLeft size={16} weight="bold" />返回列表</button>
+        <div className="performance-workflow-header__identity">
+          <span><ClipboardText size={20} weight="duotone" /></span>
+          <div><small>绩效任务处理</small><h1>{action.label}</h1><p>{review.employee} · {review.department} · {review.role} · {review.cycle}</p></div>
         </div>
-        <button className="primary-btn" onClick={submit} type="button">确认提交</button>
+        <div className="performance-workflow-header__state"><span>当前节点</span><strong>{review.status}</strong></div>
+      </header>
+
+      <ol className="performance-workflow-steps" aria-label="绩效处理进度">
+        {workflowStages.map((stage, index) => <li className={index < activeStage ? "is-complete" : index === activeStage ? "is-active" : ""} key={stage}><span>{index < activeStage ? "✓" : index + 1}</span><strong>{stage}</strong></li>)}
+      </ol>
+
+      <div className="performance-workflow-layout">
+        <main className="performance-workflow-main">
+          <OkrSheetPreview review={review} actionType={action.type} rows={draft.rows} onRowsChange={(rows) => updateDraft("rows", rows)} />
+        </main>
+
+        <aside className="performance-workflow-control">
+          <div className="performance-workflow-control__title"><span>本次处理</span><strong>{action.label}</strong><p>完成当前节点的必填内容后提交，已填写内容会自动保留在当前页面。</p></div>
+
+          <div className="performance-workflow-stats">
+            <div><span>指标数量</span><strong>{metricRows.length}</strong></div>
+            <div><span>{action.type === "enter_result" ? "已完整填报" : action.type === "second_review" ? "已复评" : "已评分"}</span><strong>{action.type === "enter_result" ? resultReadyCount : action.type === "second_review" ? secondScoreCount : firstScoreCount}</strong></div>
+            <div><span>当前综合分</span><strong>{Number(currentScore.toFixed(1))}</strong></div>
+          </div>
+
+          {submitError ? <div className="performance-workflow-error" role="alert"><WarningCircle size={17} weight="fill" /><span>{submitError}<small>已保留当前填写内容</small></span></div> : null}
+
+          <div className="workflow-form-panel performance-workflow-form">
+            {action.type === "confirm_target" ? <>
+              <label><span>确认结论</span><select value={draft.targetDecision} onChange={(event) => updateDraft("targetDecision", event.target.value)}><option value="confirm">确认绩效目标</option><option value="dispute">提出异议</option>{review.activeTargetVersion ? <option value="reject_change">拒绝本次目标变更</option> : null}</select></label>
+              {draft.targetDecision !== "confirm" ? <label><span>{draft.targetDecision === "dispute" ? "异议原因" : "拒绝原因"}</span><textarea rows={3} value={draft.targetDisputeReason} onChange={(event) => updateDraft("targetDisputeReason", event.target.value)} placeholder="必填；说明需要调整的目标、权重或交付标准" /></label> : null}
+            </> : null}
+            {["reissue_target", "change_target"].includes(action.type) ? <label><span>变更原因</span><textarea rows={3} value={draft.targetChangeReason} onChange={(event) => updateDraft("targetChangeReason", event.target.value)} placeholder="必填；提交后生成新版本" /></label> : null}
+            {action.type === "finish_execution" ? <label><span>数据收集说明</span><textarea rows={4} value={draft.resultSummary} onChange={(event) => updateDraft("resultSummary", event.target.value)} placeholder="说明已汇总的数据来源、缺失项和下一步补充要求" /></label> : null}
+
+            {action.type === "first_score" ? <fieldset className="performance-review-conclusion"><legend>结果审核结论</legend><label className={draft.firstDecision === "score" ? "is-selected" : ""}><input checked={draft.firstDecision === "score"} name="first-decision" onChange={() => updateDraft("firstDecision", "score")} type="radio" /><span><b>信息完整，进入评分</b><small>确认员工结果与证明材料可支持本次评分</small></span></label><label className={draft.firstDecision === "return" ? "is-selected is-danger" : ""}><input checked={draft.firstDecision === "return"} name="first-decision" onChange={() => updateDraft("firstDecision", "return")} type="radio" /><span><b>退回员工补充</b><small>结果或证明材料不足，暂不进入后续评分</small></span></label></fieldset> : null}
+            {action.type === "first_score" && draft.firstDecision === "return" ? <label><span>退回原因 <b>必填</b></span><textarea rows={4} value={draft.returnReason} onChange={(event) => updateDraft("returnReason", event.target.value)} placeholder="说明需要补充的指标、数据或证明材料" /></label> : null}
+
+            {action.type === "second_review" ? <><fieldset className="performance-review-conclusion"><legend>结果审核结论</legend><label className={draft.secondDecision === "score" ? "is-selected" : ""}><input checked={draft.secondDecision === "score"} name="second-decision" onChange={() => updateDraft("secondDecision", "score")} type="radio" /><span><b>结果完整，复评通过</b><small>确认员工结果与一级评分依据完整，提交HR复审</small></span></label><label className={draft.secondDecision === "return" ? "is-selected is-danger" : ""}><input checked={draft.secondDecision === "return"} name="second-decision" onChange={() => updateDraft("secondDecision", "return")} type="radio" /><span><b>退回员工补充</b><small>结果材料不足，退回后重新进入填报与评分</small></span></label></fieldset><label><span>二级结果审核意见 <b>必填</b></span><textarea aria-label="二级结果审核意见" rows={5} value={draft.secondReviewComment} onChange={(event) => updateDraft("secondReviewComment", event.target.value)} placeholder={draft.secondDecision === "return" ? "说明需要补充的结果、数据或证明材料" : "填写结果核验情况、评分调整依据及需HR关注事项"} /></label></> : null}
+
+            {action.type === "hr_review" ? <><label><span>处理结论</span><select value={draft.hrDecision} onChange={(event) => updateDraft("hrDecision", event.target.value)}><option value="submit">提交CEO审批</option><option value="return">退回Leader重新评分</option></select></label><label><span>HR复审意见</span><textarea rows={5} value={draft.hrReviewComment} onChange={(event) => updateDraft("hrReviewComment", event.target.value)} placeholder="填写材料核验、加减分核对及需CEO关注的问题" /></label></> : null}
+            {action.type === "committee_approve" ? <><label><span>审批结论</span><select value={draft.committeeDecision} onChange={(event) => updateDraft("committeeDecision", event.target.value)}><option value="approve">审批通过</option><option value="return">退回Leader重新评分</option></select></label><label><span>CEO审批意见</span><textarea rows={5} value={draft.committeeComment} onChange={(event) => updateDraft("committeeComment", event.target.value)} placeholder="填写审批意见；退回时说明需修正的内容" /></label></> : null}
+            {action.type === "interview_feedback" ? <><label><span>面谈纪要</span><textarea rows={5} value={draft.interviewSummary} onChange={(event) => updateDraft("interviewSummary", event.target.value)} placeholder="记录绩效沟通结论、员工反馈和确认情况" /></label><label><span>改进计划</span><textarea rows={4} value={draft.improvementPlan} onChange={(event) => updateDraft("improvementPlan", event.target.value)} placeholder="填写下月改进事项、责任人和跟进节点" /></label></> : null}
+            {action.type === "investigate_appeal" ? <label><span>HR调查记录</span><textarea rows={5} value={draft.appealInvestigation} onChange={(event) => updateDraft("appealInvestigation", event.target.value)} placeholder="记录申诉材料核验、Leader原评分依据和调查结论" /></label> : null}
+            {action.type === "provide_appeal_evidence" ? <label><span>原评分依据</span><textarea rows={5} value={draft.leaderAppealEvidence} onChange={(event) => updateDraft("leaderAppealEvidence", event.target.value)} placeholder="填写原评分、评语、加减分和证明材料依据" /></label> : null}
+            {action.type === "resolve_appeal" ? <><label><span>CEO裁决结论</span><select value={draft.appealDecision} onChange={(event) => updateDraft("appealDecision", event.target.value)}><option value="rejected">驳回</option><option value="partial">部分成立</option><option value="approved">成立</option></select></label>{draft.appealDecision !== "rejected" ? <label><span>修正后分数</span><input min="0" max="100" type="number" value={draft.correctedScore} onChange={(event) => updateDraft("correctedScore", Number(event.target.value))} /></label> : null}<label><span>CEO裁决理由</span><textarea rows={4} value={draft.appealResolution} onChange={(event) => updateDraft("appealResolution", event.target.value)} placeholder="必填；说明证据判断、分数调整及最终结论" /></label></> : null}
+          </div>
+
+          <div className="performance-workflow-checklist">
+            <strong>提交前检查</strong>
+            {action.type === "enter_result" ? <><span className={resultReadyCount === metricRows.length ? "is-complete" : ""}>逐项目标已填写结果与说明</span><span className={resultReadyCount === metricRows.length ? "is-complete" : ""}>必填证明材料已补充</span></> : null}
+            {action.type === "first_score" ? <><span className={firstScoreCount === metricRows.length ? "is-complete" : ""}>已完成全部一级评分</span><span className="is-complete">已选择结果审核结论</span></> : null}
+            {action.type === "second_review" ? <><span className={secondScoreCount === metricRows.length ? "is-complete" : ""}>已完成全部二级复评</span><span className={draft.secondReviewComment.trim() ? "is-complete" : ""}>已填写结果审核意见</span></> : null}
+          </div>
+
+          <button className="primary-btn performance-workflow-submit" onClick={submit} type="button">{submitLabel}</button>
+          <button className="ghost-chip performance-workflow-cancel" onClick={onBack} type="button">取消并返回</button>
+        </aside>
       </div>
-      <div className="workflow-form-panel">
-        {submitError ? <div className="performance-template-warning" role="alert">{submitError}，已保留当前填写内容。</div> : null}
-        {action.type === "confirm_target" ? <>
-          <div className="form-grid"><label><span>确认结论</span><select value={draft.targetDecision} onChange={(event) => updateDraft("targetDecision", event.target.value)}><option value="confirm">确认绩效目标</option><option value="dispute">提出异议</option>{review.activeTargetVersion ? <option value="reject_change">拒绝本次目标变更</option> : null}</select></label></div>
-          {draft.targetDecision !== "confirm" ? <label className="form-block"><span>{draft.targetDecision === "dispute" ? "异议原因" : "拒绝原因"}</span><textarea rows={3} value={draft.targetDisputeReason} onChange={(event) => updateDraft("targetDisputeReason", event.target.value)} placeholder="必填；说明需要调整的目标、权重或交付标准" /></label> : null}
-        </> : null}
-        {["reissue_target", "change_target"].includes(action.type) ? <label className="form-block"><span>变更原因</span><textarea rows={3} value={draft.targetChangeReason} onChange={(event) => updateDraft("targetChangeReason", event.target.value)} placeholder="必填；提交后生成新的待确认版本，历史版本不会被覆盖" /></label> : null}
-        {action.type === "finish_execution" ? (
-          <label className="form-block"><span>数据收集说明</span><textarea rows={3} value={draft.resultSummary} onChange={(event) => updateDraft("resultSummary", event.target.value)} placeholder="说明已汇总的数据来源、缺失项和下一步补充要求" /></label>
-        ) : null}
-        {action.type === "first_score" ? <>
-          <div className="form-grid"><label><span>结果审核结论</span><select value={draft.firstDecision} onChange={(event) => updateDraft("firstDecision", event.target.value)}><option value="score">信息完整，进入评分</option><option value="return">证明材料不足，退回员工补充</option></select></label></div>
-          {draft.firstDecision === "return" ? <label className="form-block"><span>退回原因</span><textarea rows={3} value={draft.returnReason} onChange={(event) => updateDraft("returnReason", event.target.value)} placeholder="必填；员工原始填报内容将保留" /></label> : null}
-        </> : null}
-        {action.type === "hr_review" ? (
-          <>
-            <div className="form-grid">
-              <label><span>处理结论</span><select value={draft.hrDecision} onChange={(event) => updateDraft("hrDecision", event.target.value)}><option value="submit">提交CEO审批</option><option value="return">退回Leader重新评分</option></select></label>
-            </div>
-            <label className="form-block"><span>HR复审意见</span><textarea rows={4} value={draft.hrReviewComment} onChange={(event) => updateDraft("hrReviewComment", event.target.value)} placeholder="填写材料核验、加减分核对及需CEO关注的问题" /></label>
-          </>
-        ) : null}
-        {action.type === "committee_approve" ? (
-          <>
-            <div className="form-grid">
-              <label><span>审批结论</span><select value={draft.committeeDecision} onChange={(event) => updateDraft("committeeDecision", event.target.value)}><option value="approve">审批通过</option><option value="return">退回Leader重新评分</option></select></label>
-            </div>
-            <label className="form-block"><span>CEO审批意见</span><textarea rows={4} value={draft.committeeComment} onChange={(event) => updateDraft("committeeComment", event.target.value)} placeholder="填写审批意见；退回时必须说明Leader需要修正的内容" /></label>
-          </>
-        ) : null}
-        {action.type === "interview_feedback" ? (
-          <>
-            <label className="form-block"><span>面谈纪要</span><textarea rows={4} value={draft.interviewSummary} onChange={(event) => updateDraft("interviewSummary", event.target.value)} placeholder="记录绩效沟通结论、员工反馈和确认情况" /></label>
-            <label className="form-block"><span>改进计划</span><textarea rows={3} value={draft.improvementPlan} onChange={(event) => updateDraft("improvementPlan", event.target.value)} placeholder="填写下月改进事项、责任人和跟进节点" /></label>
-          </>
-        ) : null}
-        {action.type === "investigate_appeal" ? <label className="form-block"><span>HR调查记录</span><textarea rows={4} value={draft.appealInvestigation} onChange={(event) => updateDraft("appealInvestigation", event.target.value)} placeholder="记录申诉材料核验、Leader原评分依据和调查结论" /></label> : null}
-        {action.type === "provide_appeal_evidence" ? <label className="form-block"><span>原评分依据</span><textarea rows={4} value={draft.leaderAppealEvidence} onChange={(event) => updateDraft("leaderAppealEvidence", event.target.value)} placeholder="填写原评分、评语、加减分和证明材料依据" /></label> : null}
-        {action.type === "resolve_appeal" ? (
-          <>
-            <div className="form-grid">
-              <label><span>CEO裁决结论</span><select value={draft.appealDecision} onChange={(event) => updateDraft("appealDecision", event.target.value)}><option value="rejected">驳回</option><option value="partial">部分成立</option><option value="approved">成立</option></select></label>
-              {draft.appealDecision !== "rejected" ? <label><span>修正后分数</span><input min="0" max="100" type="number" value={draft.correctedScore} onChange={(event) => updateDraft("correctedScore", Number(event.target.value))} /></label> : null}
-            </div>
-            <label className="form-block"><span>CEO裁决理由</span><textarea rows={3} value={draft.appealResolution} onChange={(event) => updateDraft("appealResolution", event.target.value)} placeholder="必填；说明证据判断、是否调整分数及最终结论" /></label>
-          </>
-        ) : null}
-      </div>
-      <PerformanceReferencePanel review={review} hongguoUploads={hongguoUploads} />
-      <OkrSheetPreview review={review} actionType={action.type} rows={draft.rows} onRowsChange={(rows) => updateDraft("rows", rows)} />
+
+      <details className="performance-workflow-reference">
+        <summary><span><Database size={18} weight="duotone" /></span><div><strong>周报与项目参考数据</strong><small>按需展开，不打断当前填报与评分任务</small></div><b>展开查看</b></summary>
+        <PerformanceReferencePanel review={review} hongguoUploads={hongguoUploads} />
+      </details>
     </div>
   );
 }
@@ -1873,85 +1911,136 @@ function IssuePerformancePage({
 }
 
 function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
+  useEffect(() => {
+    if (!review?.id) return;
+    const scrollContainer = document.querySelector(".app-main");
+    if (scrollContainer) scrollContainer.scrollTop = 0;
+  }, [review?.id]);
+
   if (!review) return null;
+
+  const finalScore = calcScore(review);
+  const baseScore = calcBaseScore(review);
+  const adjustmentScore = calcAdjustmentScore(review);
+  const finalGrade = getGrade(finalScore);
+  const scoreProgress = Math.max(0, Math.min(100, Number(finalScore) || 0));
 
   return (
     <div className="workflow-page performance-detail-page">
-      <div className="workflow-page__header">
-        <button className="ghost-chip" onClick={onBack} type="button">返回列表</button>
-        <div>
-          <strong>{review.employee} 绩效详情</strong>
-          <div className="workflow-header-meta">
-            <span>{review.department}</span>
-            <span>{review.role}</span>
-            <span>{review.cycle}</span>
-          </div>
-        </div>
-        <button className="ghost-chip" onClick={() => exportPerformanceDetailExcel(review, hongguoUploads)} type="button"><FileCsv size={16} weight="bold" />导出Excel</button>
-      </div>
-      <div className="performance-detail-summary">
-        <div><small>岗位模板</small><strong>{getReviewTemplate(review).name}</strong></div>
-        <div><small>岗位层级</small><strong>{review.roleTemplateName}</strong></div>
-        <div><small>基础绩效分</small><strong>{calcBaseScore(review)}</strong></div>
-        <div><small>加减分</small><strong>{calcAdjustmentScore(review)}</strong></div>
-        <div><small>最终绩效分</small><strong>{calcScore(review)} / {getGrade(calcScore(review))}</strong></div>
-        <div><small>流程状态</small><strong>{review.status}</strong></div>
-        <div><small>申诉状态</small><strong>{review.appealStatus}</strong></div>
-      </div>
-      <section className="performance-version-panel">
-        <div className="performance-version-panel__header"><strong>绩效目标版本</strong><span>当前生效V{review.activeTargetVersion ?? 1} · 历史版本永久保留</span></div>
-        <div className="performance-version-list">{(review.targetVersions?.length ? review.targetVersions : [{ version: 1, status: "已生效", operator: review.directLeader, actedAt: review.lastActionAt, changeReason: "首次下发" }]).map((version) => <article key={version.version}><b>V{version.version}</b><span className="field-pill field-pill--neutral">{version.status}</span><p>{version.changeReason || "首次下发"}</p><small>{version.operator || review.directLeader} · {version.actedAt || review.lastActionAt}</small></article>)}</div>
-        <div className="performance-version-panel__header performance-version-panel__header--result"><strong>绩效结果版本</strong><span>申诉修正只新增版本，不覆盖原结果</span></div>
-        {review.resultVersions?.length ? <div className="performance-version-list performance-version-list--result">{review.resultVersions.map((version) => <article key={version.version}><b>结果V{version.version}</b><span>{version.score}分 · {version.grade}级</span><p>{version.reason || version.appealDecision || "正式绩效结果"}</p><small>{version.operator || "系统"} · {version.actedAt || review.lastActionAt}</small></article>)}</div> : <p className="performance-version-empty">当前流程尚未生成正式绩效结果版本</p>}
-      </section>
-      <PerformanceReferencePanel review={review} hongguoUploads={hongguoUploads} />
-      <div className="performance-detail-title">
-        <div>
-          <strong>岗位模板明细</strong>
-          <span>{review.sheetMeta}</span>
-        </div>
-        {review.businessLines?.length ? (
-          <div className="performance-business-lines">
-            {review.businessLines.map((line) => <span key={line}>{line}</span>)}
-          </div>
-        ) : null}
-      </div>
-      <div className="template-metric-list">
-        {review.rows.map((row) => (
-          row.type === "section" ? <div key={row.key} className="template-metric-section">{row.title}</div> : (
-            <div key={row.key} className="template-metric-row">
-              <div className="template-metric-row__main">
-                <strong>{row.label}</strong>
-                <span>{row.standard}</span>
-                <small>数据来源：{row.source}</small>
-              </div>
-              <div className="template-metric-row__scores">
-                <b>{row.type === "adjustment" ? "加减分" : `${Math.round((row.weight ?? 0) * 100)}%`}</b>
-                <span>{requiresSecondReview(review) ? "两级评分制" : "一级评分制"}</span>
-                <span>综合 {Number(calcRowComposite(row, review).toFixed(1))}</span>
-                <span>计入 {calcRowScore(row, review)}</span>
-              </div>
-              <p>{row.selfText || "暂无员工结果录入"}</p>
+      <header className="workflow-page__header performance-detail-hero">
+        <button className="ghost-chip performance-detail-back" onClick={onBack} type="button"><ArrowLeft size={16} weight="bold" />返回列表</button>
+        <div className="performance-detail-identity">
+          <span className="performance-detail-avatar" aria-hidden="true">{review.employee.slice(0, 1)}</span>
+          <div>
+            <span className="performance-detail-eyebrow">绩效档案 · {review.cycle}</span>
+            <h1>{review.employee} 绩效详情</h1>
+            <div className="workflow-header-meta">
+              {[review.department, review.role, review.roleTemplateName].filter((item, index, items) => item && items.indexOf(item) === index).map((item) => <span key={item}>{item}</span>)}
             </div>
-          )
-        ))}
+          </div>
+        </div>
+        <button className="ghost-chip performance-detail-export" onClick={() => exportPerformanceDetailExcel(review, hongguoUploads)} type="button"><FileCsv size={16} weight="bold" />导出Excel</button>
+      </header>
+
+      <section className="performance-score-overview" aria-label="绩效得分概览">
+        <div className="performance-score-overview__primary">
+          <span>最终绩效得分</span>
+          <div><strong>{finalScore}</strong><small>分</small></div>
+          <p><Trophy size={17} weight="fill" />{finalGrade} · {getLevelLabel(finalScore)}</p>
+          <i aria-label={`最终得分 ${finalScore} 分`}><em style={{ width: `${scoreProgress}%` }} /></i>
+        </div>
+        <div className="performance-score-overview__metrics">
+          <article><span>基础绩效分</span><strong>{baseScore}</strong><small>目标指标加权结果</small></article>
+          <article className={adjustmentScore < 0 ? "is-negative" : "is-positive"}><span>加减分</span><strong>{adjustmentScore > 0 ? `+${adjustmentScore}` : adjustmentScore}</strong><small>独立于目标权重计算</small></article>
+          <article><span>流程状态</span><strong className="is-status">{review.status}</strong><small>最后更新 {review.lastActionAt}</small></article>
+          <article><span>申诉状态</span><strong className="is-status">{review.appealStatus}</strong><small>{review.appealStatus === "无申诉" ? "当前无待处理争议" : "存在申诉处理记录"}</small></article>
+        </div>
+      </section>
+
+      <div className="performance-detail-layout">
+        <main className="performance-detail-main">
+          <section className="performance-detail-section" aria-labelledby="performance-metric-heading">
+            <header className="performance-detail-section__header">
+              <div>
+                <span className="performance-detail-section__icon"><ChartLineUp size={18} weight="bold" /></span>
+                <div><h2 id="performance-metric-heading">评分明细</h2><p>{review.sheetMeta}</p></div>
+              </div>
+              {review.businessLines?.length ? <div className="performance-business-lines">{review.businessLines.map((line) => <span key={line}>{line}</span>)}</div> : null}
+            </header>
+            <div className="template-metric-list">
+              {review.rows.map((row) => (
+                row.type === "section" ? <div key={row.key} className="template-metric-section">{row.title}</div> : (
+                  <article key={row.key} className="template-metric-row">
+                    <div className="template-metric-row__main">
+                      <div className="template-metric-row__heading">
+                        <strong>{row.label}</strong>
+                        <b>{row.type === "adjustment" ? "加减分项" : `${Math.round((row.weight ?? 0) * 100)}% 权重`}</b>
+                      </div>
+                      <p className="template-metric-row__standard">{row.standard}</p>
+                      <small>数据来源 · {row.source}</small>
+                    </div>
+                    <div className="template-metric-row__scores">
+                      <span>{requiresSecondReview(review) ? "两级评分" : "一级评分"}</span>
+                      <div><small>综合</small><strong>{Number(calcRowComposite(row, review).toFixed(1))}</strong></div>
+                      <div><small>计入</small><strong>{calcRowScore(row, review)}</strong></div>
+                    </div>
+                    <div className="template-metric-row__result">
+                      <span>员工完成情况</span>
+                      <p>{row.selfText || "暂无员工结果录入"}</p>
+                    </div>
+                  </article>
+                )
+              ))}
+            </div>
+          </section>
+        </main>
+
+        <aside className="performance-detail-aside">
+          <section className="performance-detail-section performance-profile-card">
+            <header className="performance-detail-section__header">
+              <div><span className="performance-detail-section__icon"><CheckCircle size={18} weight="bold" /></span><div><h2>考核信息</h2><p>本周期评价关系与模板</p></div></div>
+            </header>
+            <dl>
+              <div><dt>考核周期</dt><dd><CalendarBlank size={15} />{review.cycle}</dd></div>
+              <div><dt>岗位模板</dt><dd>{getReviewTemplate(review).name}</dd></div>
+              <div><dt>直属 Leader</dt><dd>{review.directLeader || "--"}</dd></div>
+              <div><dt>二级 Leader</dt><dd>{review.indirectLeader || "无需二级复评"}</dd></div>
+              {review.secondReviewConclusion ? <div><dt>二级审核</dt><dd>{review.secondReviewConclusion}</dd></div> : null}
+            </dl>
+          </section>
+
+          <section className="performance-version-panel">
+            <div className="performance-version-panel__header"><div><strong>绩效目标版本</strong><small>当前生效 V{review.activeTargetVersion ?? 1}</small></div><span>{review.targetVersions?.length || 1} 个版本</span></div>
+            <div className="performance-version-list">{(review.targetVersions?.length ? review.targetVersions : [{ version: 1, status: "已生效", operator: review.directLeader, actedAt: review.lastActionAt, changeReason: "首次下发" }]).map((version) => <article key={version.version}><div><b>V{version.version}</b><span className="field-pill field-pill--neutral">{version.status}</span></div><p>{version.changeReason || "首次下发"}</p><small>{version.operator || review.directLeader} · {version.actedAt || review.lastActionAt}</small></article>)}</div>
+            <div className="performance-version-panel__header performance-version-panel__header--result"><div><strong>绩效结果版本</strong><small>修正结果保留历史记录</small></div><span>{review.resultVersions?.length || 0} 个版本</span></div>
+            {review.resultVersions?.length ? <div className="performance-version-list performance-version-list--result">{review.resultVersions.map((version) => <article key={version.version}><div><b>结果 V{version.version}</b><span>{version.score}分 · {version.grade}级</span></div><p>{version.reason || version.appealDecision || "正式绩效结果"}</p><small>{version.operator || "系统"} · {version.actedAt || review.lastActionAt}</small></article>)}</div> : <p className="performance-version-empty">当前流程尚未生成正式绩效结果版本</p>}
+          </section>
+        </aside>
       </div>
-      <div className="operation-log-panel">
+
+      <section className="performance-detail-section performance-detail-evidence" aria-labelledby="performance-evidence-heading">
+        <header className="performance-detail-section__header">
+          <div><span className="performance-detail-section__icon"><ClipboardText size={18} weight="bold" /></span><div><h2 id="performance-evidence-heading">过程数据参考</h2><p>周报、项目交付与业务结果仅作为评分依据，不直接替代绩效结论</p></div></div>
+        </header>
+        <PerformanceReferencePanel review={review} hongguoUploads={hongguoUploads} />
+      </section>
+
+      <section className="performance-detail-section operation-log-panel" aria-labelledby="performance-log-heading">
         <div className="operation-log-panel__header">
-          <strong>操作记录</strong>
-          <span>{review.operationLogs?.length ?? 0} 条</span>
+          <div><span className="performance-detail-section__icon"><ClockCounterClockwise size={18} weight="bold" /></span><div><strong id="performance-log-heading">操作记录</strong><small>完整保留状态流转与处理备注</small></div></div>
+          <span>{review.operationLogs?.length ?? 0} 条记录</span>
         </div>
         <div className="operation-log-list">
           {(review.operationLogs ?? []).map((log) => (
-            <div key={log.id} className="operation-log-item">
-              <b>{log.action}</b>
-              <span>{log.operator}</span>
-              <small>{log.actedAt}</small>
+            <article key={log.id} className="operation-log-item">
+              <span className="operation-log-item__dot" aria-hidden="true" />
+              <div className="operation-log-item__head"><b>{log.action}</b><small>{log.actedAt}</small></div>
               <p>{log.fromStatus} → {log.toStatus}；{log.note || "无补充说明"}</p>
-            </div>
+              <span className="operation-log-item__operator">操作人 · {log.operator}</span>
+            </article>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
@@ -2577,7 +2666,7 @@ function WorkbenchPage({ goPage, reviews, role }) {
       description: "优先处理团队跟进、项目风险与绩效评估，确保跨组协作节奏稳定。",
       chips: ["团队协同", "风险优先", "列表驱动"],
       actionLabel: "查看项目中心",
-      actionPage: "projects",
+      actionPage: "project-management",
       followUpTitle: "团队待跟进事项",
       highlightsTitle: "团队动态",
       roleTask: { title: "检查团队周报提交", meta: "跟进未提交成员并同步本周资源安排", page: "weekly", tone: "purple" },
@@ -2603,20 +2692,20 @@ function WorkbenchPage({ goPage, reviews, role }) {
   }[role?.id ?? "ceo"];
   const followUps = [
     { title: "安排绩效评估面谈", meta: `${pendingReviews[0]?.employee ?? "王芳"}等 ${pendingReviews.length} 人待处理`, page: "performance", tone: "blue" },
-    { title: "推进高风险项目纠偏", meta: `${highRiskProjects[0]?.name ?? "星际边缘"}需同步资源与排期`, page: "projects", tone: "orange" },
+    { title: "推进高风险项目纠偏", meta: `${highRiskProjects[0]?.name ?? "星际边缘"}需同步资源与排期`, page: "project-management", tone: "orange" },
     { title: "批阅未完成周报", meta: `${pendingWeekly.length} 份周报仍需处理`, page: "weekly", tone: "purple" },
     roleContent.roleTask,
   ];
   const highlights = [
     { title: "绩效提醒", meta: `${pendingReviews[0]?.employee ?? "王芳"}综合分 ${pendingReviews[0] ? calcScore(pendingReviews[0]) : 0}，建议本日完成处理`, page: "performance" },
-    { title: "风险项目", meta: `${highRiskProjects[0]?.name ?? "星际边缘"}进度 ${highRiskProjects[0]?.progress ?? 0}% ，需重点关注成本波动`, page: "projects" },
+    { title: "风险项目", meta: `${highRiskProjects[0]?.name ?? "星际边缘"}进度 ${highRiskProjects[0]?.progress ?? 0}% ，需重点关注成本波动`, page: "project-management" },
     { title: "周报提醒", meta: `${pendingWeekly.map((item) => item.name).join("、")} 的周报状态需更新`, page: "weekly" },
     { title: "任务同步", meta: openAppealCount ? `${openAppealCount} 份绩效申诉处理中，建议同步跟进调查协调` : "建议在任务中心更新跨部门协作节点与负责人", page: openAppealCount ? "performance" : "tasks" },
   ];
   const overviewCards = [
     { title: "待处理任务", value: followUps.length, meta: "优先处理跨模块事项", page: "tasks", tone: "blue" },
     { title: "待处理绩效", value: pendingReviews.length, meta: "支持直接进入绩效流程", page: "performance", tone: "green" },
-    { title: "高风险项目", value: highRiskProjects.length, meta: "需要经营与资源联动", page: "projects", tone: "orange" },
+    { title: "高风险项目", value: highRiskProjects.length, meta: "需要经营与资源联动", page: "project-management", tone: "orange" },
     { title: "待批阅周报", value: pendingWeekly.length, meta: "跟进草稿与待批阅记录", page: "weekly", tone: "purple" },
   ];
 
@@ -2784,7 +2873,6 @@ function AppContent() {
     "ai-resources",
     "resource-center",
     "content-projects",
-    "project-management",
     "people-organization",
     "ssc-service",
     "system-governance",
@@ -2957,7 +3045,7 @@ function AppContent() {
   const activeSscView = sscPageViews[activePage];
   const activeSidebarItem = findSidebarItem([...primarySidebarItems, ...sidebarGroups.flatMap((group) => group.items)], activePage);
   const isBlankDirectoryPage = blankDirectoryPages.has(activePage);
-  const activePageContent = <>{!isBlankDirectoryPage && !["workspace", "project-initiation", "tasks", "reports", "model-list", "agents", "asset-library", "project-subjects"].includes(activePage) ? <RoleScopeBanner activeRole={activeRole} page={activeSidebarItem?.label ?? "业务页面"} /> : null}{activePage === "workspace" ? <UnifiedWorkbenchPage activeRole={activeRole} goPage={goPage} people={dashboardPeople} reviews={reviews} weeklyReports={dashboardWeeklyReports} /> : null}{activePage === "dashboard" ? <BusinessDashboardPage activeRole={activeRole} goPage={goPage} reviews={reviews} /> : null}{activePage === "performance" ? <PerformanceCenter reviews={reviews} onSave={saveReview} onBatchIssue={batchIssueReviews} onSaveAppeal={saveAppeal} activeRole={activeRoleMeta} departmentTemplates={departmentTemplates} onSaveDepartmentTemplate={saveDepartmentTemplate} onCreateDepartmentTemplate={createDepartmentTemplate} /> : null}{activePage === "reports" ? <WeeklyPage /> : null}{activePage === "recruitment" ? <RecruitmentCenterPage /> : null}{activePage === "topics" ? <TopicCenterPage goPage={goPage} /> : null}{activePage === "project-initiation" ? <ProjectInitiationPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "tasks" ? <TaskCenterPage activeRole={activeRole} /> : null}{activePage === "projects" ? <ProjectProductionPage /> : null}{activePage === "model-list" ? <ModelListPage /> : null}{activePage === "agents" ? <AgentManagementPage /> : null}{activePage === "asset-library" ? <AssetLibraryPage /> : null}{activePage === "project-subjects" ? <ProjectSubjectPage /> : null}{activeSscView ? <SscDataMaintenancePage view={activeSscView} /> : null}{activePage === "governance" ? <GovernancePage /> : null}{isBlankDirectoryPage ? <section aria-label={activeSidebarItem?.label ?? "空白页面"} className="blank-directory-page" /> : null}</>;
+  const activePageContent = <>{!isBlankDirectoryPage && !["workspace", "dashboard", "project-management", "tasks", "reports", "model-list", "agents", "asset-library", "project-subjects"].includes(activePage) ? <RoleScopeBanner activeRole={activeRole} page={activeSidebarItem?.label ?? "业务页面"} /> : null}{activePage === "workspace" ? <UnifiedWorkbenchPage activeRole={activeRole} goPage={goPage} people={dashboardPeople} reviews={reviews} weeklyReports={dashboardWeeklyReports} /> : null}{activePage === "dashboard" ? <BusinessDashboardPage activeRole={activeRole} goPage={goPage} reviews={reviews} /> : null}{activePage === "performance" ? <PerformanceCenter reviews={reviews} onSave={saveReview} onBatchIssue={batchIssueReviews} onSaveAppeal={saveAppeal} activeRole={activeRoleMeta} departmentTemplates={departmentTemplates} onSaveDepartmentTemplate={saveDepartmentTemplate} onCreateDepartmentTemplate={createDepartmentTemplate} /> : null}{activePage === "reports" ? <WeeklyPage /> : null}{activePage === "recruitment" ? <RecruitmentCenterPage /> : null}{activePage === "topics" ? <TopicCenterPage goPage={goPage} /> : null}{activePage === "scripts" ? <ScriptLibraryPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "project-management" ? <ProjectManagementPage activeRole={activeRole} goPage={goPage} /> : null}{activePage === "tasks" ? <TaskCenterPage activeRole={activeRole} /> : null}{activePage === "model-list" ? <ModelListPage /> : null}{activePage === "agents" ? <AgentManagementPage /> : null}{activePage === "asset-library" ? <AssetLibraryPage /> : null}{activePage === "project-subjects" ? <ProjectSubjectPage /> : null}{activeSscView ? <SscDataMaintenancePage view={activeSscView} /> : null}{activePage === "governance" ? <GovernancePage /> : null}{isBlankDirectoryPage ? <section aria-label={activeSidebarItem?.label ?? "空白页面"} className="blank-directory-page" /> : null}</>;
 
   return (
     <main className="app-shell">

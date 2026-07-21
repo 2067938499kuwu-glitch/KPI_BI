@@ -187,4 +187,34 @@ describe("绩效目标与评分纯函数", () => {
     });
     expect(calcScore({ rows })).toBeGreaterThan(70);
   });
+
+  test("二级结果审核退回时保留审核结论和退回状态", () => {
+    const review = {
+      id: "rv-second-review-return",
+      status: REVIEW_STATUS.secondReview,
+      resultStatus: "已补充",
+      rows: [],
+      operationLogs: [],
+    };
+    const next = applyWorkflowAction(review, {
+      type: "second_review",
+      operator: "二级Leader",
+      actedAt,
+      nextStatus: REVIEW_STATUS.resultEntry,
+      note: "二级结果审核退回员工补充：证明材料口径不完整",
+      updates: {
+        resultStatus: "已退回补充",
+        secondReviewConclusion: "退回员工补充",
+        secondReviewComment: "证明材料口径不完整",
+      },
+    });
+
+    expect(next).toMatchObject({
+      status: REVIEW_STATUS.resultEntry,
+      resultStatus: "已退回补充",
+      secondReviewConclusion: "退回员工补充",
+      secondReviewComment: "证明材料口径不完整",
+    });
+    expect(next.operationLogs[0].note).toContain("二级结果审核退回员工补充");
+  });
 });

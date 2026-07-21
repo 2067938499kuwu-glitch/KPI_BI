@@ -1,19 +1,43 @@
 import { describe, expect, test } from "vitest";
 import {
+  normalizeOperationMatchName,
+  selectMatchedOperationUploads,
+  selectOperationMatchingSummary,
   selectRecruitmentDecisionAnalysis,
   selectRecruitmentFunnel,
   selectRecruitmentSummary,
   selectProjectCostBreakdown,
+  selectMonthlyConsumptionTrend,
   selectProjectSummary,
+  selectTopicSummary,
   selectWorkbenchTasks,
 } from "./demoSelectors";
 
 describe("演示数据统计选择器", () => {
+  test("选题统计只使用待评估已评估未通过三个业务状态", () => {
+    expect(
+      selectTopicSummary([
+        { status: "待评估" },
+        { status: "已评估" },
+        { status: "已评估", projectId: "P1" },
+        { status: "未通过" },
+      ]),
+    ).toEqual({
+      total: 4,
+      pending: 1,
+      approved: 2,
+      returned: 1,
+      converted: 1,
+      conversionRate: 50,
+    });
+  });
+
   test("内部短剧真实成本由人力、算力和投流成本汇总", () => {
     const internalProject = {
       mode: "内部制作",
       budget: 200000,
       actual: 999999,
+      progress: 40,
       manpowerCost: 80000,
       computeCost: 45000,
       trafficCost: 25000,
@@ -22,6 +46,7 @@ describe("演示数据统计选择器", () => {
       mode: "外部制作",
       budget: 100000,
       actual: 60000,
+      progress: 100,
     };
 
     expect(selectProjectCostBreakdown(internalProject)).toEqual({
@@ -35,8 +60,95 @@ describe("演示数据统计选择器", () => {
       internalActual: 150000,
       manpowerCost: 80000,
       computeCost: 45000,
-      trafficCost: 25000,
-      costExecutionRate: 70,
+        trafficCost: 25000,
+        costExecutionRate: 70,
+        averageProgress: 40,
+      });
+  });
+
+  test("月度项目金额按创建时间归集，人员消耗按导入批次月份归集", () => {
+    const result = selectMonthlyConsumptionTrend(
+      {
+        projectConsumptionRecords: [
+          { createdAt: "2026-05-18 10:00", cost: 150.78 },
+          { createdAt: "2026-06-12 10:00", cost: 60 },
+        ],
+        personnelConsumptionSnapshots: [
+          {
+            snapshotMonth: "2026-05",
+            records: [
+              { username: "用户A", totalCost: 80.5 },
+              { username: "用户B", totalCost: 0 },
+            ],
+          },
+        ],
+      },
+      "2026-05",
+      "2026-07",
+    );
+
+    expect(result).toEqual([
+      {
+        month: "2026-05",
+        label: "5月",
+        projectCount: 1,
+        projectAmount: 150.78,
+        personnelCost: 80.5,
+        personnelCount: 1,
+      },
+      {
+        month: "2026-06",
+        label: "6月",
+        projectCount: 1,
+        projectAmount: 60,
+        personnelCost: 0,
+        personnelCount: 0,
+      },
+      {
+        month: "2026-07",
+        label: "7月",
+        projectCount: 0,
+        projectAmount: 0,
+        personnelCost: 0,
+        personnelCount: 0,
+      },
+    ]);
+    expect(selectMonthlyConsumptionTrend({}, "2026-07", "2026-05")).toEqual([]);
+  });
+
+  test("红果导入数据按标准化名称匹配项目，且只返回对应作品", () => {
+    const projects = [
+      { id: "P1", name: "《谁说炒菜的不算英雄》" },
+      { id: "P2", name: "《夏日回响》" },
+    ];
+    const uploads = [
+      {
+        id: "U1",
+        fileName: "作品数据.csv",
+        records: [
+          { workId: "W1", name: " 谁说炒菜的不算英雄 " },
+          { workId: "W2", name: "律政女王，不做笼中雀" },
+        ],
+      },
+    ];
+
+    expect(normalizeOperationMatchName("　《谁说炒菜的不算英雄》 ")).toBe(
+      "谁说炒菜的不算英雄",
+    );
+    expect(selectMatchedOperationUploads(projects[0], uploads)).toEqual([
+      {
+        ...uploads[0],
+        importedRecordCount: 2,
+        records: [{ workId: "W1", name: " 谁说炒菜的不算英雄 " }],
+      },
+    ]);
+    expect(selectMatchedOperationUploads(projects[1], uploads)).toEqual([]);
+    expect(selectOperationMatchingSummary(projects, uploads)).toMatchObject({
+      matchedProjects: 1,
+      matchedRecords: 1,
+      totalImportedRecords: 2,
+      unmatchedRecords: 1,
+      matchRate: 50,
     });
   });
 

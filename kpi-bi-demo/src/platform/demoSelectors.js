@@ -163,13 +163,13 @@ export function selectRecruitmentDecisionAnalysis(candidates = []) {
 export function selectTopicSummary(topics = []) {
   const converted = topics.filter((topic) => Boolean(topic.projectId)).length;
   const approved = topics.filter((topic) =>
-    ["已通过", "已通过待立项", "已转项目"].includes(topic.status),
+    ["已评估", "已通过", "已通过待立项", "已转项目"].includes(topic.status),
   ).length;
   return {
     total: topics.length,
-    pending: topics.filter((topic) => topic.status === "待审核").length,
+    pending: topics.filter((topic) => ["待评估", "待审核"].includes(topic.status)).length,
     approved,
-    returned: topics.filter((topic) => topic.status === "已退回").length,
+    returned: topics.filter((topic) => ["未通过", "已退回"].includes(topic.status)).length,
     converted,
     conversionRate: approved ? Math.round((converted / approved) * 100) : 0,
   };
@@ -198,13 +198,27 @@ export function selectProjectCostBreakdown(project = {}) {
 export function selectProjectSummary(projects = []) {
   const running = projects.filter((project) => project.status === "进行中");
   const completed = projects.filter((project) => project.status === "已完成");
-  const delayed = projects.filter((project) =>
+  const progressProjects = projects.filter(
+    (project) => project.mode !== "外部制作",
+  );
+  const delayed = progressProjects.filter((project) =>
     (project.flags ?? []).some((flag) => String(flag).includes("延期")),
   );
-  const averageProgress = projects.length
+  const averageProgress = progressProjects.length
     ? Math.round(
-        projects.reduce((sum, project) => sum + Number(project.progress ?? 0), 0) /
-          projects.length,
+        progressProjects.reduce(
+          (sum, project) => {
+            const stages = project.stages ?? [];
+            const progress = stages.length
+              ? stages.reduce(
+                  (stageTotal, stage) => stageTotal + Number(stage.progress ?? 0),
+                  0,
+                ) / stages.length
+              : Number(project.progress ?? 0);
+            return sum + progress;
+          },
+          0,
+        ) / progressProjects.length,
       )
     : 0;
   const totalBudget = projects.reduce(
@@ -247,6 +261,112 @@ export function selectProjectSummary(projects = []) {
     trafficCost,
     costExecutionRate: totalBudget
       ? Math.round((totalActual / totalBudget) * 100)
+      : 0,
+  };
+}
+
+function dashboardMonthRange(startMonth, endMonth) {
+  if (!/^\d{4}-\d{2}$/.test(startMonth) || !/^\d{4}-\d{2}$/.test(endMonth)) return [];
+  if (startMonth > endMonth) return [];
+  const [startYear, startValue] = startMonth.split("-").map(Number);
+  const [endYear, endValue] = endMonth.split("-").map(Number);
+  const months = [];
+  let year = startYear;
+  let month = startValue;
+  while (year < endYear || (year === endYear && month <= endValue)) {
+    months.push(`${year}-${String(month).padStart(2, "0")}`);
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return months;
+}
+
+export function selectMonthlyConsumptionTrend(
+  {
+    projectConsumptionRecords = [],
+    personnelConsumptionSnapshots = [],
+  } = {},
+  startMonth,
+  endMonth,
+) {
+  return dashboardMonthRange(startMonth, endMonth).map((month) => {
+    const monthlyProjects = projectConsumptionRecords.filter(
+      (record) => String(record.createdAt ?? "").slice(0, 7) === month,
+    );
+    const monthlyPersonnelRecords = personnelConsumptionSnapshots
+      .filter((snapshot) => snapshot.snapshotMonth === month)
+      .flatMap((snapshot) => snapshot.records ?? []);
+    return {
+      month,
+      label: `${Number(month.slice(5))}月`,
+      projectCount: monthlyProjects.length,
+      projectAmount: monthlyProjects.reduce(
+        (sum, record) => sum + Number(record.cost ?? 0),
+        0,
+      ),
+      personnelCost: monthlyPersonnelRecords.reduce(
+        (sum, record) => sum + Number(record.totalCost ?? 0),
+        0,
+      ),
+      personnelCount: monthlyPersonnelRecords.filter(
+        (record) => Number(record.totalCost ?? 0) > 0,
+      ).length,
+    };
+  });
+}
+
+export function normalizeOperationMatchName(value = "") {
+  return String(value)
+    .normalize("NFKC")
+    .trim()
+    .replace(/^[《〈「『【〔（(\s]+|[》〉」』】〕）)\s]+$/g, "")
+    .replace(/[\s\u3000]+/g, "")
+    .toLocaleLowerCase("zh-CN");
+}
+
+export function selectMatchedOperationUploads(project, uploads = []) {
+  if (!project) return [];
+  const projectName = normalizeOperationMatchName(project.name);
+  if (!projectName) return [];
+
+  return uploads.flatMap((upload) => {
+    const records = (upload.records ?? []).filter(
+      (record) => normalizeOperationMatchName(record.name) === projectName,
+    );
+    return records.length
+      ? [{ ...upload, importedRecordCount: upload.records?.length ?? 0, records }]
+      : [];
+  });
+}
+
+export function selectOperationMatchingSummary(projects = [], uploads = []) {
+  const matches = projects.map((project) => ({
+    project,
+    uploads: selectMatchedOperationUploads(project, uploads),
+  }));
+  const matchedRecords = matches.reduce(
+    (total, item) =>
+      total + item.uploads.reduce(
+        (subtotal, upload) => subtotal + upload.records.length,
+        0,
+      ),
+    0,
+  );
+  const totalImportedRecords = uploads.reduce(
+    (total, upload) => total + (upload.records?.length ?? 0),
+    0,
+  );
+  return {
+    matches,
+    matchedProjects: matches.filter((item) => item.uploads.length > 0).length,
+    matchedRecords,
+    totalImportedRecords,
+    unmatchedRecords: Math.max(0, totalImportedRecords - matchedRecords),
+    matchRate: totalImportedRecords
+      ? Math.round((matchedRecords / totalImportedRecords) * 100)
       : 0,
   };
 }

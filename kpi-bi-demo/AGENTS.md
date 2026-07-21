@@ -12,6 +12,14 @@ For the integrated KPI_BI platform, use the current blue-and-white dashboard as 
 
 For the business dashboard, present recruitment conversion with a combined bar and line chart rather than a visual funnel: use bars for stage headcount and a line for adjacent conversion rate so scale and conversion changes can be compared directly.
 
+On the business dashboard overview, do not show the operating-risk ledger. Use one start/end month range control and show a monthly project-consumption and personnel-consumption line chart. Aggregate project consumption from project name, episode count, cost, average episode cost, and creation time records; aggregate personnel consumption from monthly import batches containing username, video-generation cost, consumption count, total cost, enabled status, and balance.
+
+In the business dashboard content-project ledger, do not show the participating-center column. Red Fruit work-data exports are imported through a separate operations entry point; this page only consumes that external import pool, normalizes and matches work names to project names, and places only successfully matched rows in the corresponding project's View drawer. Keep the source batch metadata and every original work field in a single-line, horizontally scrollable detail table.
+
+Do not show participating-center information in the business-dashboard project detail drawer either; keep the drawer focused on project status, production mode, schedule, cost, personnel consumption, and matched operations data.
+
+Keep the business-dashboard project ledger responsive: use proportional grid columns with readable minimum widths so the ledger fills available desktop width instead of leaving a fixed empty area on the right; retain horizontal scrolling only below the compact readable width.
+
 Keep paired overview cards equal in height. Recruitment analysis must include complete per-job and per-recruiter breakdowns, including demand gaps, funnel workload, conversion results, and data-inclusion status.
 
 On the personnel dashboard desktop layout, stretch the performance ranking card so its bottom edge aligns with the weekly submission overview, with pagination pinned to the card bottom.
@@ -35,6 +43,10 @@ After an interview round's interviewer and time are submitted, advance directly 
 When creating a recruitment job, automatically display and retain the department leader based on the selected department. Uploading a candidate must create the application directly in `待部门确认`; do not show or persist a separate `待筛选` stage.
 
 After a topic is submitted, keep its topic summary visible as a dedicated column in the topic ledger and as an explicitly labeled section in the topic detail drawer.
+
+For the topic library, keep the supplied reference's decision-oriented structure: status segments for all, pending evaluation, evaluated, not-passed, and initiated topics; searchable topic and people fields; visible expected episode count, creation/update time, evaluator, and project outcome; and row-level actions that match the topic's current workflow stage. Do not show a separate topic-library versus review/initiation view switch, and keep ledger cell content on one line with ellipsis and horizontal scrolling when needed.
+
+In every topic-ledger row, show exactly two actions in this order: Edit and Evaluate. Edit opens a working edit form and supports replacing, removing, and previewing the topic attachment; saving updates the topic directly without creating or displaying topic versions. Evaluate is enabled only for pending-evaluation or not-passed topics. Do not expose project-initiation buttons, forms, or direct navigation-to-initiation actions in the topic library. Approved topics enter the script library automatically. Do not show a keyword, genre, or people filter panel on the topic library. Keep creation time and modification time in separate ledger columns.
 
 Topic summaries are long-form plain text. Let the create-topic textarea grow with multi-paragraph content, show a live character count, keep a two-line ledger preview, and provide explicit expand/collapse controls for long summaries in the detail drawer.
 
@@ -68,7 +80,7 @@ Keep the project detail content-code ledger read-only: do not show add-script, a
 
 For internal project stages, use the labels `剧本`、`制作`、`剪辑`. Stage progress is read-only and synchronized automatically from system task completion; never show manual progress increment controls.
 
-Keep project content-code cards compact and status-free. Each script or video card must provide a `查看全部` action that opens a complete preview of episode main codes and version codes without showing per-episode current status.
+In project details, render the content-code ledger as one episode-based read-only table with script and video main codes. Show the first three episodes by default and provide one `查看全部` action for the complete episode list. Do not show version codes or per-episode status in this ledger.
 
 On recruitment management, keep the global year/month/week period selector compact inside the page title card beside the primary action. Do not show a separate recruitment-period banner or the generic data-status block there; keep the active date range visible within the compact selector.
 
@@ -79,3 +91,27 @@ On recruitment management, do not show the recruitment-period control in the pag
 In recruitment management, place independent time filters inside the `岗位与需求` and `简历库 / 候选人` directories. Each directory filter must support year, month, and exact-day modes, update that directory's result count and empty state, and preserve its selection when switching tabs. Keep these filters out of the page header and out of the recruitment daily-report directory.
 
 Recruitment daily reports do not collect or display reply count, resumes acquired, valid resumes, or invitations. Exclude those four legacy fields from daily-report forms, person-detail metrics, history summaries, recruitment funnels, and recruiter-level operating statistics. Use the supported sequence `打招呼` → `面试` → `通过` → `Offer发放` → `Offer接受` → `入职`; legacy stored values for the removed fields must not affect current statistics.
+
+In the content-and-project navigation, merge the former `项目立项` and `项目总览` entries into one `项目管理` entry. Show the overview and initiation workflow together on one page, reusing one project ledger that includes the project basics, production progress, costs, and personnel-configuration status. Keep `任务列表` as an independent navigation entry.
+
+Insert `剧本库` between `选题库` and `项目管理`. Every evaluated-and-approved topic enters the script library, where the topic submitter or writer can upload either a complete script or episode-level files. Keep all records after project initiation, retain upload history, and resolve overlapping full-script and episode uploads by latest upload time.
+
+For script-library uploads, the newer confirmed rule supersedes the earlier full-script versus episode-file interaction: accept only `.docx`, split the uploaded document into episode content using standard episode headings first and AI-assisted recognition as fallback, and require an editable preview before confirmation. “一卡” is only a business partition term meaning each 10-episode range; never render it as a UI card. Confirmed uploads immediately replace only matching episodes, preserve other episodes, and generate one complete read-only history snapshot for every affected 10-episode range. Historical versions are visible only to users with script-edit permission and do not support compare, restore, or online editing. Block empty, duplicate, unordered, unrecognized, or out-of-range episodes, and reject confirmation if an affected 10-episode range changed after preview.
+
+Project initiation for an approved topic starts only from the script library. Clicking Initiate navigates to the existing project-management initiation form, pre-fills the topic and current script, and lets the initiator choose internal or external production there. Replacing the script in that project form must append and synchronize a new shared script-library version.
+
+The topic library is limited to topic creation, editing, evaluation, and read-only downstream project association. It must not contain any project-initiation entry, initiation form state, or direct project-creation data path.
+
+The topic status domain contains exactly `待评估`、`已评估`、`未通过`. Evaluating a topic successfully changes it to `已评估` and makes it immediately available in the script library. Creating or deleting a linked project must never change that topic status; project linkage remains separate read-only downstream information.
+
+Do not add a separate script-review approval node. A complete upload may proceed to initiation; an initiator may return it with a required reason. Internal projects may append script versions directly with notifications, while external-project script changes require initiator confirmation before supplier notification.
+
+Keep every project-management ledger cell on one visual line. Pair related values horizontally, truncate overflow with ellipsis, and retain horizontal scrolling below the readable desktop width instead of stacking secondary information beneath the primary value.
+
+In the project-management ledger, show exactly these columns in order: project name, project code, source (topic library or self-created), production mode (internal or external), genre, owner, status, episode count, expected completion date, overall progress, cost execution, and actions. Keep exactly two row actions: Details and Delete; place personnel configuration inside the project detail drawer instead of the ledger action column.
+
+Keep project details read-only until the user explicitly selects Edit Project. The New Project and Edit Project drawers must share the same complete initiation form: project name, genre, episode count, total and per-episode budget, owner, planned start and completion dates, role-based participant episode ranges and durations for writer, production, editing, and producer, optional per-role reviewer configuration, and script upload.
+
+Project details must expose the complete project record, including source, production mode, budget and schedule data, uploaded script, and read-only role-based personnel allocation. Personnel and project data become editable only through Edit Project.
+
+External-production projects do not participate in progress statistics. Show no progress percentage, progress bar, stage-progress calculation, or progress anomaly for them; use only the planned start date and expected completion date as their schedule indicators.

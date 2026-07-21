@@ -23,7 +23,7 @@ describe("绩效中心交互与权限", () => {
     expect(screen.getByRole("button", { name: "周报" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "招聘管理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "选题库" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "项目总览" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "项目管理" })).toBeInTheDocument();
     expect(screen.getByText("SSC服务中心")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "组织架构与花名册" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "人事表格管理" })).toBeInTheDocument();
@@ -55,12 +55,13 @@ describe("绩效中心交互与权限", () => {
     expect(within(navigation).getByRole("button", { name: "智能体管理" })).toBeInTheDocument();
 
     fireEvent.click(contentGroup);
-    const projectGroup = within(navigation).getByRole("button", { name: "项目管理" });
-    expect(projectGroup).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(projectGroup);
-    expect(projectGroup).toHaveAttribute("aria-expanded", "false");
+    const projectEntry = within(navigation).getByRole("button", { name: "项目管理" });
+    expect(projectEntry).not.toHaveAttribute("aria-expanded");
+    fireEvent.click(projectEntry);
+    expect(projectEntry).toHaveClass("is-active");
     expect(within(navigation).queryByRole("button", { name: "项目立项" })).toBeNull();
-    expect(within(navigation).getByRole("button", { name: "项目总览" })).toBeInTheDocument();
+    expect(within(navigation).queryByRole("button", { name: "项目总览" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "项目总览、立项与任务协同" })).toBeInTheDocument();
   });
 
   test.each(["成本与工时", "交付中心", "作品库"])(
@@ -247,5 +248,25 @@ describe("绩效中心交互与权限", () => {
     expect(screen.getByText("绩效结果版本")).toBeInTheDocument();
     expect(screen.getByText("基础绩效分")).toBeInTheDocument();
     expect(screen.getAllByText("加减分").length).toBeGreaterThan(0);
+  });
+
+  test("二级复评必须填写结果审核结论并可退回员工补充", () => {
+    render(<App />);
+    switchRole("Leader团队负责人");
+    openPerformance();
+    const actionButton = screen.getAllByRole("button", { name: "二级复评与结果审核" }).find((button) => !button.disabled);
+    fireEvent.click(actionButton);
+
+    expect(screen.getByRole("heading", { name: "二级复评与结果审核" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "结果审核结论" })).toBeInTheDocument();
+    expect(document.querySelector(".okr-sheet-table")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "提交二级审核" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("请填写二级结果审核意见");
+
+    fireEvent.click(screen.getByRole("radio", { name: /退回员工补充/ }));
+    fireEvent.change(screen.getByLabelText("二级结果审核意见"), { target: { value: "证明材料口径不完整，请补充后重新提交。" } });
+    fireEvent.click(screen.getByRole("button", { name: "提交二级审核" }));
+    expect(screen.getByText("操作成功，流程状态与操作日志已更新。")).toBeInTheDocument();
   });
 });

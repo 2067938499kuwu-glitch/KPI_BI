@@ -19,6 +19,7 @@ import {
   MagnifyingGlass,
   Plus,
   ShieldCheck,
+  Trash,
   Trophy,
   TrendUp,
   UploadSimple,
@@ -46,7 +47,10 @@ import {
 } from "../ssc/sscPersonnelStore";
 import {
   createMetricDefinition,
+  selectMatchedOperationUploads,
   selectIncludedRecruitmentReports,
+  selectMonthlyConsumptionTrend,
+  selectOperationMatchingSummary,
   selectRecruitmentDecisionAnalysis,
   selectProjectCostBreakdown,
   selectProjectSummary,
@@ -56,6 +60,22 @@ import {
   selectTopicSummary,
   selectWorkbenchTasks,
 } from "./demoSelectors";
+import {
+  hongguoWorkColumns,
+  hongguoWorkRowsSeed,
+} from "./hongguoOperationData";
+import {
+  applyScriptEpisodeUpload,
+  extractDocxText,
+  getAffectedScriptCards,
+  getScriptCardVersionMap,
+  hasScriptCardConflict,
+  parseScriptText,
+  SCRIPT_DOCX_PATTERN,
+  scriptCardNoForEpisode,
+  scriptCardRange,
+  validateScriptEpisodes,
+} from "./scriptLibraryLogic";
 
 const workbenchModuleConfig = {
   绩效: {
@@ -73,7 +93,7 @@ const workbenchModuleConfig = {
   选题: {
     icon: Lightbulb,
     label: "选题任务",
-    description: "方案修改、审核与立项",
+    description: "方案修改、评估与立项",
     className: "is-topic",
   },
   项目: {
@@ -327,6 +347,30 @@ const candidatesSeed = [
   },
 ];
 
+function normalizeCandidatePhone(value = "") {
+  return String(value).replace(/[^\d*]/g, "");
+}
+
+function normalizeCandidateEmail(value = "") {
+  return String(value).trim().toLocaleLowerCase();
+}
+
+function findCandidateDuplicateMatches(candidates, draft) {
+  const phone = normalizeCandidatePhone(draft.phone);
+  const email = normalizeCandidateEmail(draft.email);
+
+  return candidates.flatMap((candidate) => {
+    const fields = [];
+    if (phone && normalizeCandidatePhone(candidate.phone) === phone) {
+      fields.push("手机号");
+    }
+    if (email && normalizeCandidateEmail(candidate.email) === email) {
+      fields.push("邮箱");
+    }
+    return fields.length ? [{ candidate, fields }] : [];
+  });
+}
+
 const recruitmentDailySeed = [
   {
     id: "RD-0714-01",
@@ -411,10 +455,11 @@ const topicsSeed = [
     template: "编剧模板",
     genre: "悬疑短剧",
     audience: "都市女性",
+    estimatedEpisodes: 60,
     submitter: "张小北",
-    version: 3,
-    status: "已通过待立项",
+    status: "已评估",
     reviewer: "江晚",
+    createdAt: "2026-07-02 09:18",
     updatedAt: "2026-07-14 15:26",
     projectId: null,
     reason: "",
@@ -426,10 +471,11 @@ const topicsSeed = [
     template: "制片模板",
     genre: "都市轻喜",
     audience: "18-35岁职场人",
+    estimatedEpisodes: 24,
     submitter: "沈婉瑶",
-    version: 2,
-    status: "已退回",
+    status: "未通过",
     reviewer: "林制作",
+    createdAt: "2026-07-03 11:06",
     updatedAt: "2026-07-14 13:42",
     projectId: null,
     reason: "缺少成本与场景可行性说明",
@@ -437,18 +483,19 @@ const topicsSeed = [
   },
   {
     id: "TOPIC-018",
-    name: "《城市边缘》",
+    name: "《谁说炒菜的不算英雄》",
     template: "编剧模板",
     genre: "现实题材",
     audience: "泛都市用户",
+    estimatedEpisodes: 40,
     submitter: "江晚",
-    version: 4,
-    status: "已转项目",
+    status: "已评估",
     reviewer: "CEO",
+    createdAt: "2026-06-28 15:32",
     updatedAt: "2026-07-13 18:06",
     projectId: "PRJ-009",
     reason: "",
-    summary: "关注城市边缘职业群体的现实题材项目，采用内部并行制作。",
+    summary: "以烟火餐桌为主线的现实题材项目，采用内部并行制作。",
   },
   {
     id: "TOPIC-036",
@@ -456,10 +503,11 @@ const topicsSeed = [
     template: "制片模板",
     genre: "青春情感",
     audience: "年轻女性",
+    estimatedEpisodes: 36,
     submitter: "林制作",
-    version: 1,
-    status: "待审核",
+    status: "待评估",
     reviewer: "江晚",
+    createdAt: "2026-07-04 10:25",
     updatedAt: "2026-07-14 10:18",
     projectId: null,
     reason: "",
@@ -467,15 +515,151 @@ const topicsSeed = [
   },
 ];
 
+function createSeedScriptEpisodes(total, projectName, overrides = {}) {
+  return Array.from({ length: total }, (_, index) => {
+    const episodeNo = index + 1;
+    return {
+      id: `${projectName}-EP-${episodeNo}`,
+      episodeNo,
+      title: overrides[episodeNo]?.title ?? `${projectName} · 第${episodeNo}集`,
+      content: overrides[episodeNo]?.content ?? `第${episodeNo}集示例正文已从原始剧本文档完成结构化入库。`,
+      detectedBy: "历史迁移",
+      updatedAt: overrides[episodeNo]?.updatedAt ?? "2026-06-30 10:18",
+    };
+  });
+}
+
+function createSeedScriptCardVersions(recordId, episodes, upload, episodeTotal) {
+  return Array.from({ length: Math.ceil(episodeTotal / 10) }, (_, index) => {
+    const cardNo = index + 1;
+    const start = index * 10 + 1;
+    const end = Math.min(start + 9, episodeTotal);
+    return {
+      id: `${recordId}-CARD-${cardNo}-V${upload.version}`,
+      cardNo,
+      episodeStart: start,
+      episodeEnd: end,
+      version: upload.version,
+      sourceUploadId: upload.id,
+      sourceFileName: upload.name,
+      uploadedAt: upload.uploadedAt,
+      uploadedBy: upload.uploadedBy,
+      episodes: episodes.filter((episode) => episode.episodeNo >= start && episode.episodeNo <= end),
+    };
+  });
+}
+
+const script018Upload = {
+  id: "SCRIPT-LIB-018-UPLOAD-1",
+  scope: "full",
+  episodeNo: null,
+  name: "谁说炒菜的不算英雄-全剧本-V1.docx",
+  size: 2864200,
+  type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  uploadedAt: "2026-06-30 10:18",
+  uploadedBy: "江晚",
+  version: 1,
+};
+const script018Episodes = createSeedScriptEpisodes(40, "烟火英雄");
+const script026Upload1 = {
+  id: "SCRIPT-LIB-026-UPLOAD-1",
+  scope: "full",
+  episodeNo: null,
+  name: "无声档案-完整剧本.docx",
+  size: 3268000,
+  type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  uploadedAt: "2026-07-18 15:42",
+  uploadedBy: "张小北",
+  version: 1,
+};
+const script026Upload2 = {
+  id: "SCRIPT-LIB-026-UPLOAD-2",
+  scope: "episode",
+  episodeNo: 12,
+  name: "无声档案-第12集-修订稿.docx",
+  size: 184000,
+  type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  uploadedAt: "2026-07-18 16:20",
+  uploadedBy: "张小北",
+  version: 2,
+};
+const script026EpisodesV1 = createSeedScriptEpisodes(60, "无声档案", {
+  12: { title: "无声证词", content: "第12集初始版本正文。" },
+});
+const script026Episodes = script026EpisodesV1.map((episode) => episode.episodeNo === 12
+  ? { ...episode, content: "第12集修订后正文，补充关键证词与人物反应。", updatedAt: "2026-07-18 16:20" }
+  : episode);
+const script026CardVersions = [
+  ...createSeedScriptCardVersions("SCRIPT-LIB-026", script026EpisodesV1, script026Upload1, 60),
+  {
+    id: "SCRIPT-LIB-026-CARD-2-V2",
+    cardNo: 2,
+    episodeStart: 11,
+    episodeEnd: 20,
+    version: 2,
+    sourceUploadId: script026Upload2.id,
+    sourceFileName: script026Upload2.name,
+    uploadedAt: script026Upload2.uploadedAt,
+    uploadedBy: script026Upload2.uploadedBy,
+    episodes: script026Episodes.filter((episode) => episode.episodeNo >= 11 && episode.episodeNo <= 20),
+  },
+];
+
+const scriptLibrarySeed = [
+  {
+    id: "SCRIPT-LIB-018",
+    topicId: "TOPIC-018",
+    status: "已立项",
+    projectId: "PRJ-009",
+    returnedReason: "",
+    updatedAt: "2026-07-13 18:06",
+    uploads: [script018Upload],
+    episodes: script018Episodes,
+    cardVersions: createSeedScriptCardVersions("SCRIPT-LIB-018", script018Episodes, script018Upload, 40),
+  },
+  {
+    id: "SCRIPT-LIB-026",
+    topicId: "TOPIC-026",
+    status: "待立项",
+    projectId: null,
+    returnedReason: "",
+    updatedAt: "2026-07-18 16:20",
+    uploads: [script026Upload1, script026Upload2],
+    episodes: script026Episodes,
+    cardVersions: script026CardVersions,
+  },
+];
+
 const TOPIC_SUMMARY_MAX_LENGTH = 5000;
 const TOPIC_SUMMARY_COLLAPSE_LENGTH = 240;
+const normalizeTopicStatus = (status) =>
+  ({
+    待审核: "待评估",
+    已通过: "已评估",
+    已通过待立项: "已评估",
+    已转项目: "已评估",
+    已退回: "未通过",
+  })[status] ?? status;
+const topicStatusLabel = normalizeTopicStatus;
+
+const EXTERNAL_VENDOR_COMPANIES = [
+  { name: "星云影业", account: "XY-CZ-001" },
+  { name: "云帆传媒", account: "YF-CZ-002" },
+  { name: "拾光影视", account: "SG-CZ-003" },
+];
+
+const externalVendorAccountFor = (companyName) =>
+  EXTERNAL_VENDOR_COMPANIES.find((company) => company.name === companyName)
+    ?.account ?? "";
 
 const projectsSeed = [
   {
     id: "PRJ-009",
     projectCode: "PRJ-20260518-0001",
-    name: "《城市边缘》",
+    name: "《谁说炒菜的不算英雄》",
     topic: "TOPIC-018",
+    genre: "现实题材",
+    episodeCount: 40,
     mode: "内部制作",
     owner: "沈婉瑶",
     status: "进行中",
@@ -500,6 +684,8 @@ const projectsSeed = [
     projectCode: "PRJ-20260612-0001",
     name: "《夏日回响》",
     topic: "TOPIC-036",
+    genre: "青春情感",
+    episodeCount: 36,
     mode: "外部制作",
     owner: "林制作",
     status: "进行中",
@@ -511,7 +697,13 @@ const projectsSeed = [
     actual: 126000,
     next: "样片交付",
     vendor: "星云影业",
+    vendorCompanyName: "星云影业",
+    vendorAccount: "XY-CZ-001",
     contact: "王澜",
+    vendorContactName: "王澜",
+    vendorContactPhone: "138 0571 6628",
+    externalScriptShareMode: "all",
+    externalScriptCardNo: null,
     liaison: "林制作",
     progress: 65,
     contract: {
@@ -527,6 +719,8 @@ const projectsSeed = [
     projectCode: "PRJ-20260728-0001",
     name: "《无声档案》",
     topic: "TOPIC-026",
+    genre: "悬疑短剧",
+    episodeCount: 60,
     mode: "内部制作",
     owner: "沈婉瑶",
     status: "未开始",
@@ -551,6 +745,8 @@ const projectsSeed = [
     projectCode: "PRJ-20260306-0001",
     name: "《记忆修复师》",
     topic: "TOPIC-011",
+    genre: "科幻悬疑",
+    episodeCount: 60,
     mode: "内部制作",
     owner: "江晚",
     status: "已完成",
@@ -574,64 +770,64 @@ const projectsSeed = [
 
 const operationUploadsSeed = [
   {
-    id: "OPS-0714-01",
-    projectId: "PRJ-009",
-    type: "投流日报",
-    channel: "抖音",
-    cycle: "2026-07-14",
-    uploader: "赵启航",
-    uploadedAt: "2026-07-14 20:18",
-    summary: "消耗 ¥32,800 · ROI 1.84 · 新增付费 1,206",
-  },
-  {
-    id: "OPS-0713-04",
-    projectId: "PRJ-009",
-    type: "素材表现",
-    channel: "抖音 / 快手",
-    cycle: "2026-W28",
+    id: "OPS-HONGGUO-0708",
+    type: "红果作品数据",
+    channel: "红果",
+    source: "红果后台导出",
+    fileName: "作品数据.csv",
+    cycle: "2026-02-06 至 2026-07-04",
     uploader: "陆运营",
-    uploadedAt: "2026-07-13 18:42",
-    summary: "在投素材 18 条 · 高潜素材 5 条 · 完播率 31.6%",
+    uploadedAt: "2026-07-08 11:52",
+    summary: `共 ${hongguoWorkRowsSeed.length} 部作品 · ${hongguoWorkColumns.length} 个原始字段`,
+    records: hongguoWorkRowsSeed,
+  },
+];
+
+const projectConsumptionRecordsSeed = [
+  { id: "PC-001", projectName: "下山既无敌-终版", episodeCount: 60, cost: 150.78, averageCost: 2.51, createdAt: "2026-04-16 15:17" },
+  { id: "PC-002", projectName: "国运食神：废柴少女逆袭记", episodeCount: 30, cost: 121.81, averageCost: 4.06, createdAt: "2026-04-08 14:09" },
+  { id: "PC-003", projectName: "海贼王", episodeCount: 3, cost: 104.2, averageCost: 34.73, createdAt: "2026-05-29 14:51" },
+  { id: "PC-004", projectName: "下山既无敌（弃）", episodeCount: 60, cost: 48.95, averageCost: 0.82, createdAt: "2026-03-13 16:18" },
+  { id: "PC-005", projectName: "玄门重生：开局老婆要离婚", episodeCount: 60, cost: 34.43, averageCost: 0.57, createdAt: "2026-03-16 09:43" },
+  { id: "PC-006", projectName: "测试短剧", episodeCount: 6, cost: 14.31, averageCost: 2.39, createdAt: "2026-07-02 18:18" },
+  { id: "PC-007", projectName: "入夏", episodeCount: 60, cost: 6.01, averageCost: 0.1, createdAt: "2026-06-03 13:04" },
+  { id: "PC-008", projectName: "吴河归魂：我以鬼躯逆仙穹", episodeCount: 30, cost: 3, averageCost: 0.1, createdAt: "2026-03-18 11:17" },
+  { id: "PC-009", projectName: "cyp_test", episodeCount: 3, cost: 1.5, averageCost: 0.5, createdAt: "2026-04-09 18:19" },
+];
+
+const personnelConsumptionSnapshotsSeed = [
+  {
+    snapshotMonth: "2026-03",
+    records: [
+      { username: "王康", videoGenerationCost: 48.95, consumptionCount: 6, totalCost: 48.95, enabled: true, balance: 51.05 },
+      { username: "zhizuo1", videoGenerationCost: 43.12, consumptionCount: 21, totalCost: 43.12, enabled: true, balance: 34.14 },
+      { username: "布只", videoGenerationCost: 34.43, consumptionCount: 4, totalCost: 34.43, enabled: true, balance: 83.15 },
+    ],
   },
   {
-    id: "OPS-0714-02",
-    projectId: "PRJ-012",
-    type: "渠道日报",
-    channel: "TikTok",
-    cycle: "2026-07-14",
-    uploader: "罗语萱",
-    uploadedAt: "2026-07-14 19:36",
-    summary: "曝光 186 万 · 点击率 4.8% · 预约 8,920",
+    snapshotMonth: "2026-04",
+    records: [
+      { username: "魏炳源", videoGenerationCost: 150.78, consumptionCount: 16, totalCost: 150.78, enabled: true, balance: 162.73 },
+      { username: "乐萍萍", videoGenerationCost: 121.81, consumptionCount: 11, totalCost: 121.81, enabled: true, balance: 190.18 },
+    ],
   },
   {
-    id: "OPS-0712-03",
-    projectId: "PRJ-012",
-    type: "受众洞察",
-    channel: "TikTok / Reels",
-    cycle: "2026-W28",
-    uploader: "罗语萱",
-    uploadedAt: "2026-07-12 17:08",
-    summary: "核心受众 18–34 岁 · 女性占比 67% · 高潜地区 4 个",
+    snapshotMonth: "2026-05",
+    records: [
+      { username: "zhipian1", videoGenerationCost: 107.2, consumptionCount: 11, totalCost: 107.2, enabled: true, balance: 4.96 },
+    ],
   },
   {
-    id: "OPS-0702-01",
-    projectId: "PRJ-006",
-    type: "上线复盘",
-    channel: "全渠道",
-    cycle: "2026-06",
-    uploader: "赵启航",
-    uploadedAt: "2026-07-02 16:20",
-    summary: "累计播放 3,860 万 · ROI 2.16 · 回收周期 23 天",
+    snapshotMonth: "2026-06",
+    records: [
+      { username: "小柒", videoGenerationCost: 0, consumptionCount: 0, totalCost: 0, enabled: true, balance: 0 },
+    ],
   },
   {
-    id: "OPS-0630-02",
-    projectId: "PRJ-006",
-    type: "用户反馈",
-    channel: "抖音 / 红果",
-    cycle: "2026-06",
-    uploader: "陆运营",
-    uploadedAt: "2026-06-30 21:05",
-    summary: "有效评论 12,430 条 · 正向 78% · 高频议题 6 个",
+    snapshotMonth: "2026-07",
+    records: [
+      { username: "陈颖鹏", videoGenerationCost: 14.31, consumptionCount: 10, totalCost: 14.31, enabled: true, balance: 85.6 },
+    ],
   },
 ];
 
@@ -707,17 +903,30 @@ function buildContentEntries(
 
 function hydrateContentEntries(project, collection) {
   const config = CONTENT_CODE_CONFIG[collection];
-  const existing = project[collection];
-  if (!existing?.length) {
-    return buildContentEntries(
-      project.projectCode,
-      collection,
-      project[`${collection === "scripts" ? "script" : "video"}Episodes`] ?? 3,
-      project.owner,
-      project.status,
-    );
-  }
-  return existing.map((entry, index) => {
+  const existing = project[collection] ?? [];
+  const targetCount = clampEpisodeCount(
+    Math.max(
+      Number(
+        project[`${collection === "scripts" ? "script" : "video"}Episodes`],
+      ) || 0,
+      Number(project.episodeCount) || 0,
+      existing.length,
+      3,
+    ),
+  );
+  const entries = existing.length >= targetCount
+    ? existing.slice(0, targetCount)
+    : [
+        ...existing,
+        ...buildContentEntries(
+          project.projectCode,
+          collection,
+          targetCount,
+          project.owner,
+          project.status,
+        ).slice(existing.length),
+      ];
+  return entries.map((entry, index) => {
     const sequence = Number(entry.episodeNo) || index + 1;
     const code = entry.code ?? `${project.projectCode}-${config.prefix}-${String(sequence).padStart(4, "0")}`;
     const currentVersion = Math.max(1, Number(entry.currentVersion) || 1);
@@ -810,8 +1019,11 @@ function createDemoDataSnapshot() {
     ),
     recruitmentDailyReports: cloneDemoValue(recruitmentDailySeed),
     topics: cloneDemoValue(topicsSeed),
+    scriptLibrary: cloneDemoValue(scriptLibrarySeed),
     projects: hydrateProjectsEncoding(cloneDemoValue(projectsSeed)),
     operationUploads: cloneDemoValue(operationUploadsSeed),
+    projectConsumptionRecords: cloneDemoValue(projectConsumptionRecordsSeed),
+    personnelConsumptionSnapshots: cloneDemoValue(personnelConsumptionSnapshotsSeed),
     updatedAt: "2026-07-16 09:00",
   };
 }
@@ -866,24 +1078,76 @@ function hydrateStoredDemoData(stored = {}) {
   const storedProjects = stored.projects ?? base.projects;
   const projects = hydrateProjectsEncoding(storedProjects.map((project) => {
     const seedProject = base.projects.find((item) => item.id === project.id);
-    const merged = { ...seedProject, ...project };
+    const merged = {
+      ...seedProject,
+      ...project,
+      name: seedProject?.name ?? project.name,
+    };
     if (merged.mode !== "外部制作") return merged;
     return {
       ...merged,
-      progress: Number(merged.progress ?? 0),
+      progress: null,
       due: merged.due ?? merged.deadline ?? "待排期",
       next: merged.next ?? "供应商启动",
-      vendor: merged.vendor ?? "待录入",
-      contact: merged.contact ?? "待录入",
+      vendor: merged.vendorCompanyName ?? merged.vendor ?? "待录入",
+      vendorCompanyName:
+        merged.vendorCompanyName ??
+        (merged.vendor && merged.vendor !== "待录入" ? merged.vendor : ""),
+      vendorAccount:
+        merged.vendorAccount ??
+        externalVendorAccountFor(merged.vendorCompanyName ?? merged.vendor),
+      contact: merged.vendorContactName ?? merged.contact ?? "待录入",
+      vendorContactName:
+        merged.vendorContactName ??
+        (merged.contact && merged.contact !== "待录入" ? merged.contact : ""),
+      vendorContactPhone: merged.vendorContactPhone ?? merged.contactPhone ?? "",
+      externalScriptShareMode: merged.externalScriptShareMode ?? "all",
+      externalScriptCardNo: merged.externalScriptCardNo ?? null,
       liaison: merged.liaison ?? merged.owner ?? "待分配",
     };
   }));
-  return { ...base, ...stored, candidates, projects };
+  const storedTopics = stored.topics ?? base.topics;
+  const topics = [
+    ...storedTopics.map((topic) => {
+      const seedTopic = base.topics.find((item) => item.id === topic.id);
+      return {
+        ...seedTopic,
+        ...topic,
+        name: seedTopic?.name ?? topic.name,
+        summary: seedTopic?.summary ?? topic.summary,
+        status: normalizeTopicStatus(topic.status ?? seedTopic?.status),
+      };
+    }),
+    ...base.topics.filter(
+      (seedTopic) => !storedTopics.some((topic) => topic.id === seedTopic.id),
+    ),
+  ];
+  const storedScriptLibrary = stored.scriptLibrary ?? base.scriptLibrary;
+  const scriptLibrary = [
+    ...storedScriptLibrary.map((record) => {
+      const seedRecord = base.scriptLibrary.find((item) => item.id === record.id);
+      return { ...seedRecord, ...record };
+    }),
+    ...base.scriptLibrary.filter(
+      (seedRecord) =>
+        !storedScriptLibrary.some((record) => record.id === seedRecord.id),
+    ),
+  ];
+  return {
+    ...base,
+    ...stored,
+    candidates,
+    projects,
+    topics,
+    scriptLibrary,
+    operationUploads: base.operationUploads,
+  };
 }
 
 const DemoDataContext = createContext(null);
 
 export function DemoDataProvider({ children }) {
+  const [projectInitiationTopicId, setProjectInitiationTopicId] = useState(null);
   const [data, setData] = useState(() => {
     try {
       const stored =
@@ -976,82 +1240,13 @@ export function DemoDataProvider({ children }) {
       setRecruitmentDailyReports: (next) =>
         patchCollection("recruitmentDailyReports", next),
       setTopics: (next) => patchCollection("topics", next),
+      setScriptLibrary: (next) => patchCollection("scriptLibrary", next),
       setProjects: (next) => patchCollection("projects", next),
       setOperationUploads: (next) => patchCollection("operationUploads", next),
       resetDemoData: () => setData(createDemoDataSnapshot()),
-      createProjectFromTopic: (topicId, projectDraft = {}) => {
-        const projectId = `project-${Date.now()}`;
-        setData((current) => {
-          const topic = current.topics.find((item) => item.id === topicId);
-          if (!topic || topic.projectId) return current;
-          const mode = projectDraft.mode ?? "内部制作";
-          const owner = projectDraft.owner ?? topic.submitter;
-          const due = projectDraft.deadline ?? "2026-08-31";
-          const projectCode = nextProjectCode(current.projects);
-          const scripts = buildContentEntries(
-            projectCode,
-            "scripts",
-            projectDraft.scriptEpisodes,
-            owner,
-          );
-          const videos = buildContentEntries(
-            projectCode,
-            "videos",
-            projectDraft.videoEpisodes,
-            owner,
-          );
-          const project = {
-            id: projectId,
-            projectCode,
-            name: topic.name,
-            mode,
-            owner,
-            status: "未开始",
-            progress: 0,
-            start: "2026-07-16",
-            due,
-            deadline: due,
-            budget: Number(projectDraft.budget) || 120000,
-            actual: 0,
-            manpowerCost: 0,
-            computeCost: 0,
-            trafficCost: 0,
-            topicId: topic.id,
-            topic: topic.id,
-            contract: mode === "外部制作" ? projectDraft.contract ?? null : null,
-            centers:
-              mode === "内部制作"
-                ? ["内容中心", "AI制作中心", "剪辑中心"]
-                : ["制片中心"],
-            next: mode === "内部制作" ? "项目启动" : "供应商启动",
-            vendor: mode === "外部制作" ? "待录入" : undefined,
-            contact: mode === "外部制作" ? "待录入" : undefined,
-            liaison: mode === "外部制作" ? owner : undefined,
-            flags: [],
-            scripts,
-            videos,
-            stages:
-              mode === "内部制作"
-                ? [
-                    { name: "剧本", owner: topic.submitter, progress: 0, status: "未开始" },
-                    { name: "制作", owner: "待分配", progress: 0, status: "未开始" },
-                    { name: "剪辑", owner: "待分配", progress: 0, status: "未开始" },
-                  ]
-                : [],
-          };
-          return {
-            ...current,
-            topics: current.topics.map((item) =>
-              item.id === topicId
-                ? { ...item, status: "已转项目", projectId }
-                : item,
-            ),
-            projects: [...current.projects, project],
-            updatedAt: "2026-07-16 09:30",
-          };
-        });
-        return projectId;
-      },
+      projectInitiationTopicId,
+      beginProjectInitiation: (topicId) => setProjectInitiationTopicId(topicId),
+      clearProjectInitiation: () => setProjectInitiationTopicId(null),
       completeWorkbenchTask: (task, payload = {}) => {
         if (!task?.sourceType || !task.sourceId) return false;
         setData((current) => {
@@ -1096,7 +1291,7 @@ export function DemoDataProvider({ children }) {
                 topic.id === task.sourceId
                   ? {
                       ...topic,
-                      status: "待审核",
+                      status: "待评估",
                       reason: "",
                       version: Number(topic.version ?? 1) + 1,
                       updatedAt: "2026-07-16 09:30",
@@ -1207,7 +1402,7 @@ export function DemoDataProvider({ children }) {
         ].includes(task.sourceType);
       },
     }),
-    [data],
+    [data, projectInitiationTopicId],
   );
 
   return (
@@ -1227,7 +1422,7 @@ const dailyReports = [
     date: "2026-07-14",
     name: "张小北",
     department: "剪辑中心",
-    summary: "完成《城市边缘》第 3 集精剪与字幕校对",
+    summary: "完成《谁说炒菜的不算英雄》第 3 集精剪与字幕校对",
     outcomes: 3,
     risk: "有风险",
     ai: "AI辅助字幕整理",
@@ -1304,8 +1499,8 @@ const auditLogs = [
     action: "审核通过",
     operator: "江晚",
     role: "选题审核人",
-    from: "待审核",
-    to: "已通过待立项",
+    from: "待评估",
+    to: "已评估",
     version: "V3",
     requestId: "REQ-7F28A1",
     result: "成功",
@@ -1361,7 +1556,7 @@ function safeRate(value, base) {
 }
 
 function projectProgress(project) {
-  if (project.mode === "外部制作") return project.progress;
+  if (project.mode === "外部制作") return null;
   if (!project.stages?.length) return 0;
   return Math.round(
     project.stages.reduce((sum, item) => sum + item.progress, 0) /
@@ -1542,11 +1737,11 @@ function MetricProvenanceDrawer({ metric, onClose, onNavigate }) {
   );
 }
 
-function PlatformFilter({ children, actions }) {
+function PlatformFilter({ children, actions, className = "" }) {
   return (
-    <section className="platform-filter">
+    <section className={`platform-filter ${className}`.trim()}>
       <div className="platform-filter__fields">{children}</div>
-      <div className="platform-filter__actions">{actions}</div>
+      {actions ? <div className="platform-filter__actions">{actions}</div> : null}
     </section>
   );
 }
@@ -1592,17 +1787,21 @@ function PlatformDrawer({
   children,
   footer,
   wide = false,
+  className = "",
+  ariaHidden = false,
 }) {
   return (
     <div
+      aria-hidden={ariaHidden || undefined}
       className="platform-drawer-mask"
+      inert={ariaHidden || undefined}
       role="presentation"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <aside
         aria-label={title}
         aria-modal="true"
-        className={`platform-drawer ${wide ? "is-wide" : ""}`}
+        className={`platform-drawer ${wide ? "is-wide" : ""} ${className}`.trim()}
         role="dialog"
       >
         <header>
@@ -1623,6 +1822,39 @@ function PlatformDrawer({
         <div className="platform-drawer__body">{children}</div>
         {footer ? <footer>{footer}</footer> : null}
       </aside>
+    </div>
+  );
+}
+
+function PlatformConfirmDialog({ title, description, onClose, footer, children }) {
+  return (
+    <div className="platform-confirm-mask" role="presentation">
+      <section
+        aria-label={title}
+        aria-modal="true"
+        className="platform-confirm-dialog"
+        role="dialog"
+      >
+        <header>
+          <span className="platform-confirm-dialog__icon" aria-hidden="true">
+            <WarningCircle size={24} weight="fill" />
+          </span>
+          <div>
+            <h2>{title}</h2>
+            {description ? <p>{description}</p> : null}
+          </div>
+          <button
+            aria-label="关闭重复信息提示"
+            className="platform-icon-button"
+            onClick={onClose}
+            type="button"
+          >
+            <X size={20} />
+          </button>
+        </header>
+        <div className="platform-confirm-dialog__body">{children}</div>
+        <footer>{footer}</footer>
+      </section>
     </div>
   );
 }
@@ -1790,7 +2022,14 @@ function topicAttachmentTypeLabel(attachment) {
   return "通用文件";
 }
 
-function TopicAttachmentUploadField({ file, error, onChange, onError, onView }) {
+function TopicAttachmentUploadField({
+  file,
+  error,
+  onChange,
+  onError,
+  onRemove,
+  onView,
+}) {
   return (
     <div className="platform-form-field is-wide">
       <span>选题附件</span>
@@ -1838,13 +2077,24 @@ function TopicAttachmentUploadField({ file, error, onChange, onError, onView }) 
           />
         </label>
         {file ? (
-          <button
-            className="ghost-chip platform-contract-upload__view"
-            onClick={onView}
-            type="button"
-          >
-            预览文件
-          </button>
+          <div className="platform-contract-upload__controls">
+            <button
+              className="ghost-chip platform-contract-upload__view"
+              onClick={onView}
+              type="button"
+            >
+              预览文件
+            </button>
+            {onRemove ? (
+              <button
+                className="ghost-chip platform-contract-upload__remove"
+                onClick={onRemove}
+                type="button"
+              >
+                移除附件
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
       {error ? (
@@ -2602,6 +2852,128 @@ function RecruitmentStatistics({ reports = [] }) {
   );
 }
 
+function formatChartMoney(value) {
+  const amount = Number(value ?? 0);
+  if (amount >= 10000) {
+    const tenThousands = amount / 10000;
+    return `${Number.isInteger(tenThousands) ? tenThousands : tenThousands.toFixed(1)}万`;
+  }
+  if (amount >= 1000) return `${(amount / 1000).toFixed(1)}千`;
+  return amount ? `¥${Number(amount.toFixed(2))}` : "0";
+}
+
+function MonthlyProjectFinancialTrend({
+  period,
+  personnelConsumptionSnapshots = [],
+  projectConsumptionRecords = [],
+}) {
+  const data = selectMonthlyConsumptionTrend(
+    { projectConsumptionRecords, personnelConsumptionSnapshots },
+    period.start,
+    period.end,
+  );
+  const projectAmount = data.reduce(
+    (sum, item) => sum + item.projectAmount,
+    0,
+  );
+  const personnelCost = data.reduce(
+    (sum, item) => sum + item.personnelCost,
+    0,
+  );
+  const projectCount = data.reduce(
+    (sum, item) => sum + item.projectCount,
+    0,
+  );
+
+  return (
+    <section
+      aria-label="月度项目金额与人员消耗趋势"
+      className="platform-financial-trend"
+    >
+      <div className="platform-financial-trend__summary">
+        <div>
+          <span>范围内项目金额</span>
+          <strong>{formatMoney(projectAmount)}</strong>
+        </div>
+        <div>
+          <span>范围内人员消耗</span>
+          <strong>{formatMoney(personnelCost)}</strong>
+        </div>
+        <div>
+          <span>归集项目</span>
+          <strong>{projectCount}<small> 个</small></strong>
+        </div>
+      </div>
+      <div className="platform-financial-trend__legend" aria-hidden="true">
+        <span className="is-project">项目实际金额</span>
+        <span className="is-personnel">人员消耗</span>
+      </div>
+      <div className="platform-financial-trend__chart-scroll">
+        <div
+          aria-label="月度项目金额和人员消耗折线图"
+          className="platform-financial-trend__chart"
+          role="img"
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart
+              accessibilityLayer
+              data={data}
+              margin={{ top: 20, right: 18, bottom: 4, left: 0 }}
+            >
+              <CartesianGrid stroke="#e9edf5" strokeDasharray="3 4" vertical={false} />
+              <XAxis
+                axisLine={false}
+                dataKey="label"
+                interval={0}
+                tick={{ fill: "#68768a", fontSize: 10 }}
+                tickLine={false}
+                tickMargin={10}
+              />
+              <YAxis
+                axisLine={false}
+                tick={{ fill: "#8a97aa", fontSize: 9 }}
+                tickFormatter={formatChartMoney}
+                tickLine={false}
+                width={54}
+              />
+              <Tooltip
+                contentStyle={{
+                  border: "1px solid #dfe6f2",
+                  borderRadius: 10,
+                  boxShadow: "0 10px 28px rgba(15, 23, 42, 0.1)",
+                  fontSize: 11,
+                }}
+                formatter={(value, name) => [
+                  formatMoney(value),
+                  name === "projectAmount" ? "项目实际金额" : "人员消耗",
+                ]}
+                labelFormatter={(label, payload) => payload?.[0]?.payload?.month ?? label}
+                labelStyle={{ color: "#172033", fontWeight: 700 }}
+              />
+              <Line
+                activeDot={{ r: 5, fill: "#6268df", stroke: "#fff", strokeWidth: 2 }}
+                dataKey="projectAmount"
+                dot={{ r: 3.5, fill: "#fff", stroke: "#6268df", strokeWidth: 2 }}
+                stroke="#6268df"
+                strokeWidth={2.7}
+                type="monotone"
+              />
+              <Line
+                activeDot={{ r: 5, fill: "#14b8a6", stroke: "#fff", strokeWidth: 2 }}
+                dataKey="personnelCost"
+                dot={{ r: 3.5, fill: "#fff", stroke: "#14b8a6", strokeWidth: 2 }}
+                stroke="#14b8a6"
+                strokeWidth={2.5}
+                type="monotone"
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function RecruitmentDecisionAnalysis({ candidates = [] }) {
   const analysis = selectRecruitmentDecisionAnalysis(candidates);
   return (
@@ -2648,6 +3020,7 @@ function RecruitmentDecisionAnalysis({ candidates = [] }) {
           </PlatformBadge>
         </div>
         <DataTable
+          className="platform-table--single-line"
           columns={[
             { label: "面试官", width: "1.2fr" },
             { label: "参与轮次", width: "1.2fr" },
@@ -2693,8 +3066,12 @@ function ContentProjectOverview({ goPage }) {
   const selectedProject = projects.find(
     (project) => project.id === selectedProjectId,
   );
-  const selectedUploads = operationUploads.filter(
-    (upload) => upload.projectId === selectedProjectId,
+  const selectedUploads = selectMatchedOperationUploads(
+    selectedProject,
+    operationUploads,
+  );
+  const selectedUploadRecords = selectedUploads.flatMap(
+    (upload) => upload.records ?? [],
   );
   const internalProjects = projects.filter(
     (project) => project.mode === "内部制作",
@@ -2715,9 +3092,10 @@ function ContentProjectOverview({ goPage }) {
     0,
   );
   const totalActual = projectCostSummary.totalActual;
-  const projectsWithOperations = new Set(
-    operationUploads.map((upload) => upload.projectId),
-  ).size;
+  const operationMatchingSummary = selectOperationMatchingSummary(
+    projects,
+    operationUploads,
+  );
   const visibleProjects = projects.filter((project) => {
     const matchesMode =
       mode === "all" ||
@@ -2739,6 +3117,18 @@ function ContentProjectOverview({ goPage }) {
       detail: "按供应商整体里程碑统计进度",
     },
   ];
+  const projectLedgerColumns = [
+    { label: "项目", width: "minmax(180px, 1.45fr)" },
+    { label: "状态 / 制作方式", width: "minmax(120px, 0.82fr)" },
+    { label: "开始时间 / 截止时间", width: "minmax(190px, 1.2fr)" },
+    { label: "整体进度", width: "minmax(115px, 0.82fr)" },
+    { label: "实际成本 / 预算", width: "minmax(145px, 1fr)" },
+    { label: "运营匹配数据", width: "minmax(175px, 1.16fr)" },
+    { label: "操作", width: "minmax(55px, 0.34fr)" },
+  ];
+  const projectLedgerGridTemplate = projectLedgerColumns
+    .map((column) => column.width)
+    .join(" ");
 
   return (
     <>
@@ -2778,9 +3168,9 @@ function ContentProjectOverview({ goPage }) {
             tone: "amber",
           },
           {
-            label: "运营数据归属率",
-            value: "100%",
-            meta: `${operationUploads.length} / ${operationUploads.length} 条已关联项目`,
+            label: "运营数据匹配率",
+            value: `${operationMatchingSummary.matchRate}%`,
+            meta: `${operationMatchingSummary.matchedRecords} 条已匹配 · ${operationMatchingSummary.unmatchedRecords} 条待匹配`,
             tone: "blue",
           },
         ]}
@@ -2886,26 +3276,30 @@ function ContentProjectOverview({ goPage }) {
         </PlatformCard>
 
         <PlatformCard
-          title="运营数据归属"
-          description="运营上传时以项目编码写入对应项目"
-          action={<PlatformBadge tone="success">归属完整</PlatformBadge>}
+          title="运营数据名称匹配"
+          description="红果数据由其他入口导入，系统按作品名称与项目名称自动匹配"
+          action={
+            <PlatformBadge tone={operationMatchingSummary.unmatchedRecords ? "warning" : "success"}>
+              已匹配 {operationMatchingSummary.matchedRecords} / {operationMatchingSummary.totalImportedRecords}
+            </PlatformBadge>
+          }
         >
           <div className="platform-operation-overview">
             <div className="platform-operation-overview__score">
-              <div className="platform-donut is-green" style={{ "--value": "100%" }}>
-                <b>100%</b>
+              <div className="platform-donut is-green" style={{ "--value": `${operationMatchingSummary.matchRate}%` }}>
+                <b>{operationMatchingSummary.matchRate}%</b>
               </div>
               <div>
-                <strong>{operationUploads.length} 条数据已归属</strong>
-                <span>覆盖 {projectsWithOperations} / {projects.length} 个项目</span>
+                <strong>{operationMatchingSummary.matchedRecords} 条作品数据已匹配</strong>
+                <span>覆盖 {operationMatchingSummary.matchedProjects} / {projects.length} 个项目</span>
               </div>
             </div>
             <div className="platform-operation-overview__types">
-              <span>投流 / 渠道日报 <b>2</b></span>
-              <span>素材 / 受众洞察 <b>2</b></span>
-              <span>复盘 / 用户反馈 <b>2</b></span>
+              <span>红果后台导出 <b>{operationUploads.length} 份</b></span>
+              <span>已匹配 <b>{operationMatchingSummary.matchedRecords} 条</b></span>
+              <span>待匹配 <b>{operationMatchingSummary.unmatchedRecords} 条</b></span>
             </div>
-            <small>《无声档案》尚未启动，暂无运营上传数据。</small>
+            <small>名称会先去除书名号、空格并统一全半角；匹配成功的数据才进入对应项目。</small>
           </div>
         </PlatformCard>
       </div>
@@ -2962,7 +3356,7 @@ function ContentProjectOverview({ goPage }) {
 
       <PlatformCard
         title="项目总览台账"
-        description="按项目查看状态、参与中心、周期、成本及运营数据归属"
+        description="按项目查看状态、周期、成本及红果运营数据名称匹配结果"
         action={
           <PlatformBadge tone="primary">当前 {visibleProjects.length} 个项目</PlatformBadge>
         }
@@ -2997,35 +3391,32 @@ function ContentProjectOverview({ goPage }) {
           </label>
         </div>
         <DataTable
-          columns={[
-            { label: "项目", width: "1.2fr" },
-            { label: "状态 / 制作方式", width: "130px" },
-            { label: "参与中心", width: "1.25fr" },
-            { label: "开始时间 / 截止时间", width: "180px" },
-            { label: "整体进度", width: "150px" },
-            { label: "实际成本 / 预算", width: "145px" },
-            { label: "运营上传数据", width: "145px" },
-            { label: "操作", width: "76px" },
-          ]}
-          minWidth={1160}
+          className="platform-table--single-line"
+          columns={projectLedgerColumns}
+          minWidth={1080}
         >
           {visibleProjects.map((project) => {
-            const uploads = operationUploads.filter(
-              (upload) => upload.projectId === project.id,
+            const uploads = selectMatchedOperationUploads(
+              project,
+              operationUploads,
             );
             const latestUpload = uploads[0];
+            const uploadedRecordCount = uploads.reduce(
+              (total, upload) => total + (upload.records?.length ?? 0),
+              0,
+            );
             return (
               <div
                 className="platform-table__row platform-project-ledger-row"
                 style={{
-                  gridTemplateColumns:
-                    "1.2fr 130px 1.25fr 180px 150px 145px 145px 76px",
+                  gridTemplateColumns: projectLedgerGridTemplate,
                 }}
                 key={project.id}
               >
-                <div>
+                <div className="platform-table-inline-cell">
                   <strong>{project.name}</strong>
-                  <small>{project.projectCode} · 负责人 {project.owner}</small>
+                  <small>{project.projectCode}</small>
+                  <small>负责人 {project.owner}</small>
                 </div>
                 <div className="platform-badge-row">
                   <PlatformBadge>{project.status}</PlatformBadge>
@@ -3033,16 +3424,16 @@ function ContentProjectOverview({ goPage }) {
                     {project.mode}
                   </PlatformBadge>
                 </div>
-                <div>
-                  <strong>{project.centers.join(" · ")}</strong>
-                  <small>{project.centers.length} 个中心协同</small>
-                </div>
                 <div className="platform-project-period">
                   <span><i>始</i>{project.start}</span>
                   <span><i>止</i>{project.due}</span>
                 </div>
-                <ProgressBar value={projectProgress(project)} />
-                <div>
+                {project.mode === "外部制作" ? (
+                  <span className="platform-progress-exempt">不统计</span>
+                ) : (
+                  <ProgressBar value={projectProgress(project)} />
+                )}
+                <div className="platform-table-inline-cell">
                   <strong>{formatMoney(project.actual)}</strong>
                   <small>预算 {formatMoney(project.budget)}</small>
                 </div>
@@ -3051,8 +3442,8 @@ function ContentProjectOverview({ goPage }) {
                   onClick={() => setSelectedProjectId(project.id)}
                   type="button"
                 >
-                  <strong>{uploads.length ? `已归属 ${uploads.length} 条` : "待运营上传"}</strong>
-                  <small>{latestUpload ? `${latestUpload.type} · ${latestUpload.cycle}` : "暂无数据"}</small>
+                  <strong>{uploads.length ? `已匹配 ${uploadedRecordCount} 条数据` : "暂无匹配数据"}</strong>
+                  <small>{latestUpload ? `${latestUpload.source} · 名称一致` : "等待同名作品数据"}</small>
                 </button>
                 <button
                   className="table-link"
@@ -3072,7 +3463,7 @@ function ContentProjectOverview({ goPage }) {
         <PlatformDrawer
           wide
           title={selectedProject.name}
-          subtitle={`${selectedProject.projectCode} · ${selectedProject.mode} · 运营数据按项目编号归属`}
+          subtitle={`${selectedProject.projectCode} · ${selectedProject.mode} · 运营数据按名称自动匹配`}
           onClose={() => setSelectedProjectId(null)}
           footer={
             <>
@@ -3087,7 +3478,7 @@ function ContentProjectOverview({ goPage }) {
                 className="primary-btn"
                 onClick={() => {
                   setSelectedProjectId(null);
-                  goPage("projects");
+                  goPage("project-management");
                 }}
                 type="button"
               >
@@ -3112,10 +3503,6 @@ function ContentProjectOverview({ goPage }) {
             <div>
               <span>截止时间</span>
               <strong>{selectedProject.due}</strong>
-            </div>
-            <div>
-              <span>参与中心</span>
-              <strong>{selectedProject.centers.join("、")}</strong>
             </div>
             <div>
               <span>实际成本 / 预算</span>
@@ -3158,32 +3545,72 @@ function ContentProjectOverview({ goPage }) {
           <section className="platform-detail-section">
             <div className="platform-section-heading">
               <div>
-                <h3>运营上传数据</h3>
-                <p>每条记录均归属于项目编号 {selectedProject.projectCode}</p>
+                <h3>运营导入数据</h3>
+                <p>匹配规则：项目名称“{selectedProject.name}”与红果作品名称一致</p>
               </div>
               <PlatformBadge tone={selectedUploads.length ? "success" : "warning"}>
-                {selectedUploads.length ? `已归属 ${selectedUploads.length} 条` : "暂无数据"}
+                {selectedUploads.length ? `匹配成功 · ${selectedUploadRecords.length} 条` : "未匹配"}
               </PlatformBadge>
             </div>
             {selectedUploads.length ? (
               <div className="platform-operation-upload-list">
                 {selectedUploads.map((upload) => (
-                  <article key={upload.id}>
-                    <span>
-                      <FileText size={18} weight="duotone" />
-                    </span>
-                    <div>
-                      <strong>{upload.type} · {upload.channel}</strong>
-                      <p>{upload.summary}</p>
-                      <small>{upload.cycle} · {upload.uploader} 上传于 {upload.uploadedAt}</small>
+                  <section className="platform-operation-upload-batch" key={upload.id}>
+                    <header>
+                      <span>
+                        <FileText size={18} weight="duotone" />
+                      </span>
+                      <div>
+                        <strong>{upload.fileName}</strong>
+                        <p>{upload.source} · 本批次匹配 {upload.records.length} 条 / 原文件 {upload.importedRecordCount} 条</p>
+                        <small>{upload.cycle} · {upload.uploader} 上传于 {upload.uploadedAt}</small>
+                      </div>
+                      <PlatformBadge tone="primary">CSV</PlatformBadge>
+                    </header>
+                    <div className="platform-operation-raw-table-shell">
+                      <table
+                        aria-label={`${upload.fileName} 数据明细`}
+                        className="platform-operation-raw-table"
+                      >
+                        <thead>
+                          <tr>
+                            {hongguoWorkColumns.map((column) => (
+                              <th key={column.key} style={{ minWidth: column.width }}>
+                                {column.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(upload.records ?? []).map((record) => (
+                            <tr key={record.workId}>
+                              {hongguoWorkColumns.map((column) => (
+                                <td key={column.key}>
+                                  {column.key === "coverUrl" ? (
+                                    <a
+                                      href={record.coverUrl}
+                                      rel="noreferrer"
+                                      target="_blank"
+                                    >
+                                      查看封面
+                                    </a>
+                                  ) : (
+                                    record[column.key]
+                                  )}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  </article>
+                  </section>
                 ))}
               </div>
             ) : (
               <PlatformEmpty
-                title="该项目暂无运营上传数据"
-                description="项目启动后，运营数据将按项目编码自动归属到这里。"
+                title="未匹配到同名运营数据"
+                description="数据在其他入口导入后，系统会按作品名称匹配项目名称；匹配成功后自动展示在这里。"
               />
             )}
           </section>
@@ -3313,6 +3740,7 @@ function DashboardDomainView({ view, goPage }) {
             }
           >
             <DataTable
+              className="platform-table--single-line"
               columns={[
                 { label: "招聘岗位", width: "1.2fr" },
                 { label: "部门 / 城市", width: "1.2fr" },
@@ -3338,10 +3766,7 @@ function DashboardDomainView({ view, goPage }) {
                   <div>
                     <strong>{job.name}</strong>
                   </div>
-                  <div>
-                    <span>{job.department}</span>
-                    <small>{job.city}</small>
-                  </div>
+                  <span>{job.department} · {job.city}</span>
                   <span>{job.recruiter}</span>
                   <strong>
                     {job.need} / {job.onboarded}
@@ -3372,6 +3797,7 @@ function DashboardDomainView({ view, goPage }) {
           >
             <div className="platform-recruiter-table">
               <DataTable
+                className="platform-table--single-line"
                 columns={[
                   { label: "招聘人员" },
                   { label: "负责岗位" },
@@ -3415,13 +3841,27 @@ export function BusinessDashboardPage({ goPage, activeRole, reviews = [] }) {
   const {
     jobs,
     candidates,
+    personnelConsumptionSnapshots,
+    projectConsumptionRecords,
     recruitmentDailyReports,
     topics,
     projects,
     updatedAt,
   } = useDemoData();
   const [view, setView] = useState("overview");
+  const [statisticsPeriod, setStatisticsPeriod] = useState({
+    start: "2026-03",
+    end: "2026-07",
+  });
   const [selectedMetric, setSelectedMetric] = useState(null);
+  const updateStatisticsPeriod = (key, value) => {
+    setStatisticsPeriod((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "start" && value > next.end) next.end = value;
+      if (key === "end" && value < next.start) next.start = value;
+      return next;
+    });
+  };
   const recruitmentSummary = selectRecruitmentSummary({
     jobs,
     candidates,
@@ -3602,52 +4042,39 @@ export function BusinessDashboardPage({ goPage, activeRole, reviews = [] }) {
         onChange={setView}
         ariaLabel="驾驶舱分析维度"
       />
-      <PlatformFilter
-        actions={
-          <>
-            <button className="ghost-chip" type="button">
-              重置
-            </button>
-            <button className="primary-btn" type="button">
-              查询
-            </button>
-          </>
-        }
-      >
-        <label>
+      <PlatformFilter className="platform-filter--period">
+        <div
+          aria-label="统计时间范围"
+          className="platform-period-range"
+          role="group"
+        >
           <span>统计时间</span>
-          <select defaultValue="2026-07">
-            <option>2026-07</option>
-            <option>2026-06</option>
-          </select>
-        </label>
-        <label>
-          <span>部门</span>
-          <select defaultValue="all">
-            <option value="all">全部部门</option>
-            <option>剪辑中心</option>
-            <option>制片中心</option>
-          </select>
-        </label>
-        <label>
-          <span>人员 / 岗位</span>
-          <input placeholder="输入人员或岗位" />
-        </label>
-        <label>
-          <span>项目 / 状态</span>
-          <select defaultValue="all">
-            <option value="all">全部项目与状态</option>
-            <option>存在异常</option>
-          </select>
-        </label>
-        <label>
-          <span>招聘平台</span>
-          <select defaultValue="all">
-            <option value="all">全部平台</option>
-            <option>BOSS直聘</option>
-            <option>猎聘</option>
-          </select>
-        </label>
+          <div className="platform-period-range__controls">
+            <label>
+              <small>开始月份</small>
+              <input
+                aria-label="统计开始月份"
+                max="2026-12"
+                min="2026-01"
+                onChange={(event) => updateStatisticsPeriod("start", event.target.value)}
+                type="month"
+                value={statisticsPeriod.start}
+              />
+            </label>
+            <i aria-hidden="true">至</i>
+            <label>
+              <small>结束月份</small>
+              <input
+                aria-label="统计结束月份"
+                max="2026-12"
+                min="2026-01"
+                onChange={(event) => updateStatisticsPeriod("end", event.target.value)}
+                type="month"
+                value={statisticsPeriod.end}
+              />
+            </label>
+          </div>
+        </div>
       </PlatformFilter>
       {view === "overview" ? (
         <>
@@ -3685,7 +4112,7 @@ export function BusinessDashboardPage({ goPage, activeRole, reviews = [] }) {
                   <div className="platform-donut" style={{ "--value": `${topicSummary.conversionRate}%` }}>
                     <b>{topicSummary.conversionRate}%</b>
                   </div>
-                  <small>已转项目 / 审核通过</small>
+                  <small>已关联项目 / 已评估选题</small>
                 </article>
                 <article>
                   <div>
@@ -3713,74 +4140,14 @@ export function BusinessDashboardPage({ goPage, activeRole, reviews = [] }) {
             </PlatformCard>
           </div>
           <PlatformCard
-            title="经营风险清单"
-            description="指标卡和风险行均可继承筛选条件钻取"
+            title="月度项目金额与人员消耗趋势"
+            description={`${statisticsPeriod.start} 至 ${statisticsPeriod.end} · 项目按创建时间归集消耗成本，人员按导入批次月份汇总总消耗`}
           >
-            <DataTable
-              columns={[
-                { label: "业务模块", width: "110px" },
-                { label: "风险对象", width: "1.1fr" },
-                { label: "异常说明", width: "1.6fr" },
-                { label: "负责人", width: "110px" },
-                { label: "发现时间", width: "150px" },
-                { label: "状态", width: "110px" },
-                { label: "操作", width: "72px" },
-              ]}
-              minWidth={960}
-            >
-              {[
-                {
-                  module: "招聘",
-                  object: "中级剪辑师",
-                  issue: "3 位候选人部门确认已逾期",
-                  owner: "陈璐",
-                  time: "07-14 15:20",
-                  status: "待处理",
-                  target: "recruitment",
-                },
-                {
-                  module: "项目",
-                  object: "《城市边缘》",
-                  issue: "剪辑一审延期，可能影响上线排期",
-                  owner: "沈婉瑶",
-                  time: "07-14 14:51",
-                  status: "处理中",
-                  target: "projects",
-                },
-                {
-                  module: "选题",
-                  object: "《十分钟便利店》",
-                  issue: "退回后 2 天未重新提交",
-                  owner: "张小北",
-                  time: "07-14 13:42",
-                  status: "待处理",
-                  target: "topics",
-                },
-              ].map((row) => (
-                <div
-                  className="platform-table__row"
-                  style={{
-                    gridTemplateColumns:
-                      "110px 1.1fr 1.6fr 110px 150px 110px 72px",
-                  }}
-                  key={row.object}
-                >
-                  <PlatformBadge>{row.module}</PlatformBadge>
-                  <strong>{row.object}</strong>
-                  <span>{row.issue}</span>
-                  <span>{row.owner}</span>
-                  <span>{row.time}</span>
-                  <PlatformBadge>{row.status}</PlatformBadge>
-                  <button
-                    className="table-link"
-                    onClick={() => goPage(row.target)}
-                    type="button"
-                  >
-                    钻取
-                  </button>
-                </div>
-              ))}
-            </DataTable>
+            <MonthlyProjectFinancialTrend
+              period={statisticsPeriod}
+              personnelConsumptionSnapshots={personnelConsumptionSnapshots}
+              projectConsumptionRecords={projectConsumptionRecords}
+            />
           </PlatformCard>
         </>
       ) : (
@@ -4964,6 +5331,7 @@ export function RecruitmentCenterPage() {
   const [jobDraft, setJobDraft] = useState({});
   const [candidateEntry, setCandidateEntry] = useState(null);
   const [candidateEntryError, setCandidateEntryError] = useState("");
+  const [candidateDuplicateReview, setCandidateDuplicateReview] = useState(null);
   const [resumeName, setResumeName] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
   const [resumePreview, setResumePreview] = useState(null);
@@ -5165,6 +5533,7 @@ export function RecruitmentCenterPage() {
   const openCandidateEntry = (job = null) => {
     setCandidateEntry(job?.id ?? "manual");
     setCandidateEntryError("");
+    setCandidateDuplicateReview(null);
     setResumeName("");
     setResumeFile(null);
     setCandidateDraft({
@@ -5175,6 +5544,85 @@ export function RecruitmentCenterPage() {
       jobId: job?.id ?? jobs[0]?.id ?? "",
       owner: job?.recruiter ?? "陈璐",
     });
+  };
+  const closeCandidateEntry = () => {
+    setCandidateEntry(null);
+    setCandidateDuplicateReview(null);
+  };
+  const createCandidateEntry = (job, existingCandidateId = "") => {
+    const departmentLeader =
+      job.departmentLeader ?? departmentLeaderCatalog[job.department] ?? "";
+    const applicationId = `APP-${Date.now()}`;
+    const application = {
+      id: applicationId,
+      job: job.name,
+      status: "待部门确认",
+      departmentLeader,
+      interviewer: job.interviewers?.[0] ?? "",
+      interviewTotal: job.interviewRounds ?? 1,
+      interviewers: job.interviewers ?? [],
+      currentInterviewRound: 1,
+      interviews: (job.interviewers ?? []).map((interviewer, index) => ({
+        round: index + 1,
+        interviewer,
+        status: "待安排",
+      })),
+      resumeName,
+      resumeFile,
+      submittedPhone: candidateDraft.phone.trim(),
+      submittedEmail: candidateDraft.email.trim(),
+      version: 1,
+      history: [
+        {
+          time: "2026-07-15 10:30",
+          action: "上传简历并创建应聘记录",
+          operator: candidateDraft.owner || job.recruiter,
+          note: `简历：${resumeName}；已提交${departmentLeader || "部门负责人"}进行部门确认`,
+        },
+      ],
+    };
+    const existingCandidate = candidates.find(
+      (item) => item.id === existingCandidateId,
+    );
+    const candidate = existingCandidate
+      ? {
+          ...existingCandidate,
+          owner: candidateDraft.owner || job.recruiter,
+          duplicate: "已关联主档",
+          updatedAt: "刚刚更新",
+          resumeName,
+          resumeFile,
+          applications: [application, ...(existingCandidate.applications ?? [])],
+        }
+      : {
+          id: `CAN-${Date.now()}`,
+          name: candidateDraft.name.trim(),
+          phone: candidateDraft.phone.trim(),
+          email: candidateDraft.email.trim(),
+          source: candidateDraft.source,
+          owner: candidateDraft.owner || job.recruiter,
+          duplicate: "无重复",
+          updatedAt: "刚刚创建",
+          resumeName,
+          resumeFile,
+          applications: [application],
+        };
+    setCandidates((items) =>
+      existingCandidate
+        ? items.map((item) => (item.id === existingCandidate.id ? candidate : item))
+        : [candidate, ...items],
+    );
+    setJobs((items) =>
+      items.map((item) =>
+        item.id === job.id
+          ? { ...item, candidates: item.candidates + 1 }
+          : item,
+      ),
+    );
+    setCandidateEntry(null);
+    setCandidateDuplicateReview(null);
+    setView("candidates");
+    openCandidate(candidate, applicationId);
   };
   const saveCandidateEntry = () => {
     const job = jobs.find((item) => item.id === candidateDraft.jobId);
@@ -5190,58 +5638,19 @@ export function RecruitmentCenterPage() {
       );
       return;
     }
-    const departmentLeader =
-      job.departmentLeader ?? departmentLeaderCatalog[job.department] ?? "";
-    const applicationId = `APP-${Date.now()}`;
-    const candidate = {
-      id: `CAN-${Date.now()}`,
-      name: candidateDraft.name.trim(),
-      phone: candidateDraft.phone.trim(),
-      email: candidateDraft.email.trim(),
-      source: candidateDraft.source,
-      owner: candidateDraft.owner || job.recruiter,
-      duplicate: "待校验",
-      updatedAt: "刚刚创建",
-      resumeName,
-      resumeFile,
-      applications: [
-        {
-          id: applicationId,
-          job: job.name,
-          status: "待部门确认",
-          departmentLeader,
-          interviewer: job.interviewers?.[0] ?? "",
-          interviewTotal: job.interviewRounds ?? 1,
-          interviewers: job.interviewers ?? [],
-          currentInterviewRound: 1,
-          interviews: (job.interviewers ?? []).map((interviewer, index) => ({
-            round: index + 1,
-            interviewer,
-            status: "待安排",
-          })),
-          version: 1,
-          history: [
-            {
-              time: "2026-07-15 10:30",
-              action: "上传简历并创建应聘记录",
-              operator: candidateDraft.owner || job.recruiter,
-              note: `简历：${resumeName}；已提交${departmentLeader || "部门负责人"}进行部门确认`,
-            },
-          ],
-        },
-      ],
-    };
-    setCandidates((items) => [candidate, ...items]);
-    setJobs((items) =>
-      items.map((item) =>
-        item.id === job.id
-          ? { ...item, candidates: item.candidates + 1 }
-          : item,
-      ),
-    );
-    setCandidateEntry(null);
-    setView("candidates");
-    openCandidate(candidate, applicationId);
+    setCandidateEntryError("");
+    const matches = findCandidateDuplicateMatches(candidates, candidateDraft);
+    if (matches.length) {
+      const preferredMatch =
+        matches.find((match) => match.fields.includes("手机号")) ?? matches[0];
+      setCandidateDuplicateReview({
+        matches,
+        preferredCandidateId: preferredMatch.candidate.id,
+        job,
+      });
+      return;
+    }
+    createCandidateEntry(job);
   };
   const updateApplication = (nextStatus, action, extra = {}) => {
     if (!current || !application) return;
@@ -5701,19 +6110,20 @@ export function RecruitmentCenterPage() {
             value={directoryPeriods.jobs}
           />
           <DataTable
+            className="platform-table--single-line recruitment-management-table recruitment-jobs-table"
             columns={[
-              { label: "岗位", width: "1.3fr" },
-              { label: "部门 / 地点", width: "1.2fr" },
+              { label: "岗位", width: "170px" },
+              { label: "部门 / 地点", width: "180px" },
               { label: "需求 / 到岗", width: "100px" },
-              { label: "招聘 / 部门负责人", width: "140px" },
+              { label: "招聘 / 部门负责人", width: "210px" },
               { label: "优先级", width: "90px" },
               { label: "状态", width: "100px" },
-              { label: "面试流程 / 面试官", width: "170px" },
-              { label: "招聘周期", width: "180px" },
+              { label: "面试流程 / 面试官", width: "230px" },
+              { label: "招聘周期", width: "200px" },
               { label: "候选人", width: "80px" },
               { label: "操作", width: "150px" },
             ]}
-            minWidth={1250}
+            minWidth={1550}
           >
             {timeScopedJobs.map((job) => (
               <div
@@ -5721,23 +6131,23 @@ export function RecruitmentCenterPage() {
                 key={job.id}
                 style={{
                   gridTemplateColumns:
-                    "1.25fr 1.1fr 100px 140px 90px 100px 170px 180px 80px 150px",
+                    "170px 180px 100px 210px 90px 100px 230px 200px 80px 150px",
                 }}
               >
-                <div>
+                <div className="platform-table-inline-cell">
                   <strong>{job.name}</strong>
                   <small>
                     缺口 {job.need - job.onboarded} 人
                   </small>
                 </div>
-                <div>
+                <div className="platform-table-inline-cell">
                   <span>{job.department}</span>
                   <small>{job.city}</small>
                 </div>
                 <strong>
                   {job.need} / {job.onboarded}
                 </strong>
-                <div>
+                <div className="platform-table-inline-cell">
                   <span>{job.recruiter}</span>
                   <small>部门：{job.departmentLeader ?? departmentLeaderCatalog[job.department] ?? "待确认"}</small>
                 </div>
@@ -5886,17 +6296,18 @@ export function RecruitmentCenterPage() {
             </label>
           </PlatformFilter>
           <DataTable
+            className="platform-table--single-line recruitment-management-table recruitment-candidates-table"
             columns={[
-              { label: "候选人", width: "150px" },
-              { label: "联系方式", width: "1.15fr" },
-              { label: "岗位招聘情况", width: "2fr" },
-              { label: "结果说明", width: "1.25fr" },
+              { label: "候选人", width: "160px" },
+              { label: "联系方式", width: "230px" },
+              { label: "岗位招聘情况", width: "430px" },
+              { label: "结果说明", width: "420px" },
               { label: "负责人", width: "90px" },
-              { label: "来源 / 简历", width: "130px" },
+              { label: "来源 / 简历", width: "230px" },
               { label: "更新时间", width: "145px" },
               { label: "操作", width: "76px" },
             ]}
-            minWidth={1180}
+            minWidth={1840}
           >
             {filteredCandidates.map((candidate) => (
               <div
@@ -5904,14 +6315,14 @@ export function RecruitmentCenterPage() {
                 key={candidate.id}
                 style={{
                   gridTemplateColumns:
-                    "150px 1.15fr 2fr 1.25fr 90px 130px 145px 76px",
+                    "160px 230px 430px 420px 90px 230px 145px 76px",
                 }}
               >
-                <div>
+                <div className="platform-table-inline-cell">
                   <strong>{candidate.name}</strong>
                   <small>{candidate.applications.length} 条应聘</small>
                 </div>
-                <div>
+                <div className="platform-table-inline-cell">
                   <span>{candidate.phone || "待补充"}</span>
                   <small>{candidate.email || "待补充"}</small>
                 </div>
@@ -5940,7 +6351,7 @@ export function RecruitmentCenterPage() {
                   })}
                 </div>
                 <span>{candidate.owner}</span>
-                <div>
+                <div className="platform-table-inline-cell">
                   <span>{candidate.source}</span>
                   <small>{candidate.resumeName ?? "历史简历已归档"}</small>
                 </div>
@@ -6298,14 +6709,15 @@ export function RecruitmentCenterPage() {
       {candidateEntry ? (
         <PlatformDrawer
           wide
+          ariaHidden={Boolean(candidateDuplicateReview)}
           title="上传候选人并创建应聘记录"
           subtitle="候选人主档 + 岗位应聘记录"
-          onClose={() => setCandidateEntry(null)}
+          onClose={closeCandidateEntry}
           footer={
             <>
               <button
                 className="ghost-chip"
-                onClick={() => setCandidateEntry(null)}
+                onClick={closeCandidateEntry}
                 type="button"
               >
                 取消
@@ -6453,6 +6865,91 @@ export function RecruitmentCenterPage() {
             </PlatformNotice>
           ) : null}
         </PlatformDrawer>
+      ) : null}
+      {candidateDuplicateReview ? (
+        <PlatformConfirmDialog
+          title="发现重复候选人信息"
+          description="手机号或邮箱已存在，请核对重复人员及其面试岗位后再次确认。"
+          onClose={() => setCandidateDuplicateReview(null)}
+          footer={
+            <>
+              <button
+                className="ghost-chip"
+                onClick={() => setCandidateDuplicateReview(null)}
+                type="button"
+              >
+                返回修改
+              </button>
+              <button
+                className="primary-btn"
+                onClick={() =>
+                  createCandidateEntry(
+                    candidateDuplicateReview.job,
+                    candidateDuplicateReview.preferredCandidateId,
+                  )
+                }
+                type="button"
+              >
+                确认继续上传
+              </button>
+            </>
+          }
+        >
+          <div className="candidate-duplicate-summary">
+            <span>本次上传岗位</span>
+            <strong>
+              {candidateDuplicateReview.job.name} · {candidateDuplicateReview.job.department}
+            </strong>
+          </div>
+          <div className="candidate-duplicate-list">
+            {candidateDuplicateReview.matches.map(({ candidate, fields }) => {
+              const interviewJobs = [
+                ...new Set(
+                  (candidate.applications ?? [])
+                    .map((application) => application.job)
+                    .filter(Boolean),
+                ),
+              ];
+              const isPreferred =
+                candidate.id === candidateDuplicateReview.preferredCandidateId;
+              return (
+                <article
+                  className={`candidate-duplicate-card ${isPreferred ? "is-preferred" : ""}`.trim()}
+                  key={candidate.id}
+                >
+                  <header>
+                    <div>
+                      <strong>{candidate.name}</strong>
+                      {isPreferred ? <span>将关联此候选人主档</span> : null}
+                    </div>
+                    <div className="candidate-duplicate-card__tags">
+                      {fields.map((field) => (
+                        <span key={field}>{field}重复</span>
+                      ))}
+                    </div>
+                  </header>
+                  <dl>
+                    <div>
+                      <dt>手机号</dt>
+                      <dd>{candidate.phone || "未填写"}</dd>
+                    </div>
+                    <div>
+                      <dt>邮箱</dt>
+                      <dd>{candidate.email || "未填写"}</dd>
+                    </div>
+                    <div className="is-wide">
+                      <dt>面试岗位</dt>
+                      <dd>{interviewJobs.join("、") || "暂无岗位记录"}</dd>
+                    </div>
+                  </dl>
+                </article>
+              );
+            })}
+          </div>
+          <p className="candidate-duplicate-hint">
+            确认后不会新建重复人员主档；本次简历将作为新岗位应聘记录，进入「待部门确认」。如手机号与邮箱命中不同人员，将优先关联手机号命中的主档。
+          </p>
+        </PlatformConfirmDialog>
       ) : null}
       {resumePreview ? (
         <PlatformDrawer
@@ -7058,29 +7555,25 @@ export function RecruitmentCenterPage() {
 }
 
 export function TopicCenterPage({ goPage }) {
-  const { topics, setTopics, projects, createProjectFromTopic } = useDemoData();
-  const [view, setView] = useState("library");
+  const { topics, setTopics, projects } = useDemoData();
+  const [statusFilter, setStatusFilter] = useState("all");
   const [selected, setSelected] = useState(null);
   const [mode, setMode] = useState(null);
   const [reason, setReason] = useState("");
-  const [projectMode, setProjectMode] = useState("内部制作");
-  const [projectOwner, setProjectOwner] = useState("沈婉瑶");
-  const [projectDeadline, setProjectDeadline] = useState("2026-09-02");
-  const [projectBudget, setProjectBudget] = useState(220000);
-  const [projectScriptEpisodes, setProjectScriptEpisodes] = useState(3);
-  const [projectVideoEpisodes, setProjectVideoEpisodes] = useState(3);
-  const [contractFile, setContractFile] = useState(null);
-  const [contractError, setContractError] = useState("");
-  const [contractPreview, setContractPreview] = useState(null);
   const [topicAttachment, setTopicAttachment] = useState(null);
   const [topicAttachmentError, setTopicAttachmentError] = useState("");
   const [topicAttachmentPreview, setTopicAttachmentPreview] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [editingTopic, setEditingTopic] = useState(null);
+  const [topicEditDraft, setTopicEditDraft] = useState(null);
+  const [topicEditAttachment, setTopicEditAttachment] = useState(null);
+  const [topicEditAttachmentError, setTopicEditAttachmentError] = useState("");
   const [topicSummaryExpanded, setTopicSummaryExpanded] = useState(false);
   const [topicDraft, setTopicDraft] = useState({
     name: "",
     genre: "",
     audience: "",
+    estimatedEpisodes: 12,
     submitter: "张小北",
     reviewer: "江晚",
     summary: "",
@@ -7094,16 +7587,45 @@ export function TopicCenterPage({ goPage }) {
   );
   const linkedProjectCode = (projectId) =>
     projects.find((project) => project.id === projectId)?.projectCode ?? projectId;
+  const statusTabItems = [
+    { id: "all", label: "全部", count: topics.length },
+    {
+      id: "pending",
+      label: "待评估",
+      count: topics.filter((item) => item.status === "待评估").length,
+    },
+    {
+      id: "evaluated",
+      label: "已评估",
+      count: topics.filter((item) => item.status === "已评估").length,
+    },
+    {
+      id: "returned",
+      label: "未通过",
+      count: topics.filter((item) => item.status === "未通过").length,
+    },
+  ];
+  const visibleTopics = useMemo(() => {
+    return topics.filter((item) => {
+      return (
+        statusFilter === "all" ||
+        (statusFilter === "pending" && item.status === "待评估") ||
+        (statusFilter === "evaluated" && item.status === "已评估") ||
+        (statusFilter === "returned" && item.status === "未通过")
+      );
+    });
+  }, [statusFilter, topics]);
   const topicTableColumns = [
-    { label: "选题信息", width: "minmax(190px, 1.35fr)" },
-    { label: "选题摘要", width: "minmax(230px, 1.6fr)" },
-    { label: "模板 / 题材", width: "minmax(140px, 0.95fr)" },
-    { label: "目标受众", width: "minmax(150px, 1fr)" },
-    { label: "提交信息", width: "110px" },
-    { label: "审核状态", width: "minmax(150px, 0.95fr)" },
-    { label: "关联项目", width: "minmax(180px, 1.15fr)" },
-    { label: "更新时间", width: "140px" },
-    { label: "操作", width: "64px" },
+    { label: "选题信息", width: "minmax(180px, 1.2fr)" },
+    { label: "选题摘要", width: "minmax(200px, 1.35fr)" },
+    { label: "题材方向", width: "minmax(120px, 0.8fr)" },
+    { label: "集数 / 受众", width: "minmax(120px, 0.8fr)" },
+    { label: "提交信息", width: "100px" },
+    { label: "评估进度", width: "minmax(135px, 0.85fr)" },
+    { label: "项目关联", width: "minmax(150px, 0.95fr)" },
+    { label: "创建时间", width: "120px" },
+    { label: "修改时间", width: "120px" },
+    { label: "操作", width: "116px" },
   ];
   const topicTableGrid = topicTableColumns.map((item) => item.width).join(" ");
   const resetTopicDraft = () => {
@@ -7111,6 +7633,7 @@ export function TopicCenterPage({ goPage }) {
       name: "",
       genre: "",
       audience: "",
+      estimatedEpisodes: 12,
       submitter: "张小北",
       reviewer: "江晚",
       summary: "",
@@ -7118,16 +7641,57 @@ export function TopicCenterPage({ goPage }) {
     setTopicAttachment(null);
     setTopicAttachmentError("");
   };
-  const resetProjectDraft = () => {
-    setProjectMode("内部制作");
-    setProjectOwner("沈婉瑶");
-    setProjectDeadline("2026-09-02");
-    setProjectBudget(220000);
-    setProjectScriptEpisodes(3);
-    setProjectVideoEpisodes(3);
-    setContractFile(null);
-    setContractError("");
-    setContractPreview(null);
+  const openTopicEditor = (topic) => {
+    setEditingTopic(topic);
+    setTopicEditDraft({
+      name: topic.name,
+      genre: topic.genre,
+      audience: topic.audience,
+      estimatedEpisodes: topic.estimatedEpisodes ?? 1,
+      submitter: topic.submitter,
+      reviewer: topic.reviewer,
+      summary: topic.summary ?? "",
+    });
+    setTopicEditAttachment(topic.attachment ?? null);
+    setTopicEditAttachmentError("");
+  };
+  const closeTopicEditor = () => {
+    setEditingTopic(null);
+    setTopicEditDraft(null);
+    setTopicEditAttachment(null);
+    setTopicEditAttachmentError("");
+  };
+  const saveTopicEdit = () => {
+    if (
+      !editingTopic ||
+      !topicEditDraft?.name.trim() ||
+      !topicEditDraft?.summary.trim() ||
+      Number(topicEditDraft.estimatedEpisodes) < 1
+    ) return;
+    setTopics((items) =>
+      items.map((item) =>
+        item.id === editingTopic.id
+          ? {
+              ...item,
+              ...topicEditDraft,
+              estimatedEpisodes: Number(topicEditDraft.estimatedEpisodes),
+              attachment: topicEditAttachment
+                ? topicEditAttachment.file
+                  ? topicEditAttachment
+                  : {
+                      name: topicEditAttachment.name,
+                      size: topicEditAttachment.size,
+                      type: topicEditAttachment.type,
+                      file: topicEditAttachment,
+                      uploadedAt: "2026-07-21 13:50",
+                    }
+                : null,
+              updatedAt: "2026-07-21 13:50",
+            }
+          : item,
+      ),
+    );
+    closeTopicEditor();
   };
   const updateStatus = (status, extra = {}) => {
     setTopics((items) =>
@@ -7136,7 +7700,6 @@ export function TopicCenterPage({ goPage }) {
           ? {
               ...item,
               status,
-              version: status === "已退回" ? item.version + 1 : item.version,
               ...extra,
             }
           : item,
@@ -7148,36 +7711,13 @@ export function TopicCenterPage({ goPage }) {
   const cancelTopicMode = () => {
     setMode(null);
     setReason("");
-    resetProjectDraft();
-  };
-  const submitProjectFromTopic = () => {
-    if (!current || (projectMode === "外部制作" && !contractFile)) return;
-    createProjectFromTopic(current.id, {
-      mode: projectMode,
-      owner: projectOwner,
-      deadline: projectDeadline,
-      budget: projectBudget,
-      scriptEpisodes: projectScriptEpisodes,
-      videoEpisodes: projectVideoEpisodes,
-      contract: contractFile
-        ? {
-            name: contractFile.name,
-            size: contractFile.size,
-            type: contractFile.type,
-            file: contractFile,
-            uploadedAt: "2026-07-16 09:30",
-          }
-        : null,
-    });
-    setMode(null);
-    resetProjectDraft();
   };
   return (
-    <div className="platform-page">
+    <div className="platform-page platform-topic-center">
       <PlatformHeader
         eyebrow="选题管理"
-        title="选题库、审核与立项"
-        description="按统一表单提交并指定审核人，可上传选题附件；审核通过不自动建项目，执行“选为项目”后才创建唯一项目关联。"
+        title="选题库与内容评估"
+        description="按统一表单提交并指定评估人；评估通过后进入剧本库上传完整或分集剧本，再从剧本库发起项目立项。"
         actions={
           <button className="primary-btn" onClick={() => setCreating(true)} type="button">
             <Plus size={16} />
@@ -7195,176 +7735,135 @@ export function TopicCenterPage({ goPage }) {
             tone: "blue",
           },
           {
-            label: "待审核",
+            label: "待评估",
             value: topicSummary.pending,
             unit: "个",
             meta: "2 个即将超时",
             tone: "amber",
           },
           {
-            label: "已通过",
+            label: "已评估",
             value: topicSummary.approved,
             unit: "个",
-            meta: "其中 6 个待立项",
+            meta: "评估通过后自动进入剧本库",
             tone: "green",
           },
           {
-            label: "已退回",
+            label: "未通过",
             value: topicSummary.returned,
             unit: "个",
-            meta: "平均退回 1.4 次",
+            meta: "未通过后进入修改流程",
             tone: "red",
           },
-          {
-            label: "已转项目",
-            value: topicSummary.converted,
-            unit: "个",
-            meta: "保留原选题与版本",
-            tone: "purple",
-          },
-          {
-            label: "选题转化率",
-            value: `${topicSummary.conversionRate}%`,
-            meta: "已转项目 ÷ 审核通过",
-            tone: "cyan",
-          },
         ]}
-      />
-      <PlatformTabs
-        items={[
-          { id: "library", label: "选题库", count: topics.length },
-          {
-            id: "review",
-            label: "审核与立项",
-            count: topics.filter((item) =>
-              ["待审核", "已通过待立项"].includes(item.status),
-            ).length,
-          },
-        ]}
-        value={view}
-        onChange={setView}
-        ariaLabel="选题管理视图"
       />
       <PlatformCard
-        title={view === "library" ? "选题库" : "待审核与待立项"}
-        description="审核记录、版本、审核人、审核时间与原因永久保留"
+        title="选题库"
+        description={`共 ${visibleTopics.length} 条结果 · 评估记录、评估人和下游项目关联永久保留`}
       >
-        <PlatformFilter
-          actions={
-            <>
-              <button className="ghost-chip" type="button">
-                重置
-              </button>
-              <button className="primary-btn" type="button">
-                查询选题
-              </button>
-            </>
-          }
-        >
-          <label>
-            <span>选题名称 / 编号</span>
-            <input placeholder="输入关键词" />
-          </label>
-          <label>
-            <span>模板类型</span>
-            <select defaultValue="all">
-              <option value="all">全部模板</option>
-              <option>编剧模板</option>
-              <option>制片模板</option>
-            </select>
-          </label>
-          <label>
-            <span>审核状态</span>
-            <select defaultValue="all">
-              <option value="all">全部状态</option>
-              <option>待审核</option>
-              <option>已退回</option>
-              <option>已通过待立项</option>
-              <option>已转项目</option>
-            </select>
-          </label>
-          <label>
-            <span>提交人 / 审核人</span>
-            <input placeholder="输入人员" />
-          </label>
-        </PlatformFilter>
+        <div className="platform-topic-status-tabs">
+          <PlatformTabs
+            ariaLabel="选题状态筛选"
+            items={statusTabItems}
+            onChange={setStatusFilter}
+            value={statusFilter}
+          />
+        </div>
         <DataTable
           columns={topicTableColumns}
-          minWidth={1510}
-          className="platform-topic-table"
+          minWidth={1580}
+          className="platform-topic-table platform-table--single-line"
         >
-          {topics
-            .filter(
-              (item) =>
-                view === "library" ||
-                ["待审核", "已通过待立项"].includes(item.status),
-            )
-            .map((row) => (
+          {visibleTopics.length ? visibleTopics.map((row) => (
               <div
                 className="platform-table__row platform-topic-table__row"
                 style={{ gridTemplateColumns: topicTableGrid }}
                 key={row.id}
               >
-                <div>
+                <div className="platform-table-inline-cell">
                   <strong>{row.name}</strong>
                   <small>{row.id}</small>
                 </div>
                 <p className="platform-topic-table__summary" title={row.summary}>
                   {row.summary || "未填写摘要"}
                 </p>
-                <div>
-                  <span>{row.template}</span>
-                  <small>{row.genre}</small>
+                <div className="platform-table-inline-cell">
+                  <span>{row.genre}</span>
+                  <small>{row.template}</small>
                 </div>
-                <span title={row.audience}>{row.audience}</span>
-                <div className="platform-topic-table__submission">
+                <div className="platform-table-inline-cell">
+                  <strong>{row.estimatedEpisodes ?? "待确认"} 集</strong>
+                  <small title={row.audience}>{row.audience}</small>
+                </div>
+                <div className="platform-table-inline-cell platform-topic-table__submission">
                   <span>{row.submitter}</span>
-                  <small>版本 V{row.version}</small>
                 </div>
-                <div className="platform-topic-table__review">
-                  <PlatformBadge>{row.status}</PlatformBadge>
-                  <small>{row.reviewer ? `审核人 · ${row.reviewer}` : "暂未审核"}</small>
+                <div className="platform-table-inline-cell platform-topic-table__review">
+                  <PlatformBadge>{topicStatusLabel(row.status)}</PlatformBadge>
+                  <small>{row.reviewer ? `评估人 · ${row.reviewer}` : "暂未评估"}</small>
                 </div>
                 <div className="platform-topic-table__project">
                   {row.projectId ? (
                     <button
                       className="table-link platform-topic-table__project-link"
-                      onClick={() => goPage("projects")}
+                      onClick={() => goPage("project-management")}
                       title={linkedProjectCode(row.projectId)}
                       type="button"
                     >
                       {linkedProjectCode(row.projectId)}
                     </button>
                   ) : (
-                    <span>—</span>
+                    <>
+                      <span>{row.status === "已评估" ? "已进入剧本库" : "暂无关联"}</span>
+                      <small>{row.status === "已评估" ? "等待剧本流程" : "—"}</small>
+                    </>
                   )}
                 </div>
+                <span className="platform-topic-table__created">
+                  {row.createdAt ?? row.updatedAt}
+                </span>
                 <span className="platform-topic-table__updated">{row.updatedAt}</span>
-                <button
-                  className="table-link platform-topic-table__action"
-                  onClick={() => {
-                    setSelected(row);
-                    setTopicSummaryExpanded(false);
-                  }}
-                  type="button"
-                >
-                  详情
-                </button>
+                <div className="platform-topic-table__actions">
+                  <button
+                    className="platform-topic-row-action is-quiet"
+                    onClick={() => openTopicEditor(row)}
+                    type="button"
+                  >
+                    编辑
+                  </button>
+                  <button
+                    className="platform-topic-row-action"
+                    disabled={!['待评估', '未通过'].includes(row.status)}
+                    onClick={() => {
+                      setSelected(row);
+                      setMode("review");
+                      setTopicSummaryExpanded(false);
+                    }}
+                    type="button"
+                  >
+                    评估
+                  </button>
+                </div>
               </div>
-            ))}
+            )) : (
+              <div className="platform-topic-empty">
+                <Lightbulb size={26} weight="duotone" />
+                <strong>没有匹配的选题</strong>
+                <span>请调整状态或查询条件后重试</span>
+              </div>
+            )}
         </DataTable>
       </PlatformCard>
       {current ? (
         <PlatformDrawer
           wide
           title={current.name}
-          subtitle={`${current.id} · ${current.template} · V${current.version}`}
+          subtitle={`${current.id} · ${current.template}`}
           onClose={() => {
             setSelected(null);
             setMode(null);
             setReason("");
             setTopicSummaryExpanded(false);
-            resetProjectDraft();
           }}
           footer={
             mode === "reject" ? (
@@ -7379,62 +7878,33 @@ export function TopicCenterPage({ goPage }) {
                 <button
                   className="primary-btn"
                   disabled={!reason.trim()}
-                  onClick={() => updateStatus("已退回", { reason })}
+                  onClick={() => updateStatus("未通过", { reason })}
                   type="button"
                 >
-                  确认退回并生成修改任务
+                  确认未通过并生成修改任务
                 </button>
               </>
-            ) : mode === "project" ? (
-              <>
-                <button
-                  className="ghost-chip"
-                  onClick={cancelTopicMode}
-                  type="button"
-                >
-                  取消立项
-                </button>
-                <button
-                  className="primary-btn"
-                  disabled={projectMode === "外部制作" && !contractFile}
-                  onClick={submitProjectFromTopic}
-                  type="button"
-                >
-                  创建唯一项目并回写关联
-                </button>
-              </>
-            ) : current.status === "待审核" ? (
+            ) : mode === "review" || current.status === "待评估" ? (
               <>
                 <button
                   className="ghost-chip"
                   onClick={() => setMode("reject")}
                   type="button"
                 >
-                  退回修改
+                  标记未通过
                 </button>
                 <button
                   className="primary-btn"
-                  onClick={() => updateStatus("已通过待立项")}
+                  onClick={() => updateStatus("已评估", { reason: "" })}
                   type="button"
                 >
-                  审核通过
+                  评估通过
                 </button>
               </>
-            ) : current.status === "已通过待立项" ? (
-              <button
-                className="primary-btn"
-                onClick={() => {
-                  resetProjectDraft();
-                  setMode("project");
-                }}
-                type="button"
-              >
-                选为项目
-              </button>
             ) : current.projectId ? (
               <button
                 className="primary-btn"
-                onClick={() => goPage("projects")}
+                onClick={() => goPage("project-management")}
                 type="button"
               >
                 查看关联项目
@@ -7447,7 +7917,7 @@ export function TopicCenterPage({ goPage }) {
               <Lightbulb size={24} weight="duotone" />
             </span>
             <div>
-              <PlatformBadge>{current.status}</PlatformBadge>
+              <PlatformBadge>{topicStatusLabel(current.status)}</PlatformBadge>
               <small className="platform-detail-hero__eyebrow">选题摘要</small>
               <h3
                 className={`platform-topic-detail-summary ${topicSummaryExpanded ? "is-expanded" : ""}`}
@@ -7472,15 +7942,19 @@ export function TopicCenterPage({ goPage }) {
           </div>
           <div className="platform-detail-grid">
             <div>
-              <span>当前审核人</span>
+              <span>当前评估人</span>
               <strong>{current.reviewer}</strong>
             </div>
             <div>
-              <span>当前版本</span>
-              <strong>V{current.version}</strong>
+              <span>预计集数</span>
+              <strong>{current.estimatedEpisodes ?? "待确认"} 集</strong>
             </div>
             <div>
-              <span>更新时间</span>
+              <span>创建时间</span>
+              <strong>{current.createdAt ?? current.updatedAt}</strong>
+            </div>
+            <div>
+              <span>修改时间</span>
               <strong>{current.updatedAt}</strong>
             </div>
             <div>
@@ -7488,7 +7962,9 @@ export function TopicCenterPage({ goPage }) {
               <strong>
                 {current.projectId
                   ? linkedProjectCode(current.projectId)
-                  : "尚未立项"}
+                  : current.status === "已评估"
+                    ? "已进入剧本库"
+                    : "暂无关联"}
               </strong>
             </div>
           </div>
@@ -7499,7 +7975,7 @@ export function TopicCenterPage({ goPage }) {
               </span>
               <div>
                 <strong>选题附件</strong>
-                <small>附件随当前选题版本保留</small>
+                <small>附件与选题信息同步保留</small>
               </div>
               <PlatformBadge tone={current.attachment ? "success" : "neutral"}>
                 {current.attachment ? "已上传" : "暂无附件"}
@@ -7545,125 +8021,11 @@ export function TopicCenterPage({ goPage }) {
               </label>
             </section>
           ) : null}
-          {mode === "project" ? (
-            <section className="platform-decision-box">
-              <div className="platform-form-grid">
-                <label>
-                  <span>项目负责人</span>
-                  <select
-                    value={projectOwner}
-                    onChange={(event) => setProjectOwner(event.target.value)}
-                  >
-                    <option>沈婉瑶</option>
-                    <option>林制作</option>
-                  </select>
-                </label>
-                <label>
-                  <span>制作方式</span>
-                  <select
-                    value={projectMode}
-                    onChange={(event) => {
-                      const nextMode = event.target.value;
-                      setProjectMode(nextMode);
-                      if (nextMode === "内部制作") {
-                        setContractFile(null);
-                        setContractError("");
-                      }
-                    }}
-                  >
-                    <option>内部制作</option>
-                    <option>外部制作</option>
-                  </select>
-                </label>
-                <label>
-                  <span>预计完成时间</span>
-                  <input
-                    value={projectDeadline}
-                    onChange={(event) => setProjectDeadline(event.target.value)}
-                    type="date"
-                  />
-                </label>
-                <label>
-                  <span>预计预算</span>
-                  <input
-                    value={projectBudget}
-                    onChange={(event) => setProjectBudget(event.target.value)}
-                    type="number"
-                  />
-                </label>
-                <label>
-                  <span>剧本集数</span>
-                  <input
-                    aria-label="剧本集数"
-                    min="1"
-                    max="9999"
-                    value={projectScriptEpisodes}
-                    onChange={(event) => setProjectScriptEpisodes(event.target.value)}
-                    type="number"
-                  />
-                </label>
-                <label>
-                  <span>视频集数</span>
-                  <input
-                    aria-label="视频集数"
-                    min="1"
-                    max="9999"
-                    value={projectVideoEpisodes}
-                    onChange={(event) => setProjectVideoEpisodes(event.target.value)}
-                    type="number"
-                  />
-                </label>
-                <div className="platform-code-rule-preview is-wide">
-                  <span>编码规则</span>
-                  <strong>PRJ-YYYYMMDD-NNNN</strong>
-                  <small>剧本使用 SC 独立流水，视频使用 VD 独立流水；两者互不关联。</small>
-                </div>
-                {projectMode === "内部制作" ? (
-                  <div className="platform-form-field is-wide">
-                    <span>内部启用环节</span>
-                    <div className="platform-check-row">
-                      <label>
-                        <input defaultChecked type="checkbox" />
-                        剧本
-                      </label>
-                      <label>
-                        <input defaultChecked type="checkbox" />
-                        视频
-                      </label>
-                      <label>
-                        <input defaultChecked type="checkbox" />
-                        剪辑
-                      </label>
-                      <label>
-                        <input type="checkbox" />
-                        配音
-                      </label>
-                    </div>
-                  </div>
-                ) : (
-                  <ContractUploadField
-                    error={contractError}
-                    file={contractFile}
-                    onChange={setContractFile}
-                    onError={setContractError}
-                    onView={() =>
-                      setContractPreview({
-                        name: contractFile.name,
-                        size: contractFile.size,
-                        type: contractFile.type,
-                        file: contractFile,
-                      })
-                    }
-                  />
-                )}
-              </div>
-            </section>
-          ) : null}
           <section className="platform-timeline">
             <article>
               <i />
               <div>
-                <strong>V{current.version} 当前版本</strong>
+                <strong>最近修改</strong>
                 <span>
                   {current.updatedAt} · {current.submitter}
                 </span>
@@ -7672,24 +8034,137 @@ export function TopicCenterPage({ goPage }) {
             <article>
               <i />
               <div>
-                <strong>审核记录完整保留</strong>
-                <span>按当前版本完成并发校验，避免重复提交</span>
+                <strong>评估记录完整保留</strong>
+                <span>按选题编号持续记录评估结果和操作时间</span>
               </div>
             </article>
           </section>
         </PlatformDrawer>
       ) : null}
-      {contractPreview ? (
-        <ContractPreviewDrawer
-          context={`${current?.name ?? "待立项选题"} · 立项附件`}
-          contract={contractPreview}
-          onClose={() => setContractPreview(null)}
-        />
+      {editingTopic && topicEditDraft ? (
+        <PlatformDrawer
+          title="编辑选题"
+          subtitle={`${editingTopic.id} · 修改后同步更新选题信息`}
+          onClose={closeTopicEditor}
+          footer={
+            <>
+              <button className="ghost-chip" onClick={closeTopicEditor} type="button">
+                取消
+              </button>
+              <button
+                className="primary-btn"
+                disabled={
+                  !topicEditDraft.name.trim() ||
+                  !topicEditDraft.summary.trim() ||
+                  Number(topicEditDraft.estimatedEpisodes) < 1
+                }
+                onClick={saveTopicEdit}
+                type="button"
+              >
+                保存修改
+              </button>
+            </>
+          }
+        >
+          <div className="platform-form-grid">
+            {[
+              ["name", "选题名称"],
+              ["genre", "题材类型"],
+              ["audience", "目标受众"],
+              ["submitter", "提交人"],
+            ].map(([key, label]) => (
+              <label key={key}>
+                <span>{label}</span>
+                <input
+                  onChange={(event) =>
+                    setTopicEditDraft((draft) => ({
+                      ...draft,
+                      [key]: event.target.value,
+                    }))
+                  }
+                  value={topicEditDraft[key]}
+                />
+              </label>
+            ))}
+            <label>
+              <span>预计集数</span>
+              <input
+                aria-label="编辑预计集数"
+                max="9999"
+                min="1"
+                onChange={(event) =>
+                  setTopicEditDraft((draft) => ({
+                    ...draft,
+                    estimatedEpisodes: Number(event.target.value),
+                  }))
+                }
+                type="number"
+                value={topicEditDraft.estimatedEpisodes}
+              />
+            </label>
+            <label>
+              <span>评估人</span>
+              <select
+                onChange={(event) =>
+                  setTopicEditDraft((draft) => ({
+                    ...draft,
+                    reviewer: event.target.value,
+                  }))
+                }
+                value={topicEditDraft.reviewer}
+              >
+                <option>江晚</option>
+                <option>林制作</option>
+                <option>沈婉瑶</option>
+                <option>CEO</option>
+              </select>
+            </label>
+            <label className="is-wide">
+              <span>选题摘要</span>
+              <textarea
+                aria-label="编辑选题摘要"
+                className="platform-topic-summary-input"
+                maxLength={TOPIC_SUMMARY_MAX_LENGTH}
+                onChange={(event) =>
+                  setTopicEditDraft((draft) => ({
+                    ...draft,
+                    summary: event.target.value,
+                  }))
+                }
+                rows={6}
+                value={topicEditDraft.summary}
+              />
+              <div className="platform-topic-summary-meta">
+                <small>保存后同步更新选题信息，原评估与下游项目关联保持不变。</small>
+                <strong>{topicEditDraft.summary.length}/{TOPIC_SUMMARY_MAX_LENGTH} 字</strong>
+              </div>
+            </label>
+            <TopicAttachmentUploadField
+              error={topicEditAttachmentError}
+              file={topicEditAttachment}
+              onChange={setTopicEditAttachment}
+              onError={setTopicEditAttachmentError}
+              onRemove={() => {
+                setTopicEditAttachment(null);
+                setTopicEditAttachmentError("");
+              }}
+              onView={() =>
+                setTopicAttachmentPreview({
+                  name: topicEditAttachment.name,
+                  size: topicEditAttachment.size,
+                  type: topicEditAttachment.type,
+                  file: topicEditAttachment.file ?? topicEditAttachment,
+                  uploadedAt: topicEditAttachment.uploadedAt ?? "本次修改",
+                })
+              }
+            />
+          </div>
+        </PlatformDrawer>
       ) : null}
       {creating ? (
         <PlatformDrawer
           title="新建选题"
-          subtitle="提交后进入统一审核流程"
+          subtitle="提交后进入统一评估流程"
           onClose={() => {
             setCreating(false);
             resetTopicDraft();
@@ -7704,8 +8179,8 @@ export function TopicCenterPage({ goPage }) {
                     ...topicDraft,
                     template: "自定义提交",
                     id: `TOPIC-${Date.now()}`,
-                    version: 1,
-                    status: "待审核",
+                    status: "待评估",
+                    createdAt: "2026-07-16 09:30",
                     attachment: topicAttachment
                       ? {
                           name: topicAttachment.name,
@@ -7748,7 +8223,23 @@ export function TopicCenterPage({ goPage }) {
               </label>
             ))}
             <label>
-              <span>审核人</span>
+              <span>预计集数</span>
+              <input
+                aria-label="预计集数"
+                max="9999"
+                min="1"
+                onChange={(event) =>
+                  setTopicDraft((draft) => ({
+                    ...draft,
+                    estimatedEpisodes: Number(event.target.value),
+                  }))
+                }
+                type="number"
+                value={topicDraft.estimatedEpisodes}
+              />
+            </label>
+            <label>
+              <span>评估人</span>
               <select
                 value={topicDraft.reviewer}
                 onChange={(event) =>
@@ -7810,12 +8301,1540 @@ export function TopicCenterPage({ goPage }) {
   );
 }
 
+function latestScriptUpload(record) {
+  return [...(record?.uploads ?? [])].sort(
+    (left, right) => Number(right.version ?? 0) - Number(left.version ?? 0),
+  )[0] ?? null;
+}
+
+function sameScriptFile(file, upload) {
+  if (!file || !upload) return false;
+  return (
+    file.name === upload.name &&
+    Number(file.size ?? 0) === Number(upload.size ?? 0)
+  );
+}
+
+function appendSharedScriptVersion(record, topic, file, uploadedBy) {
+  if (!record || !topic || !file || sameScriptFile(file, latestScriptUpload(record))) {
+    return record;
+  }
+  const version = Math.max(
+    0,
+    ...(record.uploads ?? []).map((upload) => Number(upload.version ?? 0)),
+  ) + 1;
+  const uploadedAt = "2026-07-21 16:40";
+  return {
+    ...record,
+    status: topic.projectId ? "已立项" : "待立项",
+    returnedReason: "",
+    updatedAt: uploadedAt,
+    uploads: [
+      ...(record.uploads ?? []),
+      {
+        id: `${record.id}-UPLOAD-${version}`,
+        scope: "full",
+        episodeNo: null,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        file: file.file ?? file,
+        uploadedAt,
+        uploadedBy,
+        version,
+      },
+    ],
+  };
+}
+
+function isScriptRecordComplete(record, episodeCount) {
+  if (record?.episodes?.length) {
+    const availableEpisodes = new Set(
+      record.episodes.map((episode) => Number(episode.episodeNo)),
+    );
+    return Array.from(
+      { length: clampEpisodeCount(episodeCount) },
+      (_, index) => index + 1,
+    ).every((episodeNo) => availableEpisodes.has(episodeNo));
+  }
+  const uploads = record?.uploads ?? [];
+  if (uploads.some((upload) => upload.scope === "full")) return true;
+  const episodeUploads = new Set(
+    uploads
+      .filter((upload) => upload.scope === "episode")
+      .map((upload) => Number(upload.episodeNo)),
+  );
+  return Array.from(
+    { length: clampEpisodeCount(episodeCount) },
+    (_, index) => index + 1,
+  ).every((episodeNo) => episodeUploads.has(episodeNo));
+}
+
+function scriptLibraryStatus(topic, record) {
+  if (topic.projectId || record?.projectId) return "已立项";
+  if (record?.status === "已退回") return "已退回";
+  return isScriptRecordComplete(record, topic.estimatedEpisodes)
+    ? "待立项"
+    : "待上传";
+}
+
+function scriptCoverageLabel(record, episodeCount) {
+  if (record?.episodes?.length) {
+    const episodeNumbers = new Set(
+      record.episodes.map((episode) => Number(episode.episodeNo)),
+    );
+    const cardCount = new Set(
+      [...episodeNumbers].map((episodeNo) => scriptCardNoForEpisode(episodeNo)),
+    ).size;
+    return `${episodeNumbers.size}/${clampEpisodeCount(episodeCount)} 集 · ${cardCount} 个一卡范围`;
+  }
+  const uploads = record?.uploads ?? [];
+  const latestFull = [...uploads]
+    .filter((upload) => upload.scope === "full")
+    .sort((left, right) => right.version - left.version)[0];
+  const episodeUploads = new Set(
+    uploads
+      .filter((upload) => upload.scope === "episode")
+      .map((upload) => Number(upload.episodeNo)),
+  );
+  if (latestFull && episodeUploads.size) return "历史整部 + 分集文件（待结构化）";
+  if (latestFull) return "历史整部文件（待结构化）";
+  if (episodeUploads.size) {
+    return `${episodeUploads.size}/${clampEpisodeCount(episodeCount)} 集`;
+  }
+  return "尚未上传";
+}
+
+function displayScriptCardVersions(record, topic) {
+  const versions = [...(record?.cardVersions ?? [])];
+  const linkedUploadIds = new Set(versions.map((version) => version.sourceUploadId));
+  (record?.uploads ?? []).forEach((upload) => {
+    if (linkedUploadIds.has(upload.id)) return;
+    const episodeTotal = clampEpisodeCount(topic.estimatedEpisodes);
+    const cards = upload.scope === "episode"
+      ? [scriptCardNoForEpisode(upload.episodeNo)]
+      : upload.scope === "split"
+        ? getAffectedScriptCards((upload.episodeNos ?? []).map((episodeNo) => ({ episodeNo })))
+        : Array.from({ length: Math.ceil(episodeTotal / 10) }, (_, index) => index + 1);
+    cards.forEach((cardNo) => {
+      const range = scriptCardRange(cardNo, episodeTotal);
+      versions.push({
+        id: `${upload.id}-CARD-${cardNo}`,
+        cardNo,
+        episodeStart: range.start,
+        episodeEnd: range.end,
+        version: upload.version,
+        sourceUploadId: upload.id,
+        sourceFileName: upload.name,
+        uploadedAt: upload.uploadedAt,
+        uploadedBy: upload.uploadedBy,
+        episodes: (record?.episodes ?? []).filter(
+          (episode) => episode.episodeNo >= range.start && episode.episodeNo <= range.end,
+        ),
+        legacy: true,
+      });
+    });
+  });
+  return versions;
+}
+
+function ScriptHistoryDrawer({ record, topic, onClose }) {
+  const allVersions = displayScriptCardVersions(record, topic);
+  const cardNumbers = Array.from(
+    new Set(allVersions.map((version) => Number(version.cardNo))),
+  ).sort((left, right) => left - right);
+  const [selectedCardNo, setSelectedCardNo] = useState(cardNumbers[0] ?? 1);
+  const visibleVersions = allVersions
+    .filter((version) => Number(version.cardNo) === selectedCardNo)
+    .sort((left, right) => Number(right.version) - Number(left.version));
+  const [selectedVersionId, setSelectedVersionId] = useState(null);
+  const selectedVersion = allVersions.find((version) => version.id === selectedVersionId);
+  return (
+    <PlatformDrawer
+      wide
+      title="剧本版本记录"
+      subtitle={`${topic.name} · ${topic.id}`}
+      onClose={onClose}
+      footer={
+        <button className="primary-btn" onClick={onClose} type="button">
+          完成查看
+        </button>
+      }
+    >
+      <PlatformNotice>
+        “一卡”仅表示每 10 集的版本划分范围，不是页面卡片。历史版本只读，不支持比较、恢复或在线编辑。
+      </PlatformNotice>
+      <div className="platform-script-card-tabs" role="tablist" aria-label="一卡版本范围">
+        {cardNumbers.map((cardNo) => {
+          const range = scriptCardRange(cardNo, topic.estimatedEpisodes);
+          return (
+            <button
+              aria-selected={selectedCardNo === cardNo}
+              className={selectedCardNo === cardNo ? "is-active" : ""}
+              key={cardNo}
+              onClick={() => {
+                setSelectedCardNo(cardNo);
+                setSelectedVersionId(null);
+              }}
+              role="tab"
+              type="button"
+            >
+              第 {range.start}—{range.end} 集
+            </button>
+          );
+        })}
+      </div>
+      <div className="platform-script-history">
+        {visibleVersions.length ? visibleVersions.map((version, index) => (
+          <article key={version.id}>
+            <span className="platform-script-history__version">
+              V{String(version.version).padStart(2, "0")}
+            </span>
+            <div>
+              <strong>第 {version.episodeStart}—{version.episodeEnd} 集完整版本</strong>
+              <small>来源文件</small>
+              <span className="platform-script-history__source">{version.sourceFileName}</span>
+            </div>
+            <div>
+              <span>{version.uploadedBy}</span>
+              <small>{version.uploadedAt}</small>
+            </div>
+            <button className="platform-topic-row-action is-quiet" onClick={() => setSelectedVersionId(version.id)} type="button">
+              查看内容
+            </button>
+          </article>
+        )) : (
+          <PlatformEmpty
+            title="该范围暂无历史版本"
+            description="上传并确认包含该范围内集数的 DOCX 后，完整版本会显示在这里。"
+          />
+        )}
+      </div>
+      {selectedVersion ? (
+        <section className="platform-script-history-detail">
+          <div className="platform-section-heading">
+            <div>
+              <h3>V{String(selectedVersion.version).padStart(2, "0")} · 第 {selectedVersion.episodeStart}—{selectedVersion.episodeEnd} 集</h3>
+              <p>{selectedVersion.uploadedAt} · {selectedVersion.uploadedBy} · {selectedVersion.sourceFileName}</p>
+            </div>
+            <PlatformBadge tone="neutral">只读</PlatformBadge>
+          </div>
+          {selectedVersion.episodes?.length ? (
+            <div className="platform-script-version-content">
+              {selectedVersion.episodes.map((episode) => (
+                <article key={`${selectedVersion.id}-${episode.episodeNo}`}>
+                  <strong>第 {episode.episodeNo} 集 · {episode.title}</strong>
+                  <p>{episode.content}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <PlatformNotice tone="warning">
+              这是旧数据迁移生成的版本索引，正文尚未结构化；来源文件仍保留为 {selectedVersion.sourceFileName}。
+            </PlatformNotice>
+          )}
+        </section>
+      ) : null}
+    </PlatformDrawer>
+  );
+}
+
+export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
+  const {
+    topics,
+    projects,
+    scriptLibrary,
+    setScriptLibrary,
+    beginProjectInitiation,
+  } = useDemoData();
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedTopicId, setSelectedTopicId] = useState(null);
+  const [historyTopicId, setHistoryTopicId] = useState(null);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadStage, setUploadStage] = useState("idle");
+  const [previewEpisodes, setPreviewEpisodes] = useState([]);
+  const [previewStrategy, setPreviewStrategy] = useState("");
+  const [previewIgnoredPrefix, setPreviewIgnoredPrefix] = useState("");
+  const [baselineCardVersions, setBaselineCardVersions] = useState({});
+  const [returning, setReturning] = useState(false);
+  const [returnReason, setReturnReason] = useState("");
+  const viewerName = {
+    employee: "张小北",
+    leader: "江晚",
+    hr: "HR-唐宁",
+    ceo: "CEO",
+  }[activeRole];
+  const canInitiate = ["leader", "ceo"].includes(activeRole);
+  const canUploadTopic = (topic) =>
+    ["leader", "ceo"].includes(activeRole) || topic.submitter === viewerName;
+
+  const approvedTopics = topics.filter((topic) => topic.status === "已评估");
+  const recordForTopic = (topicId) =>
+    scriptLibrary.find((record) => record.topicId === topicId);
+  const selectedTopic = approvedTopics.find(
+    (topic) => topic.id === selectedTopicId,
+  );
+  const selectedRecord = selectedTopic
+    ? recordForTopic(selectedTopic.id)
+    : null;
+  const historyTopic = approvedTopics.find(
+    (topic) => topic.id === historyTopicId,
+  );
+  const historyRecord = historyTopic ? recordForTopic(historyTopic.id) : null;
+  const projectCodeFor = (topic, record) => {
+    const projectId = topic.projectId || record?.projectId;
+    return projects.find((project) => project.id === projectId)?.projectCode ?? projectId;
+  };
+  const rows = approvedTopics.map((topic) => {
+    const record = recordForTopic(topic.id);
+    return {
+      topic,
+      record,
+      status: scriptLibraryStatus(topic, record),
+      latest: latestScriptUpload(record),
+    };
+  });
+  const visibleRows = rows.filter(({ topic, status }) => {
+    const keyword = query.trim().toLowerCase();
+    const matchesQuery =
+      !keyword ||
+      topic.name.toLowerCase().includes(keyword) ||
+      topic.id.toLowerCase().includes(keyword) ||
+      topic.submitter.toLowerCase().includes(keyword);
+    const matchesStatus = statusFilter === "all" || status === statusFilter;
+    return matchesQuery && matchesStatus;
+  });
+  const completeCount = rows.filter(({ topic, record }) =>
+    isScriptRecordComplete(record, topic.estimatedEpisodes),
+  ).length;
+  const statusTabs = [
+    { id: "all", label: "全部", count: rows.length },
+    { id: "待上传", label: "待上传", count: rows.filter((row) => row.status === "待上传").length },
+    { id: "待立项", label: "待立项", count: rows.filter((row) => row.status === "待立项").length },
+    { id: "已退回", label: "已退回", count: rows.filter((row) => row.status === "已退回").length },
+    { id: "已立项", label: "已立项", count: rows.filter((row) => row.status === "已立项").length },
+  ];
+
+  const closeUploader = () => {
+    setSelectedTopicId(null);
+    setUploadFile(null);
+    setUploadError("");
+    setUploadStage("idle");
+    setPreviewEpisodes([]);
+    setPreviewStrategy("");
+    setPreviewIgnoredPrefix("");
+    setBaselineCardVersions({});
+    setReturning(false);
+    setReturnReason("");
+  };
+  const openUploader = (topic) => {
+    setSelectedTopicId(topic.id);
+    setUploadFile(null);
+    setUploadError("");
+    setUploadStage("idle");
+    setPreviewEpisodes([]);
+    setPreviewStrategy("");
+    setPreviewIgnoredPrefix("");
+    setBaselineCardVersions({});
+    setReturning(false);
+    setReturnReason("");
+  };
+  const selectUploadFile = async (file) => {
+    if (!file) return;
+    if (!SCRIPT_DOCX_PATTERN.test(file.name)) {
+      setUploadFile(null);
+      setUploadStage("idle");
+      setUploadError("仅支持 DOCX 格式的剧本文件，不支持 DOC、PDF、TXT 或扫描件。");
+      return;
+    }
+    setUploadFile(file);
+    setUploadError("");
+    setUploadStage("parsing");
+    setPreviewEpisodes([]);
+    try {
+      const text = await extractDocxText(file);
+      const result = parseScriptText(text);
+      setPreviewEpisodes(result.episodes);
+      setPreviewStrategy(result.strategy);
+      setPreviewIgnoredPrefix(result.ignoredPrefix);
+      const affectedCards = getAffectedScriptCards(result.episodes);
+      setBaselineCardVersions(getScriptCardVersionMap(recordForTopic(selectedTopicId), affectedCards));
+      setUploadStage("preview");
+    } catch (error) {
+      setUploadStage("idle");
+      setUploadError(error.message || "文档解析失败，请检查文件后重试。");
+    }
+  };
+  const updatePreviewEpisode = (id, field, value) => {
+    setPreviewEpisodes((episodes) => episodes.map((episode) =>
+      episode.id === id
+        ? { ...episode, [field]: field === "episodeNo" ? Number(value) : value }
+        : episode,
+    ));
+  };
+  const removePreviewEpisode = (id) => {
+    setPreviewEpisodes((episodes) => episodes.filter((episode) => episode.id !== id));
+  };
+  const addPreviewEpisode = () => {
+    setPreviewEpisodes((episodes) => [
+      ...episodes,
+      {
+        id: `preview-manual-${Date.now()}`,
+        episodeNo: (episodes.at(-1)?.episodeNo ?? 0) + 1,
+        title: "新增拆分项",
+        content: "",
+        detectedBy: "人工调整",
+      },
+    ]);
+  };
+  const previewIssues = validateScriptEpisodes(
+    previewEpisodes,
+    selectedTopic?.estimatedEpisodes ?? 1,
+  );
+  const issuesForEpisode = (episodeId) =>
+    previewIssues.filter((issue) => issue.key === episodeId);
+  const saveUpload = () => {
+    if (!selectedTopic || !uploadFile || previewIssues.length) return;
+    const existing = recordForTopic(selectedTopic.id);
+    if (hasScriptCardConflict(existing, baselineCardVersions)) {
+      setUploadStage("conflict");
+      setUploadError("剧本已更新，请刷新后重新上传并确认。");
+      return;
+    }
+    const uploadedAt = new Intl.DateTimeFormat("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date()).replaceAll("/", "-");
+    setUploadStage("saving");
+    setScriptLibrary((records) => {
+      if (!existing) {
+        const id = `SCRIPT-LIB-${selectedTopic.id.replace("TOPIC-", "")}`;
+        const nextRecord = applyScriptEpisodeUpload({
+          id,
+          topicId: selectedTopic.id,
+          status: "待立项",
+          projectId: null,
+          returnedReason: "",
+          uploads: [],
+          episodes: [],
+          cardVersions: [],
+        }, {
+          episodeTotal: selectedTopic.estimatedEpisodes,
+          episodes: previewEpisodes,
+          file: uploadFile,
+          uploadedAt,
+          uploadedBy: viewerName,
+        });
+        return [
+          ...records,
+          nextRecord,
+        ];
+      }
+      return records.map((record) =>
+        record.topicId === selectedTopic.id
+          ? applyScriptEpisodeUpload({
+              ...record,
+              status: "待立项",
+              returnedReason: "",
+            }, {
+              episodeTotal: selectedTopic.estimatedEpisodes,
+              episodes: previewEpisodes,
+              file: uploadFile,
+              uploadedAt,
+              uploadedBy: viewerName,
+            })
+          : record,
+      );
+    });
+    setUploadFile(null);
+    setUploadError("");
+    setUploadStage("success");
+  };
+  const returnScript = () => {
+    if (!selectedTopic || !returnReason.trim()) return;
+    const existing = recordForTopic(selectedTopic.id);
+    if (!existing) return;
+    setScriptLibrary((records) =>
+      records.map((record) =>
+        record.topicId === selectedTopic.id
+          ? {
+              ...record,
+              status: "已退回",
+              returnedReason: returnReason.trim(),
+              updatedAt: "2026-07-21 16:35",
+            }
+          : record,
+      ),
+    );
+    setReturning(false);
+    setReturnReason("");
+  };
+  const initiateProject = (topic) => {
+    beginProjectInitiation(topic.id);
+    closeUploader();
+    goPage("project-management");
+  };
+  const selectedComplete = selectedTopic
+    ? isScriptRecordComplete(selectedRecord, selectedTopic.estimatedEpisodes)
+    : false;
+
+  const tableColumns = [
+    { label: "剧本 / 选题", width: "minmax(210px, 1.35fr)" },
+    { label: "题材 / 集数", width: "minmax(120px, .75fr)" },
+    { label: "上传人", width: "90px" },
+    { label: "上传覆盖", width: "minmax(145px, .9fr)" },
+    { label: "最新版本", width: "minmax(175px, 1.05fr)" },
+    { label: "状态", width: "88px" },
+    { label: "关联项目", width: "minmax(170px, 1fr)" },
+    { label: "更新时间", width: "135px" },
+    { label: "操作", width: "188px" },
+  ];
+  const tableGrid = tableColumns.map((column) => column.width).join(" ");
+
+  return (
+    <div className="platform-page platform-script-library">
+      <PlatformHeader
+        eyebrow="内容与项目"
+        title="剧本库"
+        description="承接评估通过的选题，将 DOCX 自动拆分为单集，并按每 10 集的“一卡”逻辑范围保留只读历史版本。"
+      />
+      <PlatformMetrics
+        items={[
+          { label: "入库选题", value: rows.length, unit: "个", meta: "评估通过后自动进入", tone: "blue" },
+          { label: "剧本已完整", value: completeCount, unit: "个", meta: "整部或分集齐全", tone: "green" },
+          { label: "待上传", value: rows.filter((row) => row.status === "待上传").length, unit: "个", meta: "等待提交人或编剧", tone: "amber" },
+          { label: "待立项", value: rows.filter((row) => row.status === "待立项").length, unit: "个", meta: "可跳转项目管理", tone: "purple" },
+          { label: "已退回", value: rows.filter((row) => row.status === "已退回").length, unit: "个", meta: "保留原因与版本", tone: "red" },
+          { label: "已立项", value: rows.filter((row) => row.status === "已立项").length, unit: "个", meta: "永久保留关联", tone: "cyan" },
+        ]}
+      />
+      <PlatformCard
+        title="选题剧本台账"
+        description={`共 ${visibleRows.length} 条结果 · 按集更新，确认后立即生效`}
+      >
+        <PlatformFilter
+          actions={
+            <button
+              className="ghost-chip"
+              onClick={() => {
+                setQuery("");
+                setStatusFilter("all");
+              }}
+              type="button"
+            >
+              重置
+            </button>
+          }
+        >
+          <label className="platform-script-search">
+            <span>剧本 / 选题 / 上传人</span>
+            <div>
+              <MagnifyingGlass size={16} />
+              <input
+                aria-label="搜索剧本"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="输入关键词"
+                value={query}
+              />
+            </div>
+          </label>
+        </PlatformFilter>
+        <div className="platform-topic-status-tabs platform-script-status-tabs">
+          <PlatformTabs
+            ariaLabel="剧本状态筛选"
+            items={statusTabs}
+            onChange={setStatusFilter}
+            value={statusFilter}
+          />
+        </div>
+        <DataTable
+          columns={tableColumns}
+          minWidth={1420}
+          className="platform-script-table platform-table--single-line"
+        >
+          {visibleRows.length ? visibleRows.map(({ topic, record, status, latest }) => (
+            <div
+              className="platform-table__row platform-script-table__row"
+              key={topic.id}
+              style={{ gridTemplateColumns: tableGrid }}
+            >
+              <div className="platform-table-inline-cell">
+                <strong>{topic.name}</strong>
+                <small>{topic.id} · {topic.summary}</small>
+              </div>
+              <div className="platform-table-inline-cell">
+                <span>{topic.genre}</span>
+                <small>{topic.estimatedEpisodes} 集</small>
+              </div>
+              <strong>{topic.submitter}</strong>
+              <div className="platform-table-inline-cell">
+                <span>{scriptCoverageLabel(record, topic.estimatedEpisodes)}</span>
+                <small>{(record?.uploads ?? []).length} 次上传</small>
+              </div>
+              <div className="platform-table-inline-cell">
+                <span>{latest ? `V${String(latest.version).padStart(2, "0")} · ${latest.name}` : "—"}</span>
+                <small>{latest ? (
+                  latest.scope === "full"
+                    ? "历史整部文件"
+                    : latest.scope === "episode"
+                      ? `历史单集 · 第 ${latest.episodeNo} 集`
+                      : `${latest.episodeNos?.length ?? 0} 集拆分确认`
+                ) : "等待上传"}</small>
+              </div>
+              <PlatformBadge tone={status === "待立项" ? "primary" : status === "已立项" ? "success" : status === "已退回" ? "warning" : "neutral"}>
+                {status}
+              </PlatformBadge>
+              <div className="platform-table-inline-cell">
+                {status === "已立项" ? (
+                  <button className="table-link" onClick={() => goPage("project-management")} type="button">
+                    {projectCodeFor(topic, record)}
+                  </button>
+                ) : (
+                  <span>尚未立项</span>
+                )}
+                <small>{status === "已立项" ? "点击查看项目" : "由项目管理生成编号"}</small>
+              </div>
+              <span>{record?.updatedAt ?? topic.updatedAt}</span>
+              <div className="platform-script-table__actions">
+                <button className="platform-topic-row-action is-quiet" disabled={!canUploadTopic(topic)} onClick={() => openUploader(topic)} type="button">
+                  {record?.uploads?.length ? "更新" : "上传"}
+                </button>
+                {canUploadTopic(topic) ? (
+                  <button className="platform-topic-row-action is-quiet" onClick={() => setHistoryTopicId(topic.id)} type="button">
+                    版本
+                  </button>
+                ) : null}
+                <button
+                  className="platform-topic-row-action"
+                  disabled={status !== "待立项" || !canInitiate}
+                  onClick={() => initiateProject(topic)}
+                  type="button"
+                >
+                  立项
+                </button>
+              </div>
+            </div>
+          )) : (
+            <PlatformEmpty
+              title="暂无匹配剧本"
+              description="评估通过的选题会自动进入剧本库。"
+            />
+          )}
+        </DataTable>
+      </PlatformCard>
+      {selectedTopic ? (
+        <PlatformDrawer
+          wide
+          title="上传与管理剧本"
+          subtitle={`${selectedTopic.name} · ${selectedTopic.id} · ${selectedTopic.estimatedEpisodes} 集`}
+          onClose={closeUploader}
+          footer={
+            returning ? (
+              <>
+                <button className="ghost-chip" onClick={() => setReturning(false)} type="button">取消退回</button>
+                <button className="platform-danger-btn" disabled={!returnReason.trim()} onClick={returnScript} type="button">确认退回修改</button>
+              </>
+            ) : uploadStage === "preview" ? (
+              <>
+                <button className="ghost-chip" onClick={() => {
+                  setUploadFile(null);
+                  setPreviewEpisodes([]);
+                  setUploadStage("idle");
+                }} type="button">取消本次上传</button>
+                <button className="primary-btn" disabled={Boolean(previewIssues.length)} onClick={saveUpload} type="button">确认并立即生效</button>
+              </>
+            ) : uploadStage === "saving" ? (
+              <button className="primary-btn" disabled type="button">正在保存…</button>
+            ) : uploadStage === "success" ? (
+              <button className="primary-btn" onClick={closeUploader} type="button">完成</button>
+            ) : uploadStage === "conflict" ? (
+              <>
+                <button className="ghost-chip" onClick={closeUploader} type="button">关闭</button>
+                <button className="primary-btn" onClick={() => openUploader(selectedTopic)} type="button">刷新后重新上传</button>
+              </>
+            ) : (
+              <>
+                {selectedComplete && !selectedTopic.projectId && canInitiate ? (
+                  <button className="ghost-chip" onClick={() => setReturning(true)} type="button">退回修改</button>
+                ) : null}
+                <button className="ghost-chip" onClick={closeUploader} type="button">关闭</button>
+                <button
+                  className="primary-btn"
+                  disabled={!canInitiate || !selectedComplete || Boolean(selectedTopic.projectId) || selectedRecord?.status === "已退回"}
+                  onClick={() => initiateProject(selectedTopic)}
+                  type="button"
+                >
+                  前往项目管理立项
+                  <ArrowRight size={16} />
+                </button>
+              </>
+            )
+          }
+        >
+          <div className="platform-detail-hero platform-script-hero">
+            <span><FileText size={24} weight="duotone" /></span>
+            <div>
+              <PlatformBadge tone={selectedComplete ? "success" : "warning"}>
+                {selectedComplete ? "剧本已完整" : "剧本待补齐"}
+              </PlatformBadge>
+              <h3>{selectedTopic.name}</h3>
+              <p>{selectedTopic.genre} · {selectedTopic.estimatedEpisodes} 集 · 上传人 {selectedTopic.submitter}</p>
+            </div>
+          </div>
+          <PlatformNotice>
+            仅支持 DOCX。系统先按“第 X 集”标题拆分，无法确定时使用 AI 辅助；预览确认前不会写入正式剧本。
+          </PlatformNotice>
+          <section className="platform-script-upload-panel">
+            <div className="platform-project-form__heading">
+              <div><span>上传与拆分</span><h3>选择 DOCX 剧本文档</h3></div>
+              <small>标题规则优先 · AI 辅助兜底</small>
+            </div>
+            <label className={`platform-script-dropzone ${uploadFile ? "has-file" : ""}`}>
+              <UploadSimple size={22} weight="duotone" />
+              <span>
+                <strong>{uploadFile?.name ?? "选择 DOCX 剧本文件"}</strong>
+                <small>{uploadFile ? formatContractSize(uploadFile.size) : "上传后自动进入拆分预览"}</small>
+              </span>
+              <input accept=".docx" aria-label="上传剧本文件" disabled={uploadStage === "parsing" || uploadStage === "saving"} onChange={(event) => selectUploadFile(event.target.files?.[0])} type="file" />
+            </label>
+            {uploadStage === "parsing" ? (
+              <div className="platform-script-processing" role="status">
+                <span className="platform-script-processing__pulse" />
+                <div><strong>正在拆分剧本</strong><small>先识别标准集标题，再处理需要 AI 辅助的边界。</small></div>
+              </div>
+            ) : null}
+            {uploadError ? <PlatformNotice tone="warning">{uploadError}</PlatformNotice> : null}
+          </section>
+          {uploadStage === "preview" ? (
+            <section className="platform-script-preview">
+              <div className="platform-section-heading">
+                <div>
+                  <h3>拆分预览</h3>
+                  <p>识别 {previewEpisodes.length} 集 · {previewStrategy} · {previewIssues.length} 处异常</p>
+                </div>
+                <div className="platform-script-preview__actions">
+                  <PlatformBadge tone={previewIssues.length ? "warning" : "success"}>{previewIssues.length ? "需要修正" : "校验通过"}</PlatformBadge>
+                  <button className="ghost-chip" onClick={addPreviewEpisode} type="button"><Plus size={14} />添加拆分项</button>
+                </div>
+              </div>
+              {previewIgnoredPrefix ? <PlatformNotice>文档标题或前言不会作为单集正文入库。</PlatformNotice> : null}
+              {previewIssues.some((issue) => issue.key === "document") ? (
+                <PlatformNotice tone="warning">未识别到单集内容，请添加拆分项并补充集数、标题和正文。</PlatformNotice>
+              ) : null}
+              <div className="platform-script-preview-list">
+                {previewEpisodes.map((episode) => {
+                  const episodeIssues = issuesForEpisode(episode.id);
+                  return (
+                    <article className={episodeIssues.length ? "has-error" : ""} key={episode.id}>
+                      <div className="platform-script-preview-row">
+                        <label><span>集数</span><input aria-label={`${episode.title}集数`} max={selectedTopic.estimatedEpisodes} min="1" onChange={(event) => updatePreviewEpisode(episode.id, "episodeNo", event.target.value)} type="number" value={episode.episodeNo} /></label>
+                        <label><span>标题</span><input aria-label={`第${episode.episodeNo}集标题`} onChange={(event) => updatePreviewEpisode(episode.id, "title", event.target.value)} value={episode.title} /></label>
+                        <PlatformBadge tone={episode.detectedBy === "规则识别" ? "neutral" : "primary"}>{episode.detectedBy}</PlatformBadge>
+                        <button aria-label={`删除第${episode.episodeNo}集拆分项`} className="platform-icon-btn" onClick={() => removePreviewEpisode(episode.id)} type="button"><Trash size={15} /></button>
+                      </div>
+                      <label className="platform-script-preview-content"><span>正文</span><textarea aria-label={`第${episode.episodeNo}集正文`} onChange={(event) => updatePreviewEpisode(episode.id, "content", event.target.value)} rows={5} value={episode.content} /></label>
+                      {episodeIssues.length ? (
+                        <div className="platform-script-preview-errors">
+                          {episodeIssues.map((issue) => <span key={`${episode.id}-${issue.type}`}><WarningCircle size={14} />{issue.message}</span>)}
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+          {uploadStage === "success" ? (
+            <PlatformNotice tone="success">拆分内容已立即生效；每个受影响的“一卡”范围均已生成一条只读历史版本。</PlatformNotice>
+          ) : null}
+          {selectedRecord?.returnedReason ? (
+            <PlatformNotice tone="warning">最近退回原因：{selectedRecord.returnedReason}</PlatformNotice>
+          ) : null}
+          {returning ? (
+            <section className="platform-decision-box">
+              <label>
+                <span>退回原因 <b>*</b></span>
+                <textarea aria-label="剧本退回原因" onChange={(event) => setReturnReason(event.target.value)} placeholder="请填写需要修改的具体内容" rows={4} value={returnReason} />
+              </label>
+            </section>
+          ) : null}
+          <section className="platform-script-current">
+            <div className="platform-section-heading">
+              <div><h3>当前剧本概览</h3><p>只覆盖本次上传的单集；每 10 集按一个“一卡”范围记录历史。</p></div>
+              <button className="ghost-chip" onClick={() => setHistoryTopicId(selectedTopic.id)} type="button">查看版本记录</button>
+            </div>
+            <div className="platform-detail-grid">
+              <div><span>上传覆盖</span><strong>{scriptCoverageLabel(selectedRecord, selectedTopic.estimatedEpisodes)}</strong></div>
+              <div><span>一卡版本</span><strong>{selectedRecord?.cardVersions?.length ?? 0} 条</strong></div>
+              <div><span>最新文件</span><strong>{latestScriptUpload(selectedRecord)?.name ?? "尚未上传"}</strong></div>
+              <div><span>更新时间</span><strong>{selectedRecord?.updatedAt ?? "—"}</strong></div>
+            </div>
+          </section>
+        </PlatformDrawer>
+      ) : null}
+      {historyTopic ? (
+        <ScriptHistoryDrawer
+          onClose={() => setHistoryTopicId(null)}
+          record={historyRecord}
+          topic={historyTopic}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 const PROJECT_ASSIGNMENT_PEOPLE = {
   编剧: ["张小北", "周编剧", "许俊流", "江晚"],
   制作: ["林制作", "王芳", "刘雨桐", "顾晨"],
   剪辑: ["沈婉瑶", "陈组长", "李晓言", "张小北"],
   制片: ["林制作", "沈婉瑶", "江晚", "罗语萱"],
 };
+
+const PROJECT_FORM_ROLES = ["编剧", "制作", "剪辑", "制片"];
+const PROJECT_FORM_PEOPLE = Array.from(
+  new Set(Object.values(PROJECT_ASSIGNMENT_PEOPLE).flat()),
+);
+
+function createProjectStaffing(project, episodeCount) {
+  const assignments = project ? selectProjectTaskAssignments(project) : [];
+  return PROJECT_FORM_ROLES.map((role, roleIndex) => {
+    const saved = project?.staffing?.find((item) => item.role === role);
+    if (saved) {
+      return {
+        ...saved,
+        rows: (saved.rows?.length ? saved.rows : [{}]).map((row, rowIndex) => ({
+          id: row.id ?? `${role}-person-${rowIndex + 1}`,
+          person: row.person ?? "",
+          episodeStart: Number(row.episodeStart) || 1,
+          episodeEnd: Number(row.episodeEnd) || episodeCount,
+          durationDays: row.durationDays ?? "",
+        })),
+      };
+    }
+    const assignment = assignments.find((item) => item.role === role);
+    return {
+      id: `${role}-staffing-${roleIndex + 1}`,
+      role,
+      reviewEnabled: Boolean(assignment?.reviewEnabled),
+      reviewer: assignment?.reviewer ?? "",
+      rows: [
+        {
+          id: `${role}-person-1`,
+          person:
+            assignment?.owner && assignment.owner !== "待分配"
+              ? assignment.owner
+              : "",
+          episodeStart: 1,
+          episodeEnd: episodeCount,
+          durationDays: assignment?.durationDays ?? "",
+        },
+      ],
+    };
+  });
+}
+
+function createProjectFormDraft(project) {
+  const episodeCount = clampEpisodeCount(
+    project?.episodeCount ??
+      project?.videoEpisodes ??
+      project?.videos?.length ??
+      project?.scriptEpisodes ??
+      project?.scripts?.length ??
+      3,
+  );
+  return {
+    name: project?.name ?? "",
+    genre: project?.genre ?? "都市情感",
+    mode: project?.mode ?? "内部制作",
+    owner: project?.owner ?? "沈婉瑶",
+    start: project?.start ?? "2026-07-21",
+    deadline: project?.due ?? project?.deadline ?? "2026-08-31",
+    budget: Number(project?.budget ?? 100000),
+    episodeCount,
+    scriptEpisodes: episodeCount,
+    videoEpisodes: episodeCount,
+    manpowerCost: Number(project?.manpowerCost ?? 0),
+    computeCost: Number(project?.computeCost ?? 0),
+    trafficCost: Number(project?.trafficCost ?? 0),
+    contractFile: project?.contract ?? null,
+    vendorCompanyName:
+      project?.vendorCompanyName ??
+      (project?.vendor && project.vendor !== "待录入" ? project.vendor : ""),
+    vendorAccount:
+      project?.vendorAccount ??
+      externalVendorAccountFor(project?.vendorCompanyName ?? project?.vendor),
+    vendorContactName:
+      project?.vendorContactName ??
+      (project?.contact && project.contact !== "待录入" ? project.contact : ""),
+    vendorContactPhone: project?.vendorContactPhone ?? project?.contactPhone ?? "",
+    externalScriptShareMode:
+      project?.externalScriptShareMode ??
+      (project?.mode === "外部制作" ? "all" : ""),
+    externalScriptCardNo: project?.externalScriptCardNo ?? "",
+    scriptFile: project?.scriptFile ?? null,
+    topicId: project?.topicId ?? null,
+    topic: project?.topic ?? (project?.topicId ? project.topicId : "独立创建"),
+    scriptLibraryRecordId: project?.scriptLibraryRecordId ?? null,
+    staffing: createProjectStaffing(project, episodeCount),
+  };
+}
+
+function normalizedProjectStaffing(
+  staffing = [],
+  episodeCount = 1,
+  mode = "内部制作",
+) {
+  const relevantStaffing =
+    mode === "外部制作"
+      ? staffing.filter((role) => role.role === "制片")
+      : staffing;
+  return relevantStaffing.map((role) => ({
+    ...role,
+    reviewer: role.reviewEnabled ? role.reviewer : "",
+    rows: role.rows.map((row) => ({
+      ...row,
+      episodeStart: Math.min(
+        episodeCount,
+        Math.max(1, Number(row.episodeStart) || 1),
+      ),
+      episodeEnd: Math.min(
+        episodeCount,
+        Math.max(1, Number(row.episodeEnd) || episodeCount),
+      ),
+      durationDays: Math.max(0, Number(row.durationDays) || 0),
+    })),
+  }));
+}
+
+function projectOwnerForRole(staffing, role, fallback = "待分配") {
+  return (
+    staffing
+      .find((item) => item.role === role)
+      ?.rows.find((row) => row.person)
+      ?.person ?? fallback
+  );
+}
+
+function buildProjectAssignments(project, draft) {
+  const episodeCount = clampEpisodeCount(draft.episodeCount);
+  const staffing = normalizedProjectStaffing(
+    draft.staffing,
+    episodeCount,
+    draft.mode,
+  );
+  const assignmentProject = {
+    ...project,
+    episodeCount,
+    scriptEpisodes: episodeCount,
+    videoEpisodes: episodeCount,
+    staffing,
+  };
+  return selectProjectTaskAssignments(assignmentProject).map((assignment) => {
+    const roleStaffing = staffing.find((item) => item.role === assignment.role);
+    return {
+      ...assignment,
+      owner: projectOwnerForRole(staffing, assignment.role, assignment.owner),
+      due: draft.deadline,
+      total: episodeCount,
+      reviewEnabled: Boolean(roleStaffing?.reviewEnabled),
+      reviewer: roleStaffing?.reviewer ?? "",
+      workPlan: roleStaffing?.rows ?? [],
+    };
+  });
+}
+
+function resizeProjectContentEntries(project, collection, count, owner) {
+  const nextEntries = buildContentEntries(
+    project.projectCode,
+    collection,
+    count,
+    owner,
+    project.status,
+  );
+  return nextEntries.map((entry, index) => project[collection]?.[index] ?? entry);
+}
+
+function isProjectFormValid(draft) {
+  return Boolean(
+    draft?.name?.trim() &&
+      draft?.genre &&
+      draft?.owner &&
+      Number(draft?.episodeCount) > 0 &&
+      Number(draft?.budget) >= 0 &&
+      draft?.start &&
+      draft?.deadline &&
+      draft.start <= draft.deadline &&
+      (draft.mode !== "外部制作" ||
+        (draft.contractFile &&
+          draft.vendorCompanyName &&
+          draft.vendorAccount &&
+          draft.vendorContactName?.trim() &&
+          draft.vendorContactPhone?.trim() &&
+          draft.externalScriptShareMode &&
+          (draft.externalScriptShareMode !== "card" ||
+            (Number(draft.externalScriptCardNo) > 0 &&
+              Number(draft.externalScriptCardNo) <=
+                Math.ceil(Number(draft.episodeCount) / 10))))),
+  );
+}
+
+function ProjectSetupForm({ draft, setDraft }) {
+  const episodeCount = clampEpisodeCount(draft.episodeCount);
+  const perEpisodeBudget = episodeCount
+    ? Number(draft.budget || 0) / episodeCount
+    : 0;
+  const ownerOptions = Array.from(
+    new Set([draft.owner, ...PROJECT_FORM_PEOPLE].filter(Boolean)),
+  );
+  const visibleStaffing =
+    draft.mode === "外部制作"
+      ? draft.staffing.filter((role) => role.role === "制片")
+      : draft.staffing;
+  const externalScriptCardOptions = Array.from(
+    { length: Math.ceil(episodeCount / 10) },
+    (_, index) => {
+      const cardNo = index + 1;
+      return { cardNo, ...scriptCardRange(cardNo, episodeCount) };
+    },
+  );
+  const updateStaffing = (role, updater) =>
+    setDraft((current) => ({
+      ...current,
+      staffing: current.staffing.map((item) =>
+        item.role === role ? updater(item) : item,
+      ),
+    }));
+  const updateStaffingRow = (role, rowId, field, value) =>
+    updateStaffing(role, (item) => ({
+      ...item,
+      rows: item.rows.map((row) =>
+        row.id === rowId ? { ...row, [field]: value } : row,
+      ),
+    }));
+
+  return (
+    <div className="platform-project-form">
+      <section className="platform-project-form__section">
+        <div className="platform-project-form__heading">
+          <div>
+            <span>基础信息</span>
+            <h3>项目立项信息</h3>
+          </div>
+          <small>带 * 的字段为必填项</small>
+        </div>
+        <div className="platform-project-basics-grid">
+          <label>
+            <span><b>*</b> 项目名称</span>
+            <div className="platform-project-input-counter">
+              <input
+                aria-label="项目名称"
+                maxLength={80}
+                placeholder="请输入项目名称"
+                value={draft.name}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, name: event.target.value }))
+                }
+              />
+              <small>{draft.name.length} / 80</small>
+            </div>
+          </label>
+          <label>
+            <span><b>*</b> 题材</span>
+            <select
+              aria-label="题材"
+              value={draft.genre}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, genre: event.target.value }))
+              }
+            >
+              <option value="">请选择题材</option>
+              <option>都市情感</option>
+              <option>现实题材</option>
+              <option>悬疑短剧</option>
+              <option>青春情感</option>
+              <option>古装传奇</option>
+              <option>科幻悬疑</option>
+            </select>
+          </label>
+          <label>
+            <span><b>*</b> 集数</span>
+            <input
+              aria-label="集数"
+              max="9999"
+              min="1"
+              placeholder="请输入集数"
+              type="number"
+              value={draft.episodeCount}
+              onChange={(event) => {
+                const value = event.target.value;
+                const nextCount = clampEpisodeCount(value);
+                setDraft((current) => ({
+                  ...current,
+                  episodeCount: value,
+                  scriptEpisodes: value,
+                  videoEpisodes: value,
+                  staffing: current.staffing.map((role) => ({
+                    ...role,
+                    rows: role.rows.map((row) => ({
+                      ...row,
+                      episodeEnd:
+                        Number(row.episodeEnd) > nextCount
+                          ? nextCount
+                          : row.episodeEnd,
+                    })),
+                  })),
+                  externalScriptCardNo:
+                    Number(current.externalScriptCardNo) >
+                    Math.ceil(nextCount / 10)
+                      ? ""
+                      : current.externalScriptCardNo,
+                }));
+              }}
+            />
+          </label>
+          <label>
+            <span><b>*</b> 项目总预算</span>
+            <input
+              aria-label="项目总预算"
+              min="0"
+              placeholder="请输入项目总预算"
+              step="100"
+              type="number"
+              value={draft.budget}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, budget: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>每集预算</span>
+            <input aria-label="每集预算" readOnly value={perEpisodeBudget ? `¥${perEpisodeBudget.toFixed(2)}` : "—"} />
+          </label>
+          <label>
+            <span><b>*</b> 负责人</span>
+            <select
+              aria-label="负责人"
+              value={draft.owner}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, owner: event.target.value }))
+              }
+            >
+              <option value="">请选择负责人</option>
+              {ownerOptions.map((person) => <option key={person}>{person}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>制作方式</span>
+            <select
+              aria-label="制作方式"
+              value={draft.mode}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  mode: event.target.value,
+                  contractFile:
+                    event.target.value === "内部制作" ? null : current.contractFile,
+                  vendorCompanyName:
+                    event.target.value === "内部制作" ? "" : current.vendorCompanyName,
+                  vendorAccount:
+                    event.target.value === "内部制作" ? "" : current.vendorAccount,
+                  vendorContactName:
+                    event.target.value === "内部制作" ? "" : current.vendorContactName,
+                  vendorContactPhone:
+                    event.target.value === "内部制作" ? "" : current.vendorContactPhone,
+                  externalScriptShareMode:
+                    event.target.value === "内部制作"
+                      ? ""
+                      : current.externalScriptShareMode,
+                  externalScriptCardNo:
+                    event.target.value === "内部制作"
+                      ? ""
+                      : current.externalScriptCardNo,
+                }))
+              }
+            >
+              <option>内部制作</option>
+              <option>外部制作</option>
+            </select>
+          </label>
+          <div />
+          <label>
+            <span><b>*</b> 预计开始时间</span>
+            <input
+              aria-label="预计开始时间"
+              type="date"
+              value={draft.start}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, start: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span><b>*</b> 预计完成时间</span>
+            <input
+              aria-label="预计完成时间"
+              min={draft.start}
+              type="date"
+              value={draft.deadline}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, deadline: event.target.value }))
+              }
+            />
+          </label>
+        </div>
+      </section>
+      {draft.mode === "外部制作" ? (
+        <section className="platform-project-form__section platform-project-vendor-section">
+          <div className="platform-project-form__heading">
+            <div>
+              <span>外部承制方</span>
+              <h3>承制公司与联系人</h3>
+            </div>
+            <small>公司账号由公司后台自动获取</small>
+          </div>
+          <div className="platform-project-basics-grid">
+            <label>
+              <span><b>*</b> 外部承制方公司名</span>
+              <select
+                aria-label="外部承制方公司名"
+                value={draft.vendorCompanyName}
+                onChange={(event) => {
+                  const vendorCompanyName = event.target.value;
+                  setDraft((current) => ({
+                    ...current,
+                    vendorCompanyName,
+                    vendorAccount: externalVendorAccountFor(vendorCompanyName),
+                  }));
+                }}
+              >
+                <option value="">请从公司后台选择</option>
+                {EXTERNAL_VENDOR_COMPANIES.map((company) => (
+                  <option key={company.account} value={company.name}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span><b>*</b> 对应账号</span>
+              <input
+                aria-label="外部承制方对应账号"
+                placeholder="选择公司后自动获取"
+                readOnly
+                value={draft.vendorAccount}
+              />
+            </label>
+            <label>
+              <span><b>*</b> 联系人</span>
+              <input
+                aria-label="外部承制方联系人"
+                maxLength={40}
+                placeholder="请输入联系人姓名"
+                value={draft.vendorContactName}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    vendorContactName: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              <span><b>*</b> 联系方式</span>
+              <input
+                aria-label="外部承制方联系方式"
+                maxLength={80}
+                placeholder="请输入手机号、座机或邮箱"
+                value={draft.vendorContactPhone}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    vendorContactPhone: event.target.value,
+                  }))
+                }
+              />
+            </label>
+          </div>
+          <div className="platform-project-vendor-note" role="note">
+            <Buildings size={17} weight="duotone" />
+            <span>公司名称与账号来自公司后台主数据；账号自动带出且不可在立项中修改。</span>
+          </div>
+        </section>
+      ) : null}
+      <section className="platform-project-form__section">
+        <div className="platform-project-form__heading">
+          <div>
+            <span>{draft.mode === "外部制作" ? "内部对接人员" : "参与人员及对应工期"}</span>
+            <h3>{draft.mode === "外部制作" ? "制片配置" : "岗位、审核与分集排期"}</h3>
+          </div>
+          <small>
+            {draft.mode === "外部制作"
+              ? "外部制作仅需配置制片"
+              : "人员配置将同步到项目任务"}
+          </small>
+        </div>
+        <div className="platform-project-staffing">
+          {visibleStaffing.map((role) => (
+            <article className="platform-project-role-card" key={role.id}>
+              <header>
+                <strong>{role.role}</strong>
+                <label className="platform-project-review-toggle">
+                  <span>是否审核</span>
+                  <input
+                    aria-label={`${role.role}是否审核`}
+                    checked={role.reviewEnabled}
+                    onChange={(event) =>
+                      updateStaffing(role.role, (item) => ({
+                        ...item,
+                        reviewEnabled: event.target.checked,
+                        reviewer: event.target.checked ? item.reviewer : "",
+                      }))
+                    }
+                    type="checkbox"
+                  />
+                  <i />
+                </label>
+                <label className="platform-project-reviewer">
+                  <span>审核人员</span>
+                  <select
+                    aria-label={`${role.role}审核人`}
+                    disabled={!role.reviewEnabled}
+                    value={role.reviewer}
+                    onChange={(event) =>
+                      updateStaffing(role.role, (item) => ({
+                        ...item,
+                        reviewer: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">{role.reviewEnabled ? "请选择审核人员" : "未开启审核"}</option>
+                    {PROJECT_FORM_PEOPLE.map((person) => <option key={person}>{person}</option>)}
+                  </select>
+                </label>
+              </header>
+              <div className="platform-project-role-card__body">
+                <div className="platform-project-role-card__labels" aria-hidden="true">
+                  <span>人员</span><span>负责集数</span><span>工期</span><span>操作</span>
+                </div>
+                {role.rows.map((row, rowIndex) => (
+                  <div className="platform-project-staff-row" key={row.id}>
+                    <select
+                      aria-label={`${role.role}人员${rowIndex + 1}`}
+                      value={row.person}
+                      onChange={(event) =>
+                        updateStaffingRow(role.role, row.id, "person", event.target.value)
+                      }
+                    >
+                      <option value="">选择人员</option>
+                      {(PROJECT_ASSIGNMENT_PEOPLE[role.role] ?? PROJECT_FORM_PEOPLE).map(
+                        (person) => <option key={person}>{person}</option>,
+                      )}
+                    </select>
+                    <div className="platform-project-episode-range">
+                      <input
+                        aria-label={`${role.role}负责开始集${rowIndex + 1}`}
+                        max={episodeCount}
+                        min="1"
+                        type="number"
+                        value={row.episodeStart}
+                        onChange={(event) =>
+                          updateStaffingRow(role.role, row.id, "episodeStart", event.target.value)
+                        }
+                      />
+                      <span>至</span>
+                      <input
+                        aria-label={`${role.role}负责结束集${rowIndex + 1}`}
+                        max={episodeCount}
+                        min="1"
+                        type="number"
+                        value={row.episodeEnd}
+                        onChange={(event) =>
+                          updateStaffingRow(role.role, row.id, "episodeEnd", event.target.value)
+                        }
+                      />
+                      <small>集</small>
+                    </div>
+                    <div className="platform-project-duration-input">
+                      <input
+                        aria-label={`${role.role}工期${rowIndex + 1}`}
+                        min="0"
+                        placeholder="工期"
+                        type="number"
+                        value={row.durationDays}
+                        onChange={(event) =>
+                          updateStaffingRow(role.role, row.id, "durationDays", event.target.value)
+                        }
+                      />
+                      <span>天</span>
+                    </div>
+                    <div className="platform-project-staff-actions">
+                      <button
+                        aria-label={`${role.role}新增人员`}
+                        className="platform-project-row-action"
+                        onClick={() =>
+                          updateStaffing(role.role, (item) => ({
+                            ...item,
+                            rows: [
+                              ...item.rows,
+                              {
+                                id: `${role.role}-person-${Date.now()}`,
+                                person: "",
+                                episodeStart: 1,
+                                episodeEnd: episodeCount,
+                                durationDays: "",
+                              },
+                            ],
+                          }))
+                        }
+                        type="button"
+                      >
+                        <Plus size={15} />
+                      </button>
+                      <button
+                        aria-label={`${role.role}删除人员${rowIndex + 1}`}
+                        className="platform-project-row-action is-danger"
+                        disabled={role.rows.length === 1}
+                        onClick={() =>
+                          updateStaffing(role.role, (item) => ({
+                            ...item,
+                            rows: item.rows.filter((itemRow) => itemRow.id !== row.id),
+                          }))
+                        }
+                        type="button"
+                      >
+                        <Trash size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+      <section className="platform-project-script-upload">
+        <div>
+          <span>立项内容</span>
+          <strong>{draft.scriptFile?.name ?? "尚未上传剧本"}</strong>
+          <small>
+            {draft.scriptLibraryRecordId
+              ? "来自剧本库；在此替换会同步生成剧本库新版本"
+              : "支持 PDF、DOC、DOCX、TXT，后续可在编辑项目时替换"}
+          </small>
+        </div>
+        {draft.scriptLibraryRecordId ? (
+          <PlatformBadge tone="success">剧本库已关联</PlatformBadge>
+        ) : null}
+        <label>
+          <UploadSimple size={16} />
+          {draft.scriptFile ? "更换剧本" : "上传剧本"}
+          <input
+            accept=".pdf,.doc,.docx,.txt"
+            aria-label="上传剧本"
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                scriptFile: event.target.files?.[0] ?? current.scriptFile,
+              }))
+            }
+            type="file"
+          />
+        </label>
+      </section>
+      {draft.mode === "外部制作" ? (
+        <section className="platform-project-form__section platform-project-script-share">
+          <div className="platform-project-form__heading">
+            <div>
+              <span>外部共享</span>
+              <h3>剧本共享范围</h3>
+            </div>
+            <small>立项前必须明确共享范围</small>
+          </div>
+          <div
+            aria-label="外部制作剧本共享范围"
+            className="platform-project-share-options"
+            role="radiogroup"
+          >
+            <label
+              className={draft.externalScriptShareMode === "all" ? "is-active" : ""}
+            >
+              <input
+                aria-label="共享全部剧本"
+                checked={draft.externalScriptShareMode === "all"}
+                name="external-script-share-mode"
+                onChange={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    externalScriptShareMode: "all",
+                    externalScriptCardNo: "",
+                  }))
+                }
+                type="radio"
+              />
+              <span>
+                <strong>全部剧本</strong>
+                <small>共享当前项目第 1–{episodeCount} 集的剧本内容</small>
+              </span>
+            </label>
+            <label
+              className={draft.externalScriptShareMode === "card" ? "is-active" : ""}
+            >
+              <input
+                aria-label="共享指定一卡"
+                checked={draft.externalScriptShareMode === "card"}
+                name="external-script-share-mode"
+                onChange={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    externalScriptShareMode: "card",
+                    externalScriptCardNo: "",
+                  }))
+                }
+                type="radio"
+              />
+              <span>
+                <strong>指定一卡</strong>
+                <small>按每 10 集的“一卡”范围选择需要共享的剧本</small>
+              </span>
+            </label>
+          </div>
+          {draft.externalScriptShareMode === "card" ? (
+            <label className="platform-project-share-range">
+              <span><b>*</b> 选择共享的一卡</span>
+              <select
+                aria-label="选择共享的一卡"
+                value={draft.externalScriptCardNo}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    externalScriptCardNo: event.target.value,
+                  }))
+                }
+              >
+                <option value="">请选择剧本范围</option>
+                {externalScriptCardOptions.map((option) => (
+                  <option key={option.cardNo} value={option.cardNo}>
+                    一卡 {option.cardNo} · 第 {option.start}–{option.end} 集
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <div className="platform-project-vendor-note" role="note">
+            <FileText size={17} weight="duotone" />
+            <span>外部承制方仅能查看本次选定范围内的当前剧本内容，其他分集不共享。</span>
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
 
 const PROJECT_ROLE_VIEWER = {
   employee: "张小北",
@@ -7955,7 +9974,7 @@ function ProjectAssignmentDrawer({ project, readOnly, onClose, onSave }) {
   );
 }
 
-export function ProjectInitiationPage({ activeRole = "ceo", goPage }) {
+export function ProjectInitiationPage({ activeRole = "ceo", goPage, embedded = false }) {
   const { projects, setProjects } = useDemoData();
   const [tab, setTab] = useState("all");
   const [keyword, setKeyword] = useState("");
@@ -8016,18 +10035,20 @@ export function ProjectInitiationPage({ activeRole = "ceo", goPage }) {
 
   return (
     <div className="platform-page platform-project-initiation">
-      <PlatformHeader
-        eyebrow="项目立项"
-        title="项目台账与人员分配"
-        description="在立项阶段完成岗位负责人配置；任务下发后自动进入任务列表与对应人员工作台。"
-        actions={
-          <button className="primary-btn" onClick={() => goPage?.("tasks")} type="button">
-            查看任务列表
-            <ArrowRight size={16} />
-          </button>
-        }
-        meta={null}
-      />
+      {!embedded ? (
+        <PlatformHeader
+          eyebrow="项目立项"
+          title="项目台账与人员分配"
+          description="在立项阶段完成岗位负责人配置；任务下发后自动进入任务列表与对应人员工作台。"
+          actions={
+            <button className="primary-btn" onClick={() => goPage?.("tasks")} type="button">
+              查看任务列表
+              <ArrowRight size={16} />
+            </button>
+          }
+          meta={null}
+        />
+      ) : null}
       {feedback ? <div className="platform-access-feedback" role="status">{feedback}</div> : null}
       <PlatformMetrics
         items={[
@@ -8360,81 +10381,520 @@ export function TaskCenterPage({ activeRole = "ceo" }) {
   );
 }
 
-export function ProjectProductionPage() {
-  const { projects, setProjects } = useDemoData();
+export function ProjectProductionPage({ activeRole = "ceo", embedded = false, goPage, management = false }) {
+  const {
+    projects,
+    setProjects,
+    topics,
+    setTopics,
+    scriptLibrary,
+    setScriptLibrary,
+    projectInitiationTopicId,
+    clearProjectInitiation,
+  } = useDemoData();
   const [view, setView] = useState("all");
   const [selected, setSelected] = useState(null);
+  const [assignmentProject, setAssignmentProject] = useState(null);
+  const [deletingProject, setDeletingProject] = useState(null);
+  const [editingProject, setEditingProject] = useState(null);
+  const [editProjectDraft, setEditProjectDraft] = useState(null);
   const [creating, setCreating] = useState(false);
   const [contractPreview, setContractPreview] = useState(null);
   const [contentCodePreview, setContentCodePreview] = useState(null);
   const [projectContractError, setProjectContractError] = useState("");
-  const [projectDraft, setProjectDraft] = useState({
-    name: "",
-    mode: "内部制作",
-    owner: "沈婉瑶",
-    deadline: "2026-08-31",
-    budget: 100000,
-    scriptEpisodes: 3,
-    videoEpisodes: 3,
-    manpowerCost: 0,
-    computeCost: 0,
-    trafficCost: 0,
-    contractFile: null,
-  });
+  const [editContractError, setEditContractError] = useState("");
+  const [assignmentFeedback, setAssignmentFeedback] = useState("");
+  const [projectDraft, setProjectDraft] = useState(() => createProjectFormDraft());
+
+  useEffect(() => {
+    if (!management || !projectInitiationTopicId) return;
+    const topic = topics.find((item) => item.id === projectInitiationTopicId);
+    const scriptRecord = scriptLibrary.find(
+      (record) => record.topicId === projectInitiationTopicId,
+    );
+    const latestUpload = latestScriptUpload(scriptRecord);
+    if (topic && scriptRecord && latestUpload && !topic.projectId) {
+      setProjectDraft(
+        createProjectFormDraft({
+          name: topic.name,
+          genre: topic.genre,
+          episodeCount: topic.estimatedEpisodes,
+          owner: topic.submitter,
+          topicId: topic.id,
+          topic: topic.id,
+          scriptLibraryRecordId: scriptRecord.id,
+          scriptFile: latestUpload.file ?? latestUpload,
+        }),
+      );
+      setCreating(true);
+      setAssignmentFeedback(`已从剧本库带入“${topic.name}”，请完成立项配置。`);
+    }
+    clearProjectInitiation();
+  }, [management, projectInitiationTopicId]);
   const projectSummary = selectProjectSummary(projects);
   const current = projects.find((item) => item.id === selected?.id) ?? selected;
   const currentCost = current ? selectProjectCostBreakdown(current) : null;
+  const currentLinkedTopic = current
+    ? topics.find(
+        (topic) => topic.id === current.topicId || topic.id === current.topic,
+      )
+    : null;
+  const currentSource = currentLinkedTopic || /^TOPIC-/.test(String(current?.topic ?? ""))
+    ? "选题库"
+    : "自行创建";
+  const currentEpisodeCount = current
+    ? clampEpisodeCount(
+        current.episodeCount ??
+          Math.max(current.scripts?.length ?? 0, current.videos?.length ?? 0),
+      )
+    : 0;
+  const currentStaffing = current
+    ? createProjectStaffing(current, currentEpisodeCount).filter(
+        (role) => current.mode !== "外部制作" || role.role === "制片",
+      )
+    : [];
+  const currentContentRows = current
+    ? Array.from({ length: currentEpisodeCount }, (_, index) => ({
+        episodeNo: index + 1,
+        scriptCode: current.scripts?.[index]?.code ?? "—",
+        videoCode: current.videos?.[index]?.code ?? "—",
+      }))
+    : [];
   const projectTableColumns = [
-    { label: "项目概览", width: "minmax(200px, 1.35fr)" },
-    { label: "来源 / 制作", width: "minmax(140px, 0.9fr)" },
-    { label: "负责人 / 状态", width: "minmax(140px, 0.9fr)" },
-    { label: "整体进度", width: "minmax(160px, 1fr)" },
-    { label: "异常标记", width: "minmax(120px, 0.75fr)" },
-    { label: "计划 / 里程碑", width: "minmax(160px, 1fr)" },
-    { label: "成本执行", width: "minmax(160px, 1fr)" },
-    { label: "操作", width: "64px" },
+    { label: "项目名称", width: "minmax(180px, 1.25fr)" },
+    { label: "项目编号", width: "minmax(175px, 1.12fr)" },
+    { label: "来源", width: "92px" },
+    { label: "制作方式", width: "104px" },
+    { label: "题材", width: "minmax(105px, 0.72fr)" },
+    { label: "负责人", width: "90px" },
+    { label: "状态", width: "86px" },
+    { label: "集数", width: "70px" },
+    { label: "预计完成时间", width: "120px" },
+    { label: "整体进度", width: "minmax(140px, 0.9fr)" },
+    { label: "成本执行", width: "minmax(180px, 1.05fr)" },
+    { label: "操作", width: "112px" },
   ];
   const projectTableGrid = projectTableColumns.map((item) => item.width).join(" ");
-  const updateInternalCost = (field, value) =>
-    setProjects((items) =>
-      items.map((project) => {
-        if (project.id !== selected.id) return project;
-        const currentCosts = selectProjectCostBreakdown(project);
-        const nextCosts = {
-          manpowerCost: currentCosts.manpowerCost,
-          computeCost: currentCosts.computeCost,
-          trafficCost: currentCosts.trafficCost,
-          [field]: Math.max(0, Number(value) || 0),
-        };
-        return {
-          ...project,
-          ...nextCosts,
-          actual:
-            nextCosts.manpowerCost +
-            nextCosts.computeCost +
-            nextCosts.trafficCost,
-          costUpdatedAt: "2026-07-16 09:30",
-        };
-      }),
-    );
   const visible = projects.filter(
     (project) =>
       view === "all" ||
       project.mode === (view === "internal" ? "内部制作" : "外部制作"),
   );
+  const canAssign = ["leader", "ceo"].includes(activeRole);
+  const linkedTopicFor = (project) =>
+    topics.find(
+      (topic) => topic.id === project.topicId || topic.id === project.topic,
+    );
+  const deleteProject = (project) => {
+    const restoresTopic = Boolean(
+      project.topicId || /^TOPIC-/.test(String(project.topic ?? "")),
+    );
+    setProjects((items) => items.filter((item) => item.id !== project.id));
+    if (restoresTopic) {
+      const topicId = project.topicId || project.topic;
+      setTopics((items) =>
+        items.map((topic) =>
+          topic.id === topicId
+            ? { ...topic, projectId: null, status: "已评估" }
+            : topic,
+        ),
+      );
+      setScriptLibrary((records) =>
+        records.map((record) =>
+          record.topicId === topicId
+            ? { ...record, projectId: null, status: "待立项" }
+            : record,
+        ),
+      );
+    }
+    if (selected?.id === project.id) setSelected(null);
+    if (assignmentProject?.id === project.id) setAssignmentProject(null);
+    setDeletingProject(null);
+    setAssignmentFeedback(
+      restoresTopic
+        ? `“${project.name}”已删除；关联选题保持已评估，项目关联已解除。`
+        : `“${project.name}”已删除。`,
+    );
+  };
+  const openProjectEditor = (project) => {
+    setEditingProject(project);
+    setEditProjectDraft(createProjectFormDraft(project));
+    setEditContractError("");
+    setSelected(null);
+  };
+  const saveEditedProject = () => {
+    if (!editingProject || !isProjectFormValid(editProjectDraft)) return;
+    const episodeCount = clampEpisodeCount(editProjectDraft.episodeCount);
+    const staffing = normalizedProjectStaffing(
+      editProjectDraft.staffing,
+      episodeCount,
+      editProjectDraft.mode,
+    );
+    setProjects((items) =>
+      items.map((project) => {
+        if (project.id !== editingProject.id) return project;
+        const contract =
+          editProjectDraft.mode === "外部制作"
+            ? editProjectDraft.contractFile?.uploadedAt
+              ? editProjectDraft.contractFile
+              : {
+                  name: editProjectDraft.contractFile.name,
+                  size: editProjectDraft.contractFile.size,
+                  type: editProjectDraft.contractFile.type,
+                  file: editProjectDraft.contractFile,
+                  uploadedAt: "2026-07-21 14:40",
+                }
+            : null;
+        const baseStages = editProjectDraft.mode === "内部制作"
+          ? (project.stages?.length
+              ? project.stages
+              : [
+                  { name: "剧本", progress: 0, status: "未开始" },
+                  { name: "制作", progress: 0, status: "未开始" },
+                  { name: "剪辑", progress: 0, status: "未开始" },
+                ])
+          : [];
+        const stages = baseStages.map((stage) => ({
+          ...stage,
+          owner: projectOwnerForRole(
+            staffing,
+            stage.name === "剧本" ? "编剧" : stage.name,
+            stage.owner,
+          ),
+        }));
+        const nextProject = {
+          ...project,
+          ...editProjectDraft,
+          name: editProjectDraft.name.trim(),
+          budget: Number(editProjectDraft.budget) || 0,
+          episodeCount,
+          scriptEpisodes: episodeCount,
+          videoEpisodes: episodeCount,
+          start: editProjectDraft.start,
+          due: editProjectDraft.deadline,
+          deadline: editProjectDraft.deadline,
+          contract,
+          staffing,
+          vendor:
+            editProjectDraft.mode === "外部制作"
+              ? editProjectDraft.vendorCompanyName
+              : undefined,
+          vendorCompanyName:
+            editProjectDraft.mode === "外部制作"
+              ? editProjectDraft.vendorCompanyName
+              : undefined,
+          vendorAccount:
+            editProjectDraft.mode === "外部制作"
+              ? editProjectDraft.vendorAccount
+              : undefined,
+          contact:
+            editProjectDraft.mode === "外部制作"
+              ? editProjectDraft.vendorContactName.trim()
+              : undefined,
+          vendorContactName:
+            editProjectDraft.mode === "外部制作"
+              ? editProjectDraft.vendorContactName.trim()
+              : undefined,
+          vendorContactPhone:
+            editProjectDraft.mode === "外部制作"
+              ? editProjectDraft.vendorContactPhone.trim()
+              : undefined,
+          externalScriptShareMode:
+            editProjectDraft.mode === "外部制作"
+              ? editProjectDraft.externalScriptShareMode
+              : undefined,
+          externalScriptCardNo:
+            editProjectDraft.mode === "外部制作" &&
+            editProjectDraft.externalScriptShareMode === "card"
+              ? Number(editProjectDraft.externalScriptCardNo)
+              : undefined,
+          liaison:
+            editProjectDraft.mode === "外部制作"
+              ? editProjectDraft.owner
+              : undefined,
+          stages,
+          progress:
+            editProjectDraft.mode === "内部制作"
+              ? Number(project.progress ?? 0)
+              : null,
+          flags: editProjectDraft.mode === "内部制作" ? project.flags : [],
+          scripts: resizeProjectContentEntries(
+            project,
+            "scripts",
+            episodeCount,
+            editProjectDraft.owner,
+          ),
+          videos: resizeProjectContentEntries(
+            project,
+            "videos",
+            episodeCount,
+            editProjectDraft.owner,
+          ),
+          actual:
+            editProjectDraft.mode === "内部制作"
+              ? Number(editProjectDraft.manpowerCost || 0) +
+                Number(editProjectDraft.computeCost || 0) +
+                Number(editProjectDraft.trafficCost || 0)
+              : project.actual,
+          contractFile: undefined,
+        };
+        return {
+          ...nextProject,
+          taskAssignments: buildProjectAssignments(nextProject, editProjectDraft),
+        };
+      }),
+    );
+    const linkedTopic = topics.find(
+      (topic) =>
+        topic.id === editingProject.topicId || topic.id === editingProject.topic,
+    );
+    if (
+      editProjectDraft.scriptLibraryRecordId &&
+      linkedTopic &&
+      editProjectDraft.scriptFile
+    ) {
+      setScriptLibrary((records) =>
+        records.map((record) =>
+          record.id === editProjectDraft.scriptLibraryRecordId
+            ? appendSharedScriptVersion(
+                record,
+                linkedTopic,
+                editProjectDraft.scriptFile,
+                activeRole === "ceo" ? "CEO" : editingProject.owner,
+              )
+            : record,
+        ),
+      );
+    }
+    setEditingProject(null);
+    setEditProjectDraft(null);
+    setAssignmentFeedback(`“${editProjectDraft.name.trim()}”项目信息已更新。`);
+  };
+  const createStandaloneProject = () => {
+    if (!isProjectFormValid(projectDraft)) return;
+    const projectId = `project-${Date.now()}`;
+    const linkedTopic = projectDraft.topicId
+      ? topics.find((topic) => topic.id === projectDraft.topicId)
+      : null;
+    const episodeCount = clampEpisodeCount(projectDraft.episodeCount);
+    const staffing = normalizedProjectStaffing(
+      projectDraft.staffing,
+      episodeCount,
+      projectDraft.mode,
+    );
+    setProjects((items) => {
+      const projectCode = nextProjectCode(items);
+      const contract =
+        projectDraft.mode === "外部制作"
+          ? {
+              name: projectDraft.contractFile.name,
+              size: projectDraft.contractFile.size,
+              type: projectDraft.contractFile.type,
+              file: projectDraft.contractFile.file ?? projectDraft.contractFile,
+              uploadedAt: projectDraft.contractFile.uploadedAt ?? "2026-07-21 14:40",
+            }
+          : null;
+      const stages = projectDraft.mode === "内部制作"
+        ? [
+            {
+              name: "剧本",
+              owner: projectOwnerForRole(staffing, "编剧", "待分配"),
+              progress: 0,
+              status: "未开始",
+            },
+            {
+              name: "制作",
+              owner: projectOwnerForRole(staffing, "制作", "待分配"),
+              progress: 0,
+              status: "未开始",
+            },
+            {
+              name: "剪辑",
+              owner: projectOwnerForRole(staffing, "剪辑", "待分配"),
+              progress: 0,
+              status: "未开始",
+            },
+          ]
+        : [];
+      const project = {
+        ...projectDraft,
+        id: projectId,
+        projectCode,
+        name: projectDraft.name.trim(),
+        budget: Number(projectDraft.budget) || 0,
+        episodeCount,
+        scriptEpisodes: episodeCount,
+        videoEpisodes: episodeCount,
+        status: "未开始",
+        progress: projectDraft.mode === "内部制作" ? 0 : null,
+        start: projectDraft.start,
+        due: projectDraft.deadline,
+        deadline: projectDraft.deadline,
+        centers:
+          projectDraft.mode === "内部制作"
+            ? ["内容中心", "AI制作中心", "剪辑中心"]
+            : ["制片中心"],
+        next: projectDraft.mode === "内部制作" ? "项目启动" : "供应商启动",
+        vendor:
+          projectDraft.mode === "外部制作"
+            ? projectDraft.vendorCompanyName
+            : undefined,
+        vendorCompanyName:
+          projectDraft.mode === "外部制作"
+            ? projectDraft.vendorCompanyName
+            : undefined,
+        vendorAccount:
+          projectDraft.mode === "外部制作"
+            ? projectDraft.vendorAccount
+            : undefined,
+        contact:
+          projectDraft.mode === "外部制作"
+            ? projectDraft.vendorContactName.trim()
+            : undefined,
+        vendorContactName:
+          projectDraft.mode === "外部制作"
+            ? projectDraft.vendorContactName.trim()
+            : undefined,
+        vendorContactPhone:
+          projectDraft.mode === "外部制作"
+            ? projectDraft.vendorContactPhone.trim()
+            : undefined,
+        externalScriptShareMode:
+          projectDraft.mode === "外部制作"
+            ? projectDraft.externalScriptShareMode
+            : undefined,
+        externalScriptCardNo:
+          projectDraft.mode === "外部制作" &&
+          projectDraft.externalScriptShareMode === "card"
+            ? Number(projectDraft.externalScriptCardNo)
+            : undefined,
+        liaison: projectDraft.mode === "外部制作" ? projectDraft.owner : undefined,
+        contract,
+        actual:
+          projectDraft.mode === "内部制作"
+            ? Number(projectDraft.manpowerCost || 0) +
+              Number(projectDraft.computeCost || 0) +
+              Number(projectDraft.trafficCost || 0)
+            : 0,
+        manpowerCost:
+          projectDraft.mode === "内部制作"
+            ? Number(projectDraft.manpowerCost || 0)
+            : 0,
+        computeCost:
+          projectDraft.mode === "内部制作"
+            ? Number(projectDraft.computeCost || 0)
+            : 0,
+        trafficCost:
+          projectDraft.mode === "内部制作"
+            ? Number(projectDraft.trafficCost || 0)
+            : 0,
+        topicId: linkedTopic?.id ?? null,
+        topic: linkedTopic?.id ?? "独立创建",
+        flags: [],
+        staffing,
+        scripts: buildContentEntries(
+          projectCode,
+          "scripts",
+          episodeCount,
+          projectDraft.owner,
+        ),
+        videos: buildContentEntries(
+          projectCode,
+          "videos",
+          episodeCount,
+          projectDraft.owner,
+        ),
+        stages,
+        contractFile: undefined,
+      };
+      return [
+        {
+          ...project,
+          taskAssignments: buildProjectAssignments(project, projectDraft),
+        },
+        ...items,
+      ];
+    });
+    if (linkedTopic) {
+      setTopics((items) =>
+        items.map((topic) =>
+          topic.id === linkedTopic.id
+            ? {
+                ...topic,
+                status: "已评估",
+                projectId,
+                updatedAt: "2026-07-21 16:40",
+              }
+            : topic,
+        ),
+      );
+      setScriptLibrary((records) =>
+        records.map((record) => {
+          if (record.topicId !== linkedTopic.id) return record;
+          const syncedRecord = appendSharedScriptVersion(
+            record,
+            linkedTopic,
+            projectDraft.scriptFile,
+            activeRole === "ceo" ? "CEO" : projectDraft.owner,
+          );
+          return {
+            ...syncedRecord,
+            status: "已立项",
+            projectId,
+            updatedAt: "2026-07-21 16:40",
+          };
+        }),
+      );
+    }
+    setCreating(false);
+    setProjectDraft(createProjectFormDraft());
+    setProjectContractError("");
+  };
+  const saveAssignments = (projectId, taskAssignments) => {
+    setProjects((currentProjects) =>
+      currentProjects.map((project) => {
+        if (project.id !== projectId) return project;
+        const stages = (project.stages ?? []).map((stage) => {
+          const assignment = taskAssignments.find((item) => item.stage === stage.name);
+          return assignment ? { ...stage, owner: assignment.owner } : stage;
+        });
+        return {
+          ...project,
+          taskAssignments,
+          taskDispatchedAt: "2026-07-17 10:30",
+          stages,
+          next: "等待任务负责人接收",
+        };
+      }),
+    );
+    const project = projects.find((item) => item.id === projectId);
+    setAssignmentProject(null);
+    setAssignmentFeedback(`“${project?.name ?? "项目"}”人员配置已完成，任务已同步至负责人工作台。`);
+  };
   return (
     <div className="platform-page">
-      <PlatformHeader
-        eyebrow="项目制作管理"
-        title="项目台账与并行制作环节"
-        description="内部项目按启用环节并行推进，外部项目只维护整体里程碑、进度、成本与内部对接信息。"
-        actions={
-          <button className="primary-btn" onClick={() => setCreating(true)} type="button">
-            <Plus size={16} />
-            新建项目
-          </button>
-        }
-      />
+      {!embedded ? (
+        <PlatformHeader
+          eyebrow={management ? "项目管理" : "项目制作管理"}
+          title={management ? "项目总览、立项与任务协同" : "项目台账与并行制作环节"}
+          description={management ? "在一份项目台账中统一查看项目信息、人员分配、内部制作进度与成本执行。" : "内部项目按启用环节并行推进；外部项目仅维护开始时间、预计完成时间、合同与对接信息。"}
+          actions={
+            <>
+              {management ? (
+                <button className="ghost-chip" onClick={() => goPage?.("tasks")} type="button">
+                  查看任务列表
+                  <ArrowRight size={16} />
+                </button>
+              ) : null}
+              <button className="primary-btn" onClick={() => setCreating(true)} type="button">
+                <Plus size={16} />
+                新建项目
+              </button>
+            </>
+          }
+        />
+      ) : null}
+      {assignmentFeedback ? <div className="platform-access-feedback" role="status">{assignmentFeedback}</div> : null}
       <PlatformMetrics
         items={[
           {
@@ -8460,14 +10920,14 @@ export function ProjectProductionPage() {
           },
           {
             label: "延期 / 阻塞",
-            value: `${projectSummary.delayed} / ${projects.filter((project) => (project.flags ?? []).some((flag) => String(flag).includes("阻塞"))).length}`,
-            meta: "独立异常标记",
+            value: `${projectSummary.delayed} / ${projects.filter((project) => project.mode !== "外部制作" && (project.flags ?? []).some((flag) => String(flag).includes("阻塞"))).length}`,
+            meta: "仅统计内部制作项目",
             tone: "red",
           },
           {
             label: "平均进度",
             value: `${projectSummary.averageProgress}%`,
-            meta: "仅统计已启动项目",
+            meta: "仅统计内部制作项目",
             tone: "cyan",
           },
           {
@@ -8497,8 +10957,14 @@ export function ProjectProductionPage() {
         ariaLabel="项目制作视图"
       />
       <PlatformCard
-        title="项目列表"
-        description="延期、阻塞和退回不替换项目基础状态"
+        title={management ? "项目总览与立项台账" : "项目列表"}
+        description={management ? "集中展示项目基础信息、预计完成时间、整体进度与成本执行情况。" : "延期、阻塞和退回不替换项目基础状态"}
+        action={embedded ? (
+          <button className="primary-btn" onClick={() => setCreating(true)} type="button">
+            <Plus size={16} />
+            新建项目
+          </button>
+        ) : null}
       >
         <PlatformFilter
           actions={
@@ -8545,54 +11011,64 @@ export function ProjectProductionPage() {
         </PlatformFilter>
         <DataTable
           columns={projectTableColumns}
-          minWidth={1260}
-          className="platform-production-table"
+          minWidth={1584}
+          className="platform-production-table platform-table--single-line"
         >
-          {visible.map((row) => (
-            <div
-              className="platform-table__row platform-production-table__row"
-              style={{ gridTemplateColumns: projectTableGrid }}
-              key={row.id}
-            >
-              <div className="platform-production-table__project">
-                <strong>{row.name}</strong>
-                <small>{row.projectCode}</small>
-              </div>
-              <div className="platform-production-table__source">
-                <span>{row.topic}</span>
-                <PlatformBadge>{row.mode}</PlatformBadge>
-              </div>
-              <div className="platform-production-table__owner">
+          {visible.map((row) => {
+            const linkedTopic = linkedTopicFor(row);
+            const source = linkedTopic || /^TOPIC-/.test(String(row.topic ?? ""))
+              ? "选题库"
+              : "自行创建";
+            const episodeCount =
+              Number(row.episodeCount) ||
+              Number(linkedTopic?.estimatedEpisodes) ||
+              Math.max(row.scripts?.length ?? 0, row.videos?.length ?? 0);
+            const costRate = row.budget
+              ? Math.round((Number(row.actual || 0) / Number(row.budget)) * 100)
+              : 0;
+            return (
+              <div
+                className="platform-table__row platform-production-table__row"
+                style={{ gridTemplateColumns: projectTableGrid }}
+                key={row.id}
+              >
+                <strong className="platform-production-table__name">{row.name}</strong>
+                <code className="platform-production-table__code">{row.projectCode}</code>
+                <PlatformBadge tone={source === "选题库" ? "primary" : "neutral"}>{source}</PlatformBadge>
+                <PlatformBadge tone={row.mode === "内部制作" ? "primary" : "neutral"}>{row.mode}</PlatformBadge>
+                <span>{row.genre ?? linkedTopic?.genre ?? "待补充"}</span>
                 <span>{row.owner}</span>
                 <PlatformBadge>{row.status}</PlatformBadge>
-              </div>
-              <ProgressBar value={projectProgress(row)} />
-              <div className="platform-badge-row">
-                {row.flags.length ? (
-                  row.flags.map((flag) => (
-                    <PlatformBadge key={flag}>{flag}</PlatformBadge>
-                  ))
+                <strong>{episodeCount ? `${episodeCount} 集` : "—"}</strong>
+                <span>{row.due ?? row.deadline ?? "待排期"}</span>
+                {row.mode === "外部制作" ? (
+                  <span className="platform-progress-exempt">不统计</span>
                 ) : (
-                  <span>—</span>
+                  <ProgressBar value={projectProgress(row)} />
                 )}
+                <div className="platform-production-table__cost">
+                  <strong>{formatMoney(row.actual)}</strong>
+                  <small>/ {formatMoney(row.budget)} · {costRate}%</small>
+                </div>
+                <div className="platform-table-actions platform-production-table__actions">
+                  <button
+                    className="table-link"
+                    onClick={() => setSelected(row)}
+                    type="button"
+                  >
+                    详情
+                  </button>
+                  <button
+                    className="table-link table-link--danger"
+                    onClick={() => setDeletingProject(row)}
+                    type="button"
+                  >
+                    删除
+                  </button>
+                </div>
               </div>
-              <div className="platform-production-table__schedule">
-                <span>{row.due}</span>
-                <small>下一里程碑 · {row.next}</small>
-              </div>
-              <div className="platform-production-table__cost">
-                <strong>{formatMoney(row.actual)}</strong>
-                <small>预算 {formatMoney(row.budget)}</small>
-              </div>
-              <button
-                className="table-link platform-production-table__action"
-                onClick={() => setSelected(row)}
-                type="button"
-              >
-                详情
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </DataTable>
       </PlatformCard>
       {current ? (
@@ -8600,12 +11076,63 @@ export function ProjectProductionPage() {
           wide
           title={current.name}
           subtitle={`${current.projectCode} · ${current.mode} · 来源 ${current.topic}`}
+          footer={management ? (
+            <>
+              {canAssign ? (
+                <button
+                  className="ghost-chip"
+                  onClick={() => openProjectEditor(current)}
+                  type="button"
+                >
+                  编辑项目
+                </button>
+              ) : null}
+              <button
+                className="primary-btn"
+                onClick={() => {
+                  setAssignmentProject(current);
+                  setSelected(null);
+                }}
+                type="button"
+              >
+                {canAssign ? "人员配置" : "查看分工"}
+              </button>
+            </>
+          ) : null}
           onClose={() => {
             setSelected(null);
             setContentCodePreview(null);
           }}
         >
-          <div className="platform-detail-grid">
+          <div className="platform-detail-grid platform-project-detail-overview">
+            <div>
+              <span>项目名称</span>
+              <strong>{current.name}</strong>
+            </div>
+            <div>
+              <span>项目编号</span>
+              <code>{current.projectCode}</code>
+            </div>
+            <div>
+              <span>来源</span>
+              <PlatformBadge tone={currentSource === "选题库" ? "primary" : "neutral"}>
+                {currentSource}
+              </PlatformBadge>
+            </div>
+            <div>
+              <span>制作方式</span>
+              <PlatformBadge tone={current.mode === "内部制作" ? "primary" : "neutral"}>
+                {current.mode}
+              </PlatformBadge>
+            </div>
+            <div>
+              <span>题材</span>
+              <strong>{current.genre ?? "待补充"}</strong>
+            </div>
+            <div>
+              <span>项目集数</span>
+              <strong>{currentEpisodeCount} 集</strong>
+            </div>
             <div>
               <span>项目负责人</span>
               <strong>{current.owner}</strong>
@@ -8615,83 +11142,140 @@ export function ProjectProductionPage() {
               <PlatformBadge>{current.status}</PlatformBadge>
             </div>
             <div>
-              <span>整体进度</span>
-              <strong>{projectProgress(current)}%</strong>
-            </div>
-            <div>
-              <span>异常标记</span>
-              <div className="platform-badge-row">
-                {current.flags.length
-                  ? current.flags.map((flag) => (
-                      <PlatformBadge key={flag}>{flag}</PlatformBadge>
-                    ))
-                  : "无"}
-              </div>
-            </div>
-            <div>
-              <span>预计成本</span>
+              <span>项目总预算</span>
               <strong>{formatMoney(current.budget)}</strong>
+            </div>
+            <div>
+              <span>每集预算</span>
+              <strong>{formatMoney(currentEpisodeCount ? current.budget / currentEpisodeCount : 0)}</strong>
             </div>
             <div>
               <span>实际成本</span>
               <strong>{formatMoney(currentCost.total)}</strong>
             </div>
+            <div>
+              <span>已上传剧本</span>
+              <strong>{current.scriptFile?.name ?? "尚未上传"}</strong>
+            </div>
+            {current.mode === "内部制作" ? (
+              <>
+                <div>
+                  <span>整体进度</span>
+                  <strong>{projectProgress(current)}%</strong>
+                </div>
+                <div>
+                  <span>异常标记</span>
+                  <div className="platform-badge-row">
+                    {(current.flags ?? []).length
+                      ? current.flags.map((flag) => (
+                          <PlatformBadge key={flag}>{flag}</PlatformBadge>
+                        ))
+                      : "无"}
+                  </div>
+                </div>
+              </>
+            ) : null}
+            <div>
+              <span>预计开始时间</span>
+              <strong>{current.start ?? "待排期"}</strong>
+            </div>
+            <div>
+              <span>预计完成时间</span>
+              <strong>{current.due ?? current.deadline ?? "待排期"}</strong>
+            </div>
           </div>
+          <section className="platform-detail-section platform-project-staffing-detail">
+            <div className="platform-section-heading">
+              <div>
+                <h3>{current.mode === "外部制作" ? "制片配置" : "参与人员及对应工期"}</h3>
+                <p>
+                  {current.mode === "外部制作"
+                    ? "外部制作仅展示内部制片的对接范围与工期；点击“编辑项目”后可修改。"
+                    : "展示当前岗位人员、负责集数、工期与审核设置；点击“编辑项目”后可修改。"}
+                </p>
+              </div>
+              <PlatformBadge tone="neutral">只读</PlatformBadge>
+            </div>
+            <div className="platform-project-staffing platform-project-staffing--readonly">
+              {currentStaffing.map((role) => (
+                <article className="platform-project-role-card" key={role.id}>
+                  <header>
+                    <strong>{role.role}</strong>
+                    <PlatformBadge tone={role.reviewEnabled ? "primary" : "neutral"}>
+                      {role.reviewEnabled ? "需要审核" : "无需审核"}
+                    </PlatformBadge>
+                    <span className="platform-project-staffing-reviewer">
+                      审核人：{role.reviewEnabled ? role.reviewer || "待配置" : "—"}
+                    </span>
+                  </header>
+                  <div className="platform-project-role-card__body">
+                    <div className="platform-project-staff-readonly-labels" aria-hidden="true">
+                      <span>人员</span><span>负责集数</span><span>工期</span>
+                    </div>
+                    {role.rows.map((row) => (
+                      <div className="platform-project-staff-readonly-row" key={row.id}>
+                        <strong>{row.person || "待分配"}</strong>
+                        <span>第 {row.episodeStart}–{row.episodeEnd} 集</span>
+                        <span>{Number(row.durationDays) ? `${row.durationDays} 天` : "待排期"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
           <section className="platform-detail-section platform-content-codes">
             <div className="platform-section-heading">
               <div>
                 <h3>内容编码台账</h3>
-                <p>剧本与视频分别独立编号，仅共同归属于项目；修改内容时主编码保持不变。</p>
+                <p>按集展示剧本与视频主编码，默认显示前 3 集，不展示版本编码。</p>
               </div>
-              <PlatformBadge tone="success">项目总编号已锁定</PlatformBadge>
+              <div className="platform-content-code-heading-actions">
+                <PlatformBadge tone="success">默认前 3 集</PlatformBadge>
+                {currentContentRows.length > 3 ? (
+                  <button
+                    aria-label="查看全部内容编码"
+                    className="ghost-chip"
+                    onClick={() => setContentCodePreview("all")}
+                    type="button"
+                  >
+                    查看全部
+                  </button>
+                ) : null}
+              </div>
             </div>
-            <div className="platform-content-code-grid">
-              {["scripts", "videos"].map((collection) => {
-                const config = CONTENT_CODE_CONFIG[collection];
-                return (
-                  <article className="platform-content-code-card" key={collection}>
-                    <header>
-                      <div>
-                        <span>{config.label}编码</span>
-                        <strong>{current[collection].length} 集</strong>
-                      </div>
-                      <button
-                        aria-label={`查看全部${config.label}编码`}
-                        className="ghost-chip"
-                        onClick={() => setContentCodePreview(collection)}
-                        type="button"
-                      >
-                        查看全部
-                      </button>
-                    </header>
-                    <div className="platform-content-code-summary">
-                      <div>
-                        <span>主编码范围</span>
-                        <code>
-                          {current[collection][0]?.code} — {current[collection].at(-1)?.code}
-                        </code>
-                      </div>
-                      <div>
-                        <span>版本编码</span>
-                        <strong>主编码保持不变，版本按 VNN 递增</strong>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+            <DataTable
+              columns={[
+                { label: "分集", width: "90px" },
+                { label: "剧本编码", width: "1fr" },
+                { label: "视频编码", width: "1fr" },
+              ]}
+              minWidth={720}
+            >
+              {currentContentRows.slice(0, 3).map((entry) => (
+                <div
+                  className="platform-table__row platform-content-code-preview__row"
+                  key={entry.episodeNo}
+                  style={{ gridTemplateColumns: "90px 1fr 1fr" }}
+                >
+                  <strong>第 {entry.episodeNo} 集</strong>
+                  <code>{entry.scriptCode}</code>
+                  <code>{entry.videoCode}</code>
+                </div>
+              ))}
+            </DataTable>
           </section>
           {current.mode === "内部制作" ? (
             <>
               <section className="platform-detail-section platform-project-cost-editor">
                 <div className="platform-section-heading">
                   <div>
-                    <h3>内部短剧成本录入</h3>
-                    <p>三项成本保存后立即计入项目真实成本，并同步经营驾驶舱。</p>
+                    <h3>内部短剧成本明细</h3>
+                    <p>详情页仅展示当前成本；点击底部“编辑项目”后可修改。</p>
                   </div>
-                  <PlatformBadge tone="success">已同步</PlatformBadge>
+                  <PlatformBadge tone="neutral">只读</PlatformBadge>
                 </div>
-                <div className="platform-project-cost-inputs">
+                <div className="platform-project-cost-inputs is-readonly">
                   {[
                     {
                       field: "manpowerCost",
@@ -8709,23 +11293,11 @@ export function ProjectProductionPage() {
                       note: "渠道投放、素材测试与流量采买",
                     },
                   ].map((item) => (
-                    <label key={item.field}>
+                    <article key={item.field}>
                       <span>{item.label}</span>
-                      <div className="platform-money-input">
-                        <i>¥</i>
-                        <input
-                          aria-label={item.label}
-                          min="0"
-                          step="100"
-                          type="number"
-                          value={currentCost[item.field]}
-                          onChange={(event) =>
-                            updateInternalCost(item.field, event.target.value)
-                          }
-                        />
-                      </div>
+                      <strong>{formatMoney(currentCost[item.field])}</strong>
                       <small>{item.note}</small>
-                    </label>
+                    </article>
                   ))}
                 </div>
                 <div className="platform-project-cost-total" role="status">
@@ -8765,8 +11337,8 @@ export function ProjectProductionPage() {
             <section className="platform-detail-section">
               <div className="platform-section-heading">
                 <div>
-                  <h3>外部制作里程碑</h3>
-                  <p>合同、供应商信息和交付节点统一在项目主档中维护。</p>
+                  <h3>外部制作信息</h3>
+                  <p>外部项目不进行进度统计，仅以预计开始时间和预计完成时间作为排期依据。</p>
                 </div>
                 <PlatformBadge tone={current.contract ? "success" : "warning"}>
                   {current.contract ? "合同已归档" : "合同待补充"}
@@ -8774,26 +11346,36 @@ export function ProjectProductionPage() {
               </div>
               <div className="platform-detail-grid">
                 <div>
-                  <span>供应商</span>
-                  <strong>{current.vendor}</strong>
+                  <span>外部承制方公司名</span>
+                  <strong>{current.vendorCompanyName || current.vendor || "待补充"}</strong>
                 </div>
                 <div>
-                  <span>供应商联系人</span>
-                  <strong>{current.contact}</strong>
+                  <span>对应账号</span>
+                  <strong>{current.vendorAccount || "待同步"}</strong>
                 </div>
                 <div>
-                  <span>内部对接人</span>
-                  <strong>{current.liaison}</strong>
+                  <span>联系人</span>
+                  <strong>{current.vendorContactName || current.contact || "待补充"}</strong>
                 </div>
                 <div>
-                  <span>当前里程碑</span>
-                  <strong>{current.next}</strong>
+                  <span>联系方式</span>
+                  <strong>{current.vendorContactPhone || "待补充"}</strong>
+                </div>
+                <div>
+                  <span>剧本共享范围</span>
+                  <strong>
+                    {current.externalScriptShareMode === "card"
+                      ? (() => {
+                          const range = scriptCardRange(
+                            current.externalScriptCardNo,
+                            currentEpisodeCount,
+                          );
+                          return `一卡 ${current.externalScriptCardNo} · 第 ${range.start}–${range.end} 集`;
+                        })()
+                      : `全部剧本 · 第 1–${currentEpisodeCount} 集`}
+                  </strong>
                 </div>
               </div>
-              <ProgressBar
-                value={current.progress}
-                label={`外部整体进度 ${current.progress}%`}
-              />
               <div className="platform-project-contract">
                 <span className="platform-project-contract__icon">
                   <FileText size={22} weight="duotone" />
@@ -8817,7 +11399,7 @@ export function ProjectProductionPage() {
                 </button>
               </div>
               <PlatformNotice>
-                外部人员本期不登录系统，由内部对接人维护进度、里程碑和成本。
+                外部制作项目不生成进度百分比、进度条或进度异常统计。
               </PlatformNotice>
             </section>
           )}
@@ -8825,9 +11407,9 @@ export function ProjectProductionPage() {
             <article>
               <i />
               <div>
-                <strong>最近进度更新</strong>
+                <strong>{current.mode === "外部制作" ? "最近信息更新" : "最近进度更新"}</strong>
                 <span>
-                  2026-07-14 14:51 · {current.owner} · expectedVersion V8
+                  2026-07-14 14:51 · {current.owner} · {current.mode === "外部制作" ? "项目资料已更新" : "expectedVersion V8"}
                 </span>
               </div>
             </article>
@@ -8841,11 +11423,120 @@ export function ProjectProductionPage() {
           </section>
         </PlatformDrawer>
       ) : null}
+      {editingProject && editProjectDraft ? (
+        <PlatformDrawer
+          wide
+          className="platform-project-editor-drawer"
+          title="编辑项目"
+          subtitle={`${editingProject.projectCode} · ${editingProject.name}`}
+          onClose={() => {
+            setEditingProject(null);
+            setEditProjectDraft(null);
+          }}
+          footer={
+            <>
+              <button
+                className="ghost-chip"
+                onClick={() => {
+                  setEditingProject(null);
+                  setEditProjectDraft(null);
+                }}
+                type="button"
+              >
+                取消
+              </button>
+              <button
+                className="primary-btn"
+                disabled={!isProjectFormValid(editProjectDraft)}
+                onClick={saveEditedProject}
+                type="button"
+              >
+                保存修改
+              </button>
+            </>
+          }
+        >
+          <ProjectSetupForm draft={editProjectDraft} setDraft={setEditProjectDraft} />
+          <section className="platform-project-form__section">
+            <div className="platform-project-form__heading">
+              <div>
+                <span>制作配置</span>
+                <h3>{editProjectDraft.mode === "内部制作" ? "内部项目成本" : "外部项目合同"}</h3>
+              </div>
+            </div>
+            {editProjectDraft.mode === "内部制作" ? (
+              <div className="platform-project-cost-inputs">
+                {[
+                  ["manpowerCost", "人力成本"],
+                  ["computeCost", "算力成本"],
+                  ["trafficCost", "投流成本"],
+                ].map(([field, label]) => (
+                  <label key={field}>
+                    <span>{label}</span>
+                    <input
+                      aria-label={`编辑${label}`}
+                      min="0"
+                      step="100"
+                      type="number"
+                      value={editProjectDraft[field]}
+                      onChange={(event) =>
+                        setEditProjectDraft((draft) => ({
+                          ...draft,
+                          [field]: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <ContractUploadField
+                error={editContractError}
+                file={editProjectDraft.contractFile}
+                onChange={(file) =>
+                  setEditProjectDraft((draft) => ({ ...draft, contractFile: file }))
+                }
+                onError={setEditContractError}
+                onView={() => setContractPreview(editProjectDraft.contractFile)}
+              />
+            )}
+          </section>
+        </PlatformDrawer>
+      ) : null}
+      {assignmentProject ? (
+        <ProjectAssignmentDrawer
+          onClose={() => setAssignmentProject(null)}
+          onSave={(assignments) => saveAssignments(assignmentProject.id, assignments)}
+          project={assignmentProject}
+          readOnly={!canAssign}
+        />
+      ) : null}
+      {deletingProject ? (
+        <PlatformDrawer
+          title="删除项目"
+          subtitle={`即将删除 ${deletingProject.name}`}
+          onClose={() => setDeletingProject(null)}
+          footer={
+            <>
+              <button className="ghost-chip" onClick={() => setDeletingProject(null)} type="button">
+                取消
+              </button>
+              <button className="platform-danger-btn" onClick={() => deleteProject(deletingProject)} type="button">
+                确认删除
+              </button>
+            </>
+          }
+        >
+          <PlatformNotice tone="warning">
+            删除后，项目任务与制作记录将不再显示；来自选题库的项目会解除关联，原选题仍保持已评估并继续保留在剧本库中。
+          </PlatformNotice>
+        </PlatformDrawer>
+      ) : null}
       {contentCodePreview && current ? (
         <PlatformDrawer
           wide
-          title={`${CONTENT_CODE_CONFIG[contentCodePreview].label}编码全部预览`}
-          subtitle={`${current.projectCode} · 共 ${current[contentCodePreview].length} 集 · 仅展示不可变主编码与版本编码`}
+          title="内容编码全部预览"
+          subtitle={`${current.projectCode} · 共 ${currentContentRows.length} 集 · 仅展示每集剧本与视频主编码`}
           onClose={() => setContentCodePreview(null)}
           footer={
             <button
@@ -8860,30 +11551,30 @@ export function ProjectProductionPage() {
           <section className="platform-detail-section platform-content-code-preview">
             <div className="platform-section-heading">
               <div>
-                <h3>{CONTENT_CODE_CONFIG[contentCodePreview].label}编码清单</h3>
-                <p>分集主编码永久不变；内容修改仅新增版本编码，不展示分集当前状态。</p>
+                <h3>全部分集编码</h3>
+                <p>剧本与视频独立编号；此处不展示版本编码及分集状态。</p>
               </div>
               <PlatformBadge tone="primary">
-                {current[contentCodePreview].length} 集
+                {currentContentRows.length} 集
               </PlatformBadge>
             </div>
             <DataTable
               columns={[
                 { label: "分集", width: "90px" },
-                { label: "主编码", width: "1fr" },
-                { label: "版本编码", width: "1fr" },
+                { label: "剧本编码", width: "1fr" },
+                { label: "视频编码", width: "1fr" },
               ]}
-              minWidth={680}
+              minWidth={720}
             >
-              {current[contentCodePreview].map((entry) => (
+              {currentContentRows.map((entry) => (
                 <div
                   className="platform-table__row platform-content-code-preview__row"
-                  key={entry.id}
+                  key={entry.episodeNo}
                   style={{ gridTemplateColumns: "90px 1fr 1fr" }}
                 >
                   <strong>第 {entry.episodeNo} 集</strong>
-                  <code>{entry.code}</code>
-                  <code>{entry.versionCode}</code>
+                  <code>{entry.scriptCode}</code>
+                  <code>{entry.videoCode}</code>
                 </div>
               ))}
             </DataTable>
@@ -8899,198 +11590,37 @@ export function ProjectProductionPage() {
       ) : null}
       {creating ? (
         <PlatformDrawer
+          wide
+          className="platform-project-editor-drawer"
           title="新建项目"
           subtitle="独立项目入口；由选题立项的项目会自动带入来源编号"
           onClose={() => setCreating(false)}
           footer={
-            <button
-              className="primary-btn"
-              disabled={
-                !projectDraft.name.trim() ||
-                !projectDraft.owner.trim() ||
-                (projectDraft.mode === "外部制作" && !projectDraft.contractFile)
-              }
-              onClick={() => {
-                setProjects((items) => {
-                  const projectCode = nextProjectCode(items);
-                  const project = {
-                    ...projectDraft,
-                    budget: Number(projectDraft.budget) || 0,
-                    id: `project-${Date.now()}`,
-                    projectCode,
-                    status: "未开始",
-                    progress: 0,
-                    start: "2026-07-17",
-                    due: projectDraft.deadline,
-                    centers:
-                      projectDraft.mode === "内部制作"
-                        ? ["内容中心", "AI制作中心", "剪辑中心"]
-                        : ["制片中心"],
-                    next:
-                      projectDraft.mode === "内部制作"
-                        ? "项目启动"
-                        : "供应商启动",
-                    vendor:
-                      projectDraft.mode === "外部制作" ? "待录入" : undefined,
-                    contact:
-                      projectDraft.mode === "外部制作" ? "待录入" : undefined,
-                    liaison:
-                      projectDraft.mode === "外部制作"
-                        ? projectDraft.owner
-                        : undefined,
-                    contract:
-                      projectDraft.mode === "外部制作"
-                        ? {
-                            name: projectDraft.contractFile.name,
-                            size: projectDraft.contractFile.size,
-                            type: projectDraft.contractFile.type,
-                            file: projectDraft.contractFile,
-                            uploadedAt: "2026-07-17 09:30",
-                          }
-                        : null,
-                    actual:
-                      projectDraft.mode === "内部制作"
-                        ? Number(projectDraft.manpowerCost || 0) +
-                          Number(projectDraft.computeCost || 0) +
-                          Number(projectDraft.trafficCost || 0)
-                        : 0,
-                    manpowerCost:
-                      projectDraft.mode === "内部制作"
-                        ? Number(projectDraft.manpowerCost || 0)
-                        : 0,
-                    computeCost:
-                      projectDraft.mode === "内部制作"
-                        ? Number(projectDraft.computeCost || 0)
-                        : 0,
-                    trafficCost:
-                      projectDraft.mode === "内部制作"
-                        ? Number(projectDraft.trafficCost || 0)
-                        : 0,
-                    topicId: null,
-                    topic: "独立创建",
-                    flags: [],
-                    scripts: buildContentEntries(
-                      projectCode,
-                      "scripts",
-                      projectDraft.scriptEpisodes,
-                      projectDraft.owner,
-                    ),
-                    videos: buildContentEntries(
-                      projectCode,
-                      "videos",
-                      projectDraft.videoEpisodes,
-                      projectDraft.owner,
-                    ),
-                    stages:
-                      projectDraft.mode === "内部制作"
-                        ? [
-                            { name: "剧本", owner: projectDraft.owner, progress: 0, status: "未开始" },
-                            { name: "制作", owner: "待分配", progress: 0, status: "未开始" },
-                            { name: "剪辑", owner: "待分配", progress: 0, status: "未开始" },
-                          ]
-                        : [],
-                    contractFile: undefined,
-                  };
-                  return [project, ...items];
-                });
-                setCreating(false);
-              }}
-              type="button"
-            >
-              创建项目
-            </button>
+            <>
+              <button className="ghost-chip" onClick={() => setCreating(false)} type="button">
+                取消
+              </button>
+              <button
+                className="primary-btn"
+                disabled={!isProjectFormValid(projectDraft)}
+                onClick={createStandaloneProject}
+                type="button"
+              >
+                确认立项
+              </button>
+            </>
           }
         >
-          <div className="platform-form-grid">
-            <label>
-              <span>项目名称</span>
-              <input
-                value={projectDraft.name}
-                onChange={(event) => setProjectDraft((draft) => ({ ...draft, name: event.target.value }))}
-              />
-            </label>
-            <label>
-              <span>制作方式</span>
-              <select
-                value={projectDraft.mode}
-                onChange={(event) => {
-                  const nextMode = event.target.value;
-                  setProjectDraft((draft) => ({
-                    ...draft,
-                    mode: nextMode,
-                    contractFile:
-                      nextMode === "内部制作" ? null : draft.contractFile,
-                  }));
-                  if (nextMode === "内部制作") setProjectContractError("");
-                }}
-              >
-                <option>内部制作</option>
-                <option>外部制作</option>
-              </select>
-            </label>
-            <label>
-              <span>项目负责人</span>
-              <input
-                value={projectDraft.owner}
-                onChange={(event) => setProjectDraft((draft) => ({ ...draft, owner: event.target.value }))}
-              />
-            </label>
-            <label>
-              <span>计划完成</span>
-              <input
-                type="date"
-                value={projectDraft.deadline}
-                onChange={(event) => setProjectDraft((draft) => ({ ...draft, deadline: event.target.value }))}
-              />
-            </label>
-            <label>
-              <span>预算</span>
-              <input
-                min="0"
-                type="number"
-                value={projectDraft.budget}
-                onChange={(event) => setProjectDraft((draft) => ({ ...draft, budget: event.target.value }))}
-              />
-            </label>
-            <label>
-              <span>剧本集数</span>
-              <input
-                aria-label="剧本集数"
-                min="1"
-                max="9999"
-                type="number"
-                value={projectDraft.scriptEpisodes}
-                onChange={(event) =>
-                  setProjectDraft((draft) => ({
-                    ...draft,
-                    scriptEpisodes: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label>
-              <span>视频集数</span>
-              <input
-                aria-label="视频集数"
-                min="1"
-                max="9999"
-                type="number"
-                value={projectDraft.videoEpisodes}
-                onChange={(event) =>
-                  setProjectDraft((draft) => ({
-                    ...draft,
-                    videoEpisodes: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <div className="platform-code-rule-preview is-wide">
-              <span>创建后自动生成</span>
-              <strong>项目总编号 + 剧本/视频独立分集编号</strong>
-              <small>项目：PRJ-YYYYMMDD-NNNN · 剧本：SC · 视频：VD · 版本：VNN</small>
+          <ProjectSetupForm draft={projectDraft} setDraft={setProjectDraft} />
+          <section className="platform-project-form__section">
+            <div className="platform-project-form__heading">
+              <div>
+                <span>制作配置</span>
+                <h3>{projectDraft.mode === "内部制作" ? "内部项目成本" : "外部项目合同"}</h3>
+              </div>
             </div>
             {projectDraft.mode === "内部制作" ? (
-              <>
+              <div className="platform-project-cost-inputs">
                 {[
                   ["manpowerCost", "人力成本"],
                   ["computeCost", "算力成本"],
@@ -9113,18 +11643,7 @@ export function ProjectProductionPage() {
                     />
                   </label>
                 ))}
-                <div className="platform-project-cost-preview is-wide">
-                  <span>项目初始真实成本</span>
-                  <strong>
-                    {formatMoney(
-                      Number(projectDraft.manpowerCost || 0) +
-                        Number(projectDraft.computeCost || 0) +
-                        Number(projectDraft.trafficCost || 0),
-                    )}
-                  </strong>
-                  <small>人力成本 + 算力成本 + 投流成本</small>
-                </div>
-              </>
+              </div>
             ) : (
               <ContractUploadField
                 error={projectContractError}
@@ -9133,21 +11652,18 @@ export function ProjectProductionPage() {
                   setProjectDraft((draft) => ({ ...draft, contractFile: file }))
                 }
                 onError={setProjectContractError}
-                onView={() =>
-                  setContractPreview({
-                    name: projectDraft.contractFile.name,
-                    size: projectDraft.contractFile.size,
-                    type: projectDraft.contractFile.type,
-                    file: projectDraft.contractFile,
-                  })
-                }
+                onView={() => setContractPreview(projectDraft.contractFile)}
               />
             )}
-          </div>
+          </section>
         </PlatformDrawer>
       ) : null}
     </div>
   );
+}
+
+export function ProjectManagementPage({ activeRole = "ceo", goPage }) {
+  return <ProjectProductionPage activeRole={activeRole} goPage={goPage} management />;
 }
 
 export function GovernancePage() {
