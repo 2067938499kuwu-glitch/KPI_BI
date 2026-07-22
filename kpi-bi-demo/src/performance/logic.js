@@ -18,11 +18,11 @@ export const REVIEW_STATUS = {
   firstReview: "待一级领导评分",
   secondReview: "待二级领导复评",
   hrReview: "待HR复审",
-  committeeApproval: "待CEO审批",
+  committeeApproval: "待绩效委员会审批",
   feedback: "待反馈与面谈",
-  appealSubmitted: "申诉已提交",
-  appealInvestigation: "HR调查中",
-  appealInProgress: "待CEO裁决",
+  appealSubmitted: "待HR受理",
+  appealInvestigation: "HR申诉裁定中",
+  appealInProgress: "待绩效委员会复核",
   archived: "已结束",
 };
 
@@ -34,12 +34,12 @@ export const WORKFLOW_ACTIONS = {
   [REVIEW_STATUS.resultEntry]: { type: "enter_result", label: "填报完成结果", nextStatus: REVIEW_STATUS.firstReview },
   [REVIEW_STATUS.firstReview]: { type: "first_score", label: "一级评分与评语", nextStatus: REVIEW_STATUS.secondReview },
   [REVIEW_STATUS.secondReview]: { type: "second_review", label: "二级复评与结果审核", nextStatus: REVIEW_STATUS.hrReview },
-  [REVIEW_STATUS.hrReview]: { type: "hr_review", label: "HR复审并提交CEO", nextStatus: REVIEW_STATUS.committeeApproval },
-  [REVIEW_STATUS.committeeApproval]: { type: "committee_approve", label: "CEO审批", nextStatus: REVIEW_STATUS.feedback },
+  [REVIEW_STATUS.hrReview]: { type: "hr_review", label: "HR复审并提交绩效委员会", nextStatus: REVIEW_STATUS.committeeApproval },
+  [REVIEW_STATUS.committeeApproval]: { type: "committee_approve", label: "绩效委员会审批", nextStatus: REVIEW_STATUS.feedback },
   [REVIEW_STATUS.feedback]: { type: "interview_feedback", label: "反馈与面谈记录", nextStatus: REVIEW_STATUS.archived },
-  [REVIEW_STATUS.appealSubmitted]: { type: "investigate_appeal", label: "受理并调查申诉", nextStatus: REVIEW_STATUS.appealInProgress },
-  [REVIEW_STATUS.appealInvestigation]: { type: "investigate_appeal", label: "提交申诉调查", nextStatus: REVIEW_STATUS.appealInProgress },
-  [REVIEW_STATUS.appealInProgress]: { type: "resolve_appeal", label: "CEO裁决", nextStatus: REVIEW_STATUS.archived },
+  [REVIEW_STATUS.appealSubmitted]: { type: "accept_appeal", label: "受理绩效申诉", nextStatus: REVIEW_STATUS.appealInvestigation },
+  [REVIEW_STATUS.appealInvestigation]: { type: "adjudicate_appeal", label: "裁定并提交绩效委员会", nextStatus: REVIEW_STATUS.appealInProgress },
+  [REVIEW_STATUS.appealInProgress]: { type: "resolve_appeal", label: "绩效委员会复核申诉", nextStatus: REVIEW_STATUS.archived },
 };
 
 export const LEVEL_LABEL = {
@@ -113,7 +113,8 @@ export function getNextReviewStatus(reviewOrStatus) {
   if (status === REVIEW_STATUS.secondReview) return REVIEW_STATUS.hrReview;
   if (status === REVIEW_STATUS.hrReview) return REVIEW_STATUS.committeeApproval;
   if (status === REVIEW_STATUS.committeeApproval) return REVIEW_STATUS.feedback;
-  if (status === REVIEW_STATUS.appealSubmitted || status === REVIEW_STATUS.appealInvestigation) return REVIEW_STATUS.appealInProgress;
+  if (status === REVIEW_STATUS.appealSubmitted) return REVIEW_STATUS.appealInvestigation;
+  if (status === REVIEW_STATUS.appealInvestigation) return REVIEW_STATUS.appealInProgress;
   if (status === REVIEW_STATUS.feedback || status === REVIEW_STATUS.appealInProgress) return REVIEW_STATUS.archived;
   return status;
 }
@@ -220,7 +221,7 @@ export function validateAdjustmentTotal(rows) {
 export const ROLE_ACTIONS = {
   employee: new Set(["confirm_target", "dispute_target", "start_result_entry", "enter_result", "submit_appeal", "reject_target_change"]),
   leader: new Set(["issue_target", "reissue_target", "change_target", "first_score", "second_review", "return_result", "interview_feedback", "record_adjustment", "provide_appeal_evidence"]),
-  hr: new Set(["hr_review", "investigate_appeal", "manage_exception"]),
+  hr: new Set(["hr_review", "accept_appeal", "adjudicate_appeal", "manage_exception"]),
   ceo: new Set(["committee_approve", "resolve_appeal"]),
 };
 
@@ -308,7 +309,7 @@ export function returnResultForSupplement(review, { reason, operator, actedAt })
 }
 
 export function resolveAppealResult(review, { decision, correctedScore, reason, operator, actedAt }) {
-  if (!String(reason || "").trim()) return { ok: false, code: "VALIDATION", message: "请填写CEO裁决理由", review };
+  if (!String(reason || "").trim()) return { ok: false, code: "VALIDATION", message: "请填写绩效委员会复核意见", review };
   if (!["rejected", "partial", "approved"].includes(decision)) return { ok: false, code: "VALIDATION", message: "请选择裁决结论", review };
   if (decision !== "rejected" && (!Number.isFinite(Number(correctedScore)) || Number(correctedScore) < 0 || Number(correctedScore) > 100)) return { ok: false, code: "VALIDATION", message: "修正后分数需在0至100之间", review };
   const originalScore = review.resultVersions?.at(-1)?.score ?? calcScore(review);
@@ -319,6 +320,6 @@ export function resolveAppealResult(review, { decision, correctedScore, reason, 
   ];
   const appealStatus = decision === "rejected" ? "申诉驳回" : decision === "partial" ? "申诉部分成立" : "申诉成立";
   const next = { ...review, status: REVIEW_STATUS.archived, appealStatus, resultVersions, version: Number(review.version ?? 1) + 1 };
-  next.operationLogs = appendLog(review, { action: "CEO申诉裁决", operator, actedAt, note: `${appealStatus}：${reason.trim()}`, fromStatus: review.status, toStatus: next.status, snapshot: { beforeScore: originalScore, afterScore: decision === "rejected" ? originalScore : Number(correctedScore) } });
+  next.operationLogs = appendLog(review, { action: "绩效委员会复核申诉", operator, actedAt, note: `${appealStatus}：${reason.trim()}`, fromStatus: review.status, toStatus: next.status, snapshot: { beforeScore: originalScore, afterScore: decision === "rejected" ? originalScore : Number(correctedScore) } });
   return { ok: true, review: next };
 }

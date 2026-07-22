@@ -24,6 +24,16 @@ Keep paired overview cards equal in height. Recruitment analysis must include co
 
 On the personnel dashboard desktop layout, stretch the performance ranking card so its bottom edge aligns with the weekly submission overview, with pagination pinned to the card bottom.
 
+In the performance ledger action column, match the approved compact text-link reference: all enabled workflow, support, appeal, and Details actions are borderless blue-purple text, while disabled actions remain muted gray. Keep the actions in the compact two-column layout and do not render outlined, filled, or orange mini-buttons there.
+
+Keep one persistent, visibly labeled `全流程测试` performance record for 张小北. It must start at target issuance, use 江晚 as both direct and indirect reviewer so the available Leader role can exercise both review pages, include prefilled result evidence and scoring content, survive existing local storage through seed merging, and expose a reset action for repeatedly testing the normal, return, target-dispute, target-change, appeal, and ruling branches.
+
+Model performance templates as a durable three-level hierarchy: dimension, multiple metric names within each dimension, and multiple editable performance-description or score-band rows within each metric. In the HR maintenance modal, follow the supplied HTML prototype: use a branded header, linked department/position scope bar, structure and total-weight toolbar, dark dimension headers, nested indicator cards and editable score-band rows, plus an employee-view preview and guarded save action. Carry the same hierarchy and score descriptions through HR template maintenance, Leader target issuance, score sheets, detail views, exports, and tests; do not flatten templates back to one requirement string per target.
+
+When a Leader issues monthly performance targets from an HR template, treat the loaded template as an editable issuance draft. The Leader may customize dimension names, metric names, weights, and every score-band label, score range, and description. Do not show a separate monthly-target-requirement field in the issuance editor. These edits apply only to that issuance and must never overwrite the HR-maintained source template.
+
+The Leader issuance draft must support complete structure editing: add and delete dimensions, metrics, and score-band rows, including items originally loaded from the HR template. Deletion changes only the current issuance draft and never removes content from the HR source template.
+
 Do not show the generic key-risk card in the recruitment analysis view; let the recruitment operations chart use the full content width above the job and recruiter breakdowns.
 
 For all KPI_BI pages, keep the approved visual system consistent: a fixed deep-navy sidebar (`#1f2d44` to `#17243a`), a light gray-blue workspace (`#f3f6fb`), blue-purple primary actions (`#6268df`), white cards with restrained borders and shadows, and a 4px blue-purple accent on page title cards. Do not reintroduce a white sidebar, bright royal-blue primary theme, black-and-gold styling, or large-area saturated card backgrounds.
@@ -35,6 +45,8 @@ For the SSC organization roster, use the user-provided Excel screenshot as the s
 Treat SSC roster and business-table data as monthly editable snapshots: users must be able to switch month, inherit the nearest prior month as a starting point, edit the selected month inline, and export the selected month's version without overwriting historical months.
 
 In SSC template management, every template card's Preview and Version actions must open visible, template-specific content. Preview shows the current template metadata and structure; Version shows the retained current and historical version records.
+
+Rename SSC `人事模板管理` to `文件模板管理`. Template upload and editing must not offer `申请后下载`. When download permission is limited to designated departments or people, require the corresponding departments or people to be selected and show the saved scope. Every uploaded template must expose a working Edit action that reuses the upload form and allows an optional replacement file.
 
 For recruitment, configure the number of interview rounds per job and require an interviewer plus interview time for every round after department approval. Only the final passed round advances to Offer. Remove the 15-day retention stage; after arrival, show internship, regularized, or departed status from the SSC roster as the source of truth.
 
@@ -69,6 +81,8 @@ For project initiation and task execution, configure岗位人员 in the project-
 In the business dashboard's project overview ledger, show the project's personnel consumption amount directly in the detail drawer opened by the View action. Use the internal project's manpower cost as the source; external projects remain marked as not separately accounted for.
 
 When changing a business interaction, review and update the complete downstream flow rather than only the commented control. Keep entry forms, validation, stored data, linked ledgers, detail views, status feedback, and tests coherent; ask the user before making a decision that would materially change the business rule.
+
+At the HR appeal-acceptance node, HR must choose either `受理` or `不受理`. Acceptance continues to HR appeal adjudication; non-acceptance requires a reason, ends the appeal, archives the record, and preserves the decision in status and operation logs.
 
 For business detail drawers, keep workflow submission actions only in the fixed drawer footer. An inline form may collect and validate data, but must not render a second advance, confirm, reject, or create button inside the scrollable body.
 

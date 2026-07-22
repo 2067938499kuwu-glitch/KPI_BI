@@ -25,7 +25,12 @@ import {
   validateAdjustmentTotal,
   validateTargetWeights,
 } from "./logic";
-import { performanceTemplate, reviewsSeed } from "./seed";
+import {
+  FULL_FLOW_TEST_REVIEW_ID,
+  createFullFlowTestReview,
+  performanceTemplate,
+  reviewsSeed,
+} from "./seed";
 import {
   ROLE_TEMPLATE_IDS,
   createRowsFromTemplate,
@@ -41,6 +46,10 @@ describe("绩效目标与评分纯函数", () => {
     expect(roleTemplates.length).toBeGreaterThan(8);
     expect(getRoleTemplateOptions()[0]).toEqual({ value: "all", label: "全部岗位模板" });
     expect(getRoleTemplate(ROLE_TEMPLATE_IDS.editor).businessLines).toEqual(["剪辑中心", "初级剪辑师 / 中级剪辑师"]);
+    const editorRows = createRowsFromTemplate(ROLE_TEMPLATE_IDS.editor);
+    const firstMetric = editorRows.find((row) => row.type === "weighted");
+    expect(firstMetric.standards.map((standard) => standard.label)).toEqual(["优秀", "良好", "合格", "待提升"]);
+    expect(firstMetric.standards.every((standard) => standard.scoreRange && standard.description)).toBe(true);
   });
 
   test("岗位通用目标与个人目标共同校验100%，加减分不参与", () => {
@@ -93,13 +102,17 @@ describe("绩效目标与评分纯函数", () => {
     [60, "B"], [59.99, "C"], [55, "C"], [54.99, "D"],
   ])("分数%s对应等级%s", (score, grade) => expect(getGrade(score)).toBe(grade));
 
-  test("目标下发使用绩效目标与CEO语义并追加日志", () => {
+  test("目标下发与委员会操作使用统一文案并追加日志", () => {
     const review = { id: "rv-workflow", status: REVIEW_STATUS.targetIssue, operationLogs: [] };
     expect(getWorkflowAction(review)).toEqual({ type: "issue_target", label: "下发月度绩效目标", nextStatus: REVIEW_STATUS.employeeConfirm });
     const next = applyWorkflowAction(review, { type: "issue_target", operator: "江晚", note: "下发7月目标", actedAt });
     expect(next.status).toBe(REVIEW_STATUS.employeeConfirm);
     expect(next.operationLogs[0]).toMatchObject({ action: "下发月度绩效目标", operator: "江晚" });
-    expect(getWorkflowAction({ status: REVIEW_STATUS.committeeApproval }).label).toBe("CEO审批");
+    expect(getWorkflowAction({ status: REVIEW_STATUS.hrReview }).label).toBe("HR复审并提交绩效委员会");
+    expect(getWorkflowAction({ status: REVIEW_STATUS.committeeApproval }).label).toBe("绩效委员会审批");
+    expect(getWorkflowAction({ status: REVIEW_STATUS.appealSubmitted })).toEqual({ type: "accept_appeal", label: "受理绩效申诉", nextStatus: REVIEW_STATUS.appealInvestigation });
+    expect(getWorkflowAction({ status: REVIEW_STATUS.appealInvestigation })).toEqual({ type: "adjudicate_appeal", label: "裁定并提交绩效委员会", nextStatus: REVIEW_STATUS.appealInProgress });
+    expect(getWorkflowAction({ status: REVIEW_STATUS.appealInProgress }).label).toBe("绩效委员会复核申诉");
   });
 
   test("员工提出异议后回到Leader并可重新确认", () => {
@@ -150,6 +163,8 @@ describe("绩效目标与评分纯函数", () => {
     expect(canPerformReviewAction("leader", "first_score", review, "江晚")).toBe(true);
     expect(canPerformReviewAction("leader", "first_score", review, "其他Leader")).toBe(false);
     expect(canPerformReviewAction("hr", "committee_approve", review, "HR-唐宁")).toBe(false);
+    expect(canPerformReviewAction("hr", "accept_appeal", review, "HR-唐宁")).toBe(true);
+    expect(canPerformReviewAction("hr", "adjudicate_appeal", review, "HR-唐宁")).toBe(true);
     expect(canPerformReviewAction("ceo", "hr_review", review, "CEO")).toBe(false);
     expect(canPerformReviewAction("ceo", "committee_approve", review, "CEO")).toBe(true);
   });
@@ -186,6 +201,44 @@ describe("绩效目标与评分纯函数", () => {
       editEfficiency: { firstScore: 78, secondScore: 72 }, editAsset: { firstScore: 2, secondScore: 1 },
     });
     expect(calcScore({ rows })).toBeGreaterThan(70);
+  });
+
+  test("全流程测试数据可由现有四种角色依次完成所有主流程节点", () => {
+    let review = createFullFlowTestReview();
+    expect(review).toMatchObject({
+      id: FULL_FLOW_TEST_REVIEW_ID,
+      employee: "张小北",
+      directLeader: "江晚",
+      indirectLeader: "江晚",
+      status: REVIEW_STATUS.targetIssue,
+      isFullFlowTest: true,
+    });
+    expect(review.rows.filter((row) => row.type !== "section").every(
+      (row) => row.selfText && row.completionNote && row.evidence,
+    )).toBe(true);
+
+    const steps = [
+      { role: "leader", viewer: "江晚", type: "issue_target", from: REVIEW_STATUS.targetIssue },
+      { role: "employee", viewer: "张小北", type: "confirm_target", from: REVIEW_STATUS.employeeConfirm },
+      { role: "employee", viewer: "张小北", type: "enter_result", from: REVIEW_STATUS.resultEntry },
+      { role: "leader", viewer: "江晚", type: "first_score", from: REVIEW_STATUS.firstReview },
+      { role: "leader", viewer: "江晚", type: "second_review", from: REVIEW_STATUS.secondReview },
+      { role: "hr", viewer: "HR-唐宁", type: "hr_review", from: REVIEW_STATUS.hrReview },
+      { role: "ceo", viewer: "CEO", type: "committee_approve", from: REVIEW_STATUS.committeeApproval },
+      { role: "leader", viewer: "江晚", type: "interview_feedback", from: REVIEW_STATUS.feedback },
+    ];
+
+    steps.forEach((step) => {
+      expect(review.status).toBe(step.from);
+      expect(canPerformReviewAction(step.role, step.type, review, step.viewer)).toBe(true);
+      review = applyWorkflowAction(review, {
+        type: step.type,
+        operator: step.viewer,
+        actedAt,
+      });
+    });
+    expect(review.status).toBe(REVIEW_STATUS.archived);
+    expect(review.operationLogs).toHaveLength(9);
   });
 
   test("二级结果审核退回时保留审核结论和退回状态", () => {

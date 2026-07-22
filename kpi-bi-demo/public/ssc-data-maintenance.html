@@ -117,8 +117,17 @@ button{cursor:pointer}
 }
 .section-title{font-weight:700;font-size:15px}
 .section-desc{font-size:12px;color:var(--muted);margin-top:4px}
-.split-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:14px;min-height:calc(100vh - 178px)}
+.split-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:14px;min-height:calc(100vh - 178px);transition:grid-template-columns .2s ease}
+.split-layout.org-panel-collapsed{grid-template-columns:54px minmax(0,1fr)}
 .left-panel{min-height:100%;overflow:hidden}
+.org-panel-heading{min-height:62px;padding:12px 12px 10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.org-panel-heading strong{display:block;font-size:14px}.org-panel-heading span{display:block;margin-top:4px;color:var(--muted);font-size:10px;white-space:nowrap}
+.org-panel-toggle{width:32px;height:32px;flex:0 0 32px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#66738a;display:grid;place-items:center;transition:.15s}
+.org-panel-toggle:hover{border-color:#aebdff;color:var(--primary);background:var(--primary-soft)}
+.org-panel-toggle:focus-visible{outline:3px solid rgba(49,94,251,.13);outline-offset:1px}
+.org-panel-collapsed .org-panel-heading{height:100%;padding:10px;align-items:flex-start;border-bottom:0}
+.org-panel-collapsed .org-panel-heading>div,.org-panel-collapsed .panel-search,.org-panel-collapsed .tree,.org-panel-collapsed .tree-foot{display:none}
+.org-panel-collapsed .org-panel-toggle{transform:rotate(180deg)}
 .panel-search{padding:13px;border-bottom:1px solid var(--line)}
 .panel-search .input{width:100%}
 .tree{padding:9px}
@@ -167,6 +176,10 @@ tbody tr:hover{background:#fafbfe}
 .roster-ledger th:nth-child(3),.roster-ledger td:nth-child(3){min-width:150px}
 .roster-ledger th:nth-child(23),.roster-ledger td:nth-child(23),
 .roster-ledger th:nth-child(33),.roster-ledger td:nth-child(33){min-width:190px;text-align:left}
+.roster-ledger.is-editing th,.roster-ledger.is-editing td{height:44px}
+.roster-ledger.is-editing th:nth-child(2),.roster-ledger.is-editing td:nth-child(2){min-width:196px;max-width:196px}
+.roster-ledger.is-editing tbody tr:hover td{background:#f7f9ff}
+.roster-ledger.is-editing tbody tr:hover td:nth-child(1),.roster-ledger.is-editing tbody tr:hover td:nth-child(2){background:#f7f9ff}
 .ledger-name{
   border:0;background:transparent;color:#315efb;padding:2px 4px;font-weight:650;cursor:pointer;border-radius:4px
 }
@@ -183,9 +196,10 @@ tbody tr:hover{background:#fafbfe}
 .link.danger{color:var(--danger)}
 .summary-bar{
   padding:12px 16px;background:#fbfcff;border-bottom:1px solid var(--line);
-  display:flex;align-items:center;gap:24px;font-size:12px;color:var(--muted)
+  display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:8px;font-size:12px;color:var(--muted)
 }
-.summary-bar b{font-size:16px;color:var(--text);margin-left:5px}
+.summary-bar span{min-height:46px;padding:8px 11px;border:1px solid #edf0f5;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.summary-bar b{font-size:18px;color:var(--text);margin-left:5px}
 .data-source-strip{
   min-height:44px;padding:9px 14px;border:1px solid #dbe4ff;background:#f7f9ff;
   border-radius:10px;margin-bottom:14px;display:flex;align-items:center;gap:10px;color:#5d6980;font-size:12px
@@ -208,16 +222,35 @@ tbody tr:hover{background:#fafbfe}
 }
 .month-control input{width:118px;border:0;outline:0;background:transparent;color:var(--text);font-size:13px}
 #view-org .toolbar{gap:8px}
-#view-org .toolbar .search{width:170px}
+#view-org .toolbar .search{width:220px}
 #view-org .toolbar .select{width:115px;padding:0 8px}
 #view-org .toolbar .month-control{padding:0 7px}
 #view-org .toolbar .month-control input{width:96px}
 #view-org .toolbar .btn{padding:0 9px}
+.roster-command-bar{padding:0;margin-bottom:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;overflow:hidden;box-shadow:0 7px 22px rgba(27,45,83,.05)}
+.roster-filter-zone{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px}
+.roster-action-zone{display:flex;align-items:center;gap:7px;padding:12px 14px;border-left:1px solid var(--line);background:#fafbfe}
+.roster-action-zone .btn{white-space:nowrap}
+.filter-reset{display:none}.filter-reset.show{display:inline-flex}
+.roster-context-strip{min-height:42px;margin-bottom:12px;padding:8px 12px;border:1px solid #dde4ef;border-radius:10px;background:#f8faff;display:flex;align-items:center;gap:10px;color:#657188;font-size:11px}
+.roster-context-strip .source-dot{flex:0 0 auto}.roster-context-strip strong{color:#34425a}
+.roster-context-divider{width:1px;height:18px;background:#dbe1eb;margin:0 2px}
+.roster-scope-pill{margin-left:auto;padding:5px 9px;border-radius:99px;background:#e9efff;color:#405fc7;font-weight:650;white-space:nowrap}
+.roster-head-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.field-navigator{height:36px;max-width:158px;border:1px solid var(--line-dark);border-radius:8px;background:#fff;color:#536078;padding:0 28px 0 9px;font-size:12px;outline:none}
+.field-navigator:focus{border-color:#91a7ff;box-shadow:0 0 0 3px rgba(49,94,251,.08)}
+.roster-scroll-status{padding:4px 7px;border-radius:6px;background:#f0f3f8;color:#778296;font-size:10px;white-space:nowrap}
+.roster-ledger-wrap.is-scrolled:before{content:"";position:sticky;left:250px;top:0;z-index:9;display:block;width:12px;height:0;box-shadow:8px 0 14px 4px rgba(22,45,73,.16)}
 .editing-indicator{display:none;align-items:center;gap:7px;color:#315efb;font-size:12px;font-weight:650}
 .editing-indicator.show{display:inline-flex}.editing-indicator:before{content:"";width:7px;height:7px;border-radius:50%;background:#315efb;box-shadow:0 0 0 4px rgba(49,94,251,.1)}
-.editable-cell[contenteditable="true"]{background:#fffbe9!important;box-shadow:inset 0 0 0 1px #e7c85b;cursor:text}
-.editable-cell[contenteditable="true"]:focus{outline:2px solid #5f7df0;outline-offset:-2px;background:#fff!important}
-.editable-cell[contenteditable="true"]:empty:before{content:"点击填写";color:#a48e46}
+.editable-cell[contenteditable="true"]{background:#fff!important;box-shadow:inset 0 -2px 0 #dce3f5;cursor:text;transition:background-color .15s,box-shadow .15s}
+.editable-cell[contenteditable="true"]:hover{background:#f8faff!important;box-shadow:inset 0 -2px 0 #9eafff}
+.editable-cell[contenteditable="true"]:focus{outline:0;background:#f4f7ff!important;box-shadow:inset 0 0 0 2px #6980ed}
+.editable-cell[contenteditable="true"]:empty:before{content:"点击填写";color:#9aa6bb}
+.department-edit-cell{padding:5px 7px!important;background:#f3f6ff!important;box-shadow:inset 0 0 0 1px #c7d2ff}
+.roster-dept-select{display:block;width:100%;min-width:0;max-width:100%;height:34px;border:1px solid #aebdff;border-radius:7px;background:#fff;color:#34425a;padding:0 28px 0 10px;outline:none;font-size:12px;font-weight:600;text-overflow:ellipsis;transition:border-color .15s,box-shadow .15s}
+.roster-dept-select:hover{border-color:#8198f2;background:#fbfcff}
+.roster-dept-select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.11)}
 .tabs{height:48px;display:flex;align-items:flex-end;padding:0 16px;border-bottom:1px solid var(--line)}
 .tab{
   height:48px;display:flex;align-items:center;margin-right:25px;color:var(--muted);
@@ -239,7 +272,7 @@ tbody tr:hover{background:#fafbfe}
 .template-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .tag{font-size:11px;color:#63708a;background:#f4f6fa;border-radius:5px;padding:4px 7px}
 .template-bottom{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:11px}
-.template-actions{display:flex;gap:5px}
+.template-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
 .template-preview-hero{display:flex;align-items:center;gap:13px;padding:14px;border:1px solid #dbe4ff;border-radius:11px;background:#f7f9ff}
 .template-preview-hero .file-icon{width:50px;height:50px;flex-basis:50px}
 .template-preview-hero strong{display:block;font-size:15px}
@@ -327,8 +360,63 @@ textarea{min-height:82px;border:1px solid var(--line-dark);border-radius:8px;pad
 .employee-link-summary button{border:0;background:transparent;color:var(--primary);font-weight:650;padding:4px;cursor:pointer}
 .employee-form-title{display:flex;align-items:center;gap:8px;margin:2px 0 12px;font-size:13px;font-weight:700;color:#3d4a62}
 .employee-form-title:after{content:"";height:1px;background:var(--line);flex:1}
+.org-manager-modal{width:min(980px,calc(100vw - 32px));height:min(720px,calc(100vh - 48px));max-height:none}
+.org-manager-head{align-items:flex-start;padding-top:15px;padding-bottom:14px}
+.org-manager-head .modal-title{font-size:17px}
+.org-manager-subtitle{margin-top:5px;color:var(--muted);font-size:12px;font-weight:400}
+.org-manager-body{padding:0;display:grid;grid-template-columns:360px minmax(0,1fr);min-height:0;flex:1;overflow:hidden}
+.org-manager-tree-pane{min-width:0;border-right:1px solid var(--line);background:#fbfcff;display:flex;flex-direction:column}
+.org-manager-toolbar{padding:14px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px}
+.org-manager-toolbar .input{width:100%}
+.org-manager-toolbar .btn{white-space:nowrap}
+.org-manager-tree{padding:10px;overflow:auto;flex:1}
+.org-manager-node{margin-bottom:4px}
+.org-manager-node-row{width:100%;min-height:46px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--text);padding:7px 9px;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;text-align:left;transition:.15s}
+.org-manager-node-row:hover{background:#fff;border-color:var(--line);transform:translateY(-1px)}
+.org-manager-node-row:active{transform:scale(.99)}
+.org-manager-node-row:focus-visible{outline:3px solid rgba(49,94,251,.14);outline-offset:1px}
+.org-manager-node-row.selected{background:var(--primary-soft);border-color:#bdcaff;box-shadow:0 3px 12px rgba(49,94,251,.08)}
+.org-manager-node-row.inactive{opacity:.58}
+.org-manager-node-icon{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;background:#e9efff;color:var(--primary);font-size:13px}
+.org-manager-node-row.selected .org-manager-node-icon{background:var(--primary);color:#fff}
+.org-manager-node-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:650}
+.org-manager-node-path{display:block;margin-top:3px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:400}
+.org-manager-node-count{min-width:30px;padding:4px 7px;border-radius:99px;background:#f0f3f8;color:#6b7689;text-align:center;font-size:10px}
+.org-manager-node-row.selected .org-manager-node-count{background:#fff;color:var(--primary)}
+.org-manager-empty{padding:38px 18px;text-align:center;color:var(--muted);font-size:12px;line-height:1.7}
+.org-manager-edit-pane{min-width:0;overflow:auto;padding:22px 24px}
+.org-edit-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.org-edit-kicker{color:var(--primary);font-size:11px;font-weight:750;letter-spacing:.06em}
+.org-edit-heading h3{margin:6px 0 0;font-size:20px;line-height:1.3}
+.org-edit-count{padding:7px 10px;border-radius:8px;background:#f3f6fb;color:#5f6b80;font-size:11px;white-space:nowrap}
+.org-edit-form{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:20px}
+.org-edit-form .full{grid-column:1/-1}
+.org-edit-form .input,.org-edit-form .select{width:100%;height:40px}
+.org-field-help{color:var(--muted);font-size:11px;line-height:1.55}
+.org-quick-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.org-danger-zone{margin-top:20px;padding:13px 14px;border:1px solid #f0d7dc;border-radius:10px;background:#fffafb;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.org-danger-zone strong{display:block;font-size:12px;color:#a74456}
+.org-danger-zone p{margin:4px 0 0;color:#8b6971;font-size:11px;line-height:1.5}
+.org-root-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:20px}
+.org-root-stat{padding:14px;border:1px solid var(--line);border-radius:10px;background:#fafbfe}
+.org-root-stat span,.org-root-stat b{display:block}.org-root-stat span{color:var(--muted);font-size:11px}.org-root-stat b{margin-top:7px;font-size:20px}
+.org-root-guide{margin-top:18px;padding:14px;border-radius:10px;background:#f5f8ff;color:#53617b;font-size:12px;line-height:1.7}
+.org-unsaved{display:none;align-items:center;gap:6px;margin-right:auto;color:#a66d12;font-size:12px}
+.org-unsaved.show{display:flex}
+.org-unsaved:before{content:"";width:7px;height:7px;border-radius:50%;background:#e89622}
+.org-validation{display:none;margin-top:12px;padding:10px 12px;border-radius:8px;background:#fff0f2;color:#b34257;font-size:12px}
+.org-validation.show{display:block}
 .permission-box{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .check-card{border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px}
+.permission-target-panel{display:none;padding:12px;border:1px solid #dbe4ff;border-radius:10px;background:#f8faff}
+.permission-target-panel.show{display:block}
+.permission-target-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.permission-target-head strong{font-size:12px}.permission-target-head span{color:var(--muted);font-size:11px;line-height:1.5}
+.permission-target-list{max-height:174px;overflow:auto;grid-template-columns:repeat(2,minmax(0,1fr))}
+.permission-target-list .check-card{display:flex;align-items:flex-start;gap:7px;background:#fff;line-height:1.45}
+.permission-target-list .check-card small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.permission-scope-error{display:none;margin-top:8px;color:#b34257;font-size:11px}
+.permission-scope-error.show{display:block}
 .empty{padding:55px 20px;text-align:center;color:var(--muted)}
 .toast{
   position:fixed;right:24px;bottom:24px;z-index:200;background:#1f2a44;color:#fff;border-radius:9px;
@@ -338,11 +426,17 @@ textarea{min-height:82px;border:1px solid var(--line-dark);border-radius:8px;pad
 @media(max-width:1100px){
   .split-layout{grid-template-columns:235px minmax(0,1fr)}
   .template-card-list{grid-template-columns:1fr}
+  .roster-command-bar{grid-template-columns:1fr}.roster-action-zone{border-left:0;border-top:1px solid var(--line);justify-content:flex-end}
 }
 @media(max-width:760px){
   .content{padding:14px}.toolbar{align-items:stretch}.toolbar .input,.toolbar .select,.toolbar .btn{width:100%}
   .split-layout{grid-template-columns:1fr}.left-panel{min-height:auto}.data-source-strip{align-items:flex-start;flex-wrap:wrap}
   .data-source-strip .source-tip{width:100%;margin-left:18px}.form-grid{grid-template-columns:1fr}
+  .split-layout.org-panel-collapsed{grid-template-columns:1fr}.org-panel-collapsed .org-panel-heading{height:auto}.roster-filter-zone,.roster-action-zone{display:grid;grid-template-columns:1fr 1fr}.roster-filter-zone .search{grid-column:1/-1}.roster-context-strip{align-items:flex-start;flex-wrap:wrap}.roster-scope-pill{margin-left:0}.summary-bar{grid-template-columns:1fr 1fr}.section-head{align-items:flex-start;flex-direction:column}.roster-head-tools{justify-content:flex-start}
+  .org-manager-modal{height:calc(100vh - 24px);width:calc(100vw - 20px)}
+  .org-manager-body{grid-template-columns:1fr;grid-template-rows:260px minmax(0,1fr)}
+  .org-manager-tree-pane{border-right:0;border-bottom:1px solid var(--line)}
+  .org-manager-edit-pane{padding:18px}.org-edit-form{grid-template-columns:1fr}.org-root-summary{grid-template-columns:1fr}
 }
 html.is-embedded .sidebar{display:none}
 </style>
@@ -372,7 +466,7 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
           <span class="menu-icon">▥</span><span>表格管理</span>
         </div>
         <div class="menu-item" data-view="templates">
-          <span class="menu-icon">▤</span><span>模板管理</span>
+          <span class="menu-icon">▤</span><span>文件模板管理</span>
         </div>
       </div>
     </div>
@@ -394,46 +488,43 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
     <div class="content">
       <!-- 组织架构与花名册 -->
       <section class="view active" id="view-org">
-        <div class="toolbar">
-          <input class="input search" id="rosterSearch" placeholder="搜索姓名、花名、部门或职务" />
-          <select class="select" id="employmentStatus">
-            <option value="">全部员工状态</option>
-            <option>在职</option><option>实习期</option><option>已离职</option>
-          </select>
-          <select class="select" id="regularStatus">
-            <option value="">全部转正状态</option>
-            <option>已转正</option><option>实习期</option>
-          </select>
-          <label class="month-control"><span>数据月份</span><input id="rosterMonth" type="month" /></label>
-          <div class="spacer"></div>
-          <button class="btn" onclick="downloadRosterTemplate()">下载模板</button>
-          <button class="btn" id="rosterImportButton" onclick="document.getElementById('rosterFileInput').click()">导入花名册</button>
-          <button class="btn" onclick="exportRoster()">导出</button>
-          <button class="btn primary" onclick="openEmployeeModal()">＋ 新增员工</button>
+        <div class="toolbar roster-command-bar">
+          <div class="roster-filter-zone" aria-label="花名册筛选">
+            <input class="input search" id="rosterSearch" placeholder="搜索姓名、花名、部门或职务" aria-label="搜索花名册" />
+            <select class="select" id="employmentStatus" aria-label="员工状态">
+              <option value="">员工状态</option>
+              <option>在职</option><option>实习期</option><option>已离职</option>
+            </select>
+            <select class="select" id="regularStatus" aria-label="转正状态">
+              <option value="">转正状态</option>
+              <option>已转正</option><option>实习期</option>
+            </select>
+            <label class="month-control"><span>数据月份</span><input id="rosterMonth" type="month" /></label>
+            <button class="btn ghost filter-reset" id="rosterFilterReset" onclick="resetRosterFilters()">清空筛选</button>
+          </div>
+          <div class="roster-action-zone" aria-label="花名册操作">
+            <button class="btn ghost" onclick="downloadRosterTemplate()">下载模板</button>
+            <button class="btn" id="rosterImportButton" onclick="document.getElementById('rosterFileInput').click()">导入花名册</button>
+            <button class="btn" onclick="exportRoster()">导出当前结果</button>
+            <button class="btn primary" onclick="openEmployeeModal()">＋ 新增员工</button>
+          </div>
           <input id="rosterFileInput" type="file" accept=".xlsx,.xls,.csv" hidden />
         </div>
 
-        <div class="data-source-strip" id="rosterSourceStrip">
+        <div class="roster-context-strip" id="rosterSourceStrip">
           <span class="source-dot"></span><strong>浏览器本地数据</strong>
           <span class="source-detail" id="rosterSourceDetail">当前为演示花名册，可导入 XLSX、XLS 或 CSV 替换</span>
-          <span class="source-tip">支持自动识别多行标题与旧/新花名册字段</span>
+          <span class="roster-context-divider"></span><span>历史月份独立保存</span>
+          <span class="roster-scope-pill" id="rosterScopePill">全部公司 · 0 人</span>
         </div>
 
-        <div class="split-layout">
+        <div class="split-layout" id="rosterWorkspace">
           <div class="card left-panel">
-            <div class="panel-search"><input class="input" placeholder="搜索组织节点" /></div>
-            <div class="tree">
-              <div class="tree-row active" data-dept="全部公司"><span>▾</span><span>杭州智影引擎科技有限公司</span><span class="count">126</span></div>
-              <div class="tree-child">
-                <div class="tree-row" data-dept="平台与中台研发部"><span>▸</span><span>平台与中台研发部</span><span class="count">18</span></div>
-                <div class="tree-row" data-dept="内容经营中心"><span>▸</span><span>内容经营中心</span><span class="count">62</span></div>
-                <div class="tree-row" data-dept="综合管理中心"><span>▸</span><span>综合管理中心</span><span class="count">12</span></div>
-                <div class="tree-row" data-dept="商务中心"><span>▸</span><span>商务中心</span><span class="count">19</span></div>
-                <div class="tree-row" data-dept="AIGC部门"><span>▸</span><span>AIGC部门</span><span class="count">15</span></div>
-              </div>
-            </div>
+            <div class="org-panel-heading"><div><strong>组织范围</strong><span>选择部门筛选花名册</span></div><button class="org-panel-toggle" id="orgPanelToggle" type="button" aria-label="收起组织范围" aria-expanded="true" onclick="toggleOrgPanel()">⇤</button></div>
+            <div class="panel-search"><input class="input" id="orgTreeSearch" placeholder="搜索组织节点" aria-label="搜索组织节点" /></div>
+            <div class="tree" id="orgTree"></div>
             <div class="tree-foot">
-              <button class="btn ghost" style="width:100%" onclick="openModal('orgModal')">⚙ 维护组织架构</button>
+              <button class="btn ghost" style="width:100%" onclick="openOrgManager()">⚙ 维护组织架构</button>
             </div>
           </div>
 
@@ -441,12 +532,21 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
             <div class="section-head">
               <div>
                 <div class="section-title" id="rosterTitle">全部员工</div>
-                <div class="section-desc">按原表顺序展示完整字段，支持横向滚动与冻结关键列</div>
+                <div class="section-desc" id="rosterScopeMeta">按原表顺序展示完整字段，关键身份列保持冻结</div>
               </div>
-              <div style="display:flex;align-items:center;gap:8px">
+              <div class="roster-head-tools">
+                <select class="field-navigator" id="rosterFieldNavigator" aria-label="字段定位" onchange="jumpToRosterField(this.value)">
+                  <option value="">定位字段分组</option>
+                  <option value="0">组织与身份</option>
+                  <option value="5">入职与用工</option>
+                  <option value="14">联系与证件</option>
+                  <option value="24">合同与教育</option>
+                  <option value="32">联系人与备注</option>
+                  <option value="35">薪资与离职</option>
+                </select>
+                <span class="roster-scroll-status" id="rosterScrollStatus">字段 1–10 / 40</span>
                 <span class="editing-indicator" id="rosterEditingIndicator">正在编辑本月</span>
                 <button class="btn" id="rosterEditButton" onclick="toggleRosterEdit()">编辑本月</button>
-                <button class="btn" onclick="toast('当前已按原花名册表头完整展示')">原表字段</button>
               </div>
             </div>
             <div class="summary-bar">
@@ -513,7 +613,7 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
           <select class="select" id="templateStatus"><option value="">全部状态</option><option>启用</option><option>停用</option></select>
           <div class="spacer"></div>
           <button class="btn" onclick="toast('已导出模板目录')">导出模板目录</button>
-          <button class="btn primary" onclick="openModal('uploadTemplateModal')">＋ 上传模板</button>
+          <button class="btn primary" onclick="openTemplateForm()">＋ 上传模板</button>
         </div>
 
         <div class="split-layout">
@@ -617,19 +717,27 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
 </div>
 
 <!-- 组织维护 -->
-<div class="modal-mask" id="orgModal">
-  <div class="modal small">
-    <div class="modal-head"><div class="modal-title">维护组织架构</div><button class="close" onclick="closeModal('orgModal')">×</button></div>
-    <div class="modal-body">
-      <div class="notice">组织节点调整后，员工所属部门将同步更新。已产生的历史数据保留原组织快照。</div>
-      <div class="form-grid" style="grid-template-columns:1fr;margin-top:14px">
-        <div class="form-item"><label>操作类型</label><select class="select"><option>新增部门</option><option>修改部门</option><option>调整上级部门</option><option>停用部门</option></select></div>
-        <div class="form-item"><label>上级组织</label><select class="select"><option>杭州智影引擎科技有限公司</option><option>平台与中台研发部</option><option>内容经营中心</option></select></div>
-        <div class="form-item"><label>组织名称</label><input class="input" placeholder="请输入组织名称" /></div>
-        <div class="form-item"><label>组织负责人</label><input class="input" placeholder="请选择负责人" /></div>
-      </div>
+<div class="modal-mask" id="orgModal" role="dialog" aria-modal="true" aria-labelledby="orgManagerTitle">
+  <div class="modal org-manager-modal">
+    <div class="modal-head org-manager-head">
+      <div><div class="modal-title" id="orgManagerTitle">维护组织架构</div><div class="org-manager-subtitle">选择左侧节点即可编辑，不再需要先选择操作类型</div></div>
+      <button class="close" aria-label="关闭组织架构维护" onclick="cancelOrgManager()">×</button>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal('orgModal')">取消</button><button class="btn primary" onclick="closeModal('orgModal');toast('组织架构已保存')">保存</button></div>
+    <div class="org-manager-body">
+      <section class="org-manager-tree-pane" aria-label="组织节点列表">
+        <div class="org-manager-toolbar">
+          <input class="input" id="orgManagerSearch" placeholder="搜索部门" aria-label="搜索部门" oninput="renderOrgManagerTree()" />
+          <button class="btn primary" type="button" onclick="addOrgNode('org-root')">＋ 一级部门</button>
+        </div>
+        <div class="org-manager-tree" id="orgManagerTree"></div>
+      </section>
+      <section class="org-manager-edit-pane" id="orgManagerEditor" aria-live="polite"></section>
+    </div>
+    <div class="modal-foot">
+      <span class="org-unsaved" id="orgUnsavedIndicator">有未保存的更改</span>
+      <button class="btn" onclick="cancelOrgManager()">取消</button>
+      <button class="btn primary" id="orgSaveButton" onclick="saveOrgChanges()">保存全部更改</button>
+    </div>
   </div>
 </div>
 
@@ -686,31 +794,31 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
   </div>
 </div>
 
-<!-- 上传模板 -->
+<!-- 上传 / 编辑文件模板 -->
 <div class="modal-mask" id="uploadTemplateModal">
   <div class="modal large">
-    <div class="modal-head"><div class="modal-title">上传模板</div><button class="close" onclick="closeModal('uploadTemplateModal')">×</button></div>
+    <div class="modal-head"><div class="modal-title" id="templateFormTitle">上传文件模板</div><button class="close" onclick="closeModal('uploadTemplateModal')">×</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-item"><label>模板名称</label><input class="input" placeholder="请输入模板名称" /></div>
-        <div class="form-item"><label>模板分类</label><select class="select"><option>人事行政</option><option>财务报销</option><option>账号申请</option><option>项目管理</option><option>通用表格</option></select></div>
-        <div class="form-item"><label>版本号</label><input class="input" value="V1.0" /></div>
-        <div class="form-item"><label>模板状态</label><select class="select"><option>启用</option><option>停用</option></select></div>
-        <div class="form-item full"><label>上传文件</label><input class="input" type="file" /></div>
-        <div class="form-item full"><label>使用说明</label><textarea placeholder="填写模板用途及填写要求"></textarea></div>
+        <div class="form-item"><label for="templateName">模板名称</label><input class="input" id="templateName" placeholder="请输入模板名称" /></div>
+        <div class="form-item"><label for="templateCategory">模板分类</label><select class="select" id="templateCategory"><option>人事行政</option><option>财务报销</option><option>账号申请</option><option>项目管理</option><option>通用表格</option></select></div>
+        <div class="form-item"><label for="templateVersion">版本号</label><input class="input" id="templateVersion" value="V1.0" /></div>
+        <div class="form-item"><label for="templateStatusField">模板状态</label><select class="select" id="templateStatusField"><option>启用</option><option>停用</option></select></div>
+        <div class="form-item full"><label for="templateFile">上传文件</label><input class="input" id="templateFile" type="file" /><span class="org-field-help" id="templateFileHelp">新建模板时请选择文件。</span></div>
+        <div class="form-item full"><label for="templateDesc">使用说明</label><textarea id="templateDesc" placeholder="填写模板用途及填写要求"></textarea></div>
         <div class="form-item full"><label>适用部门</label>
-          <div class="permission-box">
-            <label class="check-card"><input type="checkbox" checked> 全部部门</label>
-            <label class="check-card"><input type="checkbox"> 平台与中台研发部</label>
-            <label class="check-card"><input type="checkbox"> 内容经营中心</label>
-            <label class="check-card"><input type="checkbox"> 综合管理中心</label>
-          </div>
+          <div class="permission-box" id="templateApplicableDepartments"></div>
         </div>
-        <div class="form-item"><label>下载权限</label><select class="select"><option>登录即可下载</option><option>指定部门可下载</option><option>指定人员可下载</option><option>申请后下载</option><option>仅预览</option></select></div>
-        <div class="form-item"><label>是否记录下载用途</label><select class="select"><option>必须填写</option><option>无需填写</option></select></div>
+        <div class="form-item"><label for="templateDownloadPermission">下载权限</label><select class="select" id="templateDownloadPermission" onchange="renderTemplatePermissionTargets()"><option>登录即可下载</option><option>指定部门可下载</option><option>指定人员可下载</option><option>仅预览</option></select></div>
+        <div class="form-item"><label for="templatePurposeRule">是否记录下载用途</label><select class="select" id="templatePurposeRule"><option>必须填写</option><option>无需填写</option></select></div>
+        <div class="form-item full permission-target-panel" id="templatePermissionTargetPanel">
+          <div class="permission-target-head"><div><strong id="templatePermissionTargetTitle">指定可下载范围</strong><span id="templatePermissionTargetHint">请至少选择一项</span></div><span id="templatePermissionTargetCount">已选 0 项</span></div>
+          <div class="permission-box permission-target-list" id="templatePermissionTargets"></div>
+          <div class="permission-scope-error" id="templatePermissionScopeError">请至少指定一个可下载对象</div>
+        </div>
       </div>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal('uploadTemplateModal')">取消</button><button class="btn primary" onclick="closeModal('uploadTemplateModal');toast('模板已上传并创建V1.0版本')">确认上传</button></div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal('uploadTemplateModal')">取消</button><button class="btn primary" id="templateFormSubmit" onclick="saveTemplateForm()">确认上传</button></div>
   </div>
 </div>
 
@@ -750,7 +858,7 @@ if(new URLSearchParams(window.location.search).get('embed')==='1'){
 const meta={
   org:['组织架构与花名册','在同一页面维护公司组织节点和员工花名册'],
   tables:['表格管理','通过左侧目录切换并维护账号表及其他业务表格'],
-  templates:['模板管理','在同一页面维护分类、文件、版本、权限和下载记录']
+  templates:['文件模板管理','在同一页面维护分类、文件、版本、权限和下载记录']
 };
 
 document.getElementById('sscMenuParent').addEventListener('click',()=>{
@@ -773,7 +881,7 @@ activateView(new URLSearchParams(window.location.search).get('view'));
 function openModal(id){document.getElementById(id).classList.add('show')}
 function closeModal(id){document.getElementById(id).classList.remove('show')}
 function closeDrawer(id){document.getElementById(id).classList.remove('show')}
-document.querySelectorAll('.modal-mask').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));
+document.querySelectorAll('.modal-mask').forEach(m=>m.addEventListener('click',e=>{if(e.target===m){if(m.id==='orgModal')cancelOrgManager();else closeModal(m.id)}}));
 document.querySelectorAll('.drawer-mask').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeDrawer(m.id)}));
 function toast(msg){
   const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
@@ -970,10 +1078,149 @@ function persistEmployees(){
  try{window.parent.postMessage({type:'ssc-personnel-updated'},window.location.origin)}catch(error){}
 }
 persistEmployees();
+const ORG_STORAGE_KEY='kpi-bi:ssc-org-structure';
+const ORG_COMPANY_NAME='杭州智影引擎科技有限公司';
+const DEFAULT_ORG_NODES=[
+ {id:'org-root',name:ORG_COMPANY_NAME,parentId:null,leader:'刘欣',active:true,order:0},
+ {id:'org-platform',name:'平台与中台研发部',parentId:'org-root',leader:'李明',active:true,order:10},
+ {id:'org-content',name:'内容经营中心',parentId:'org-root',leader:'张璐',active:true,order:20},
+ {id:'org-admin',name:'综合管理中心',parentId:'org-root',leader:'王敏',active:true,order:30},
+ {id:'org-business',name:'商务中心',parentId:'org-root',leader:'孙杰',active:true,order:40},
+ {id:'org-aigc',name:'AIGC部门',parentId:'org-root',leader:'赵启',active:true,order:50}
+];
+let orgNodes=cloneData(DEFAULT_ORG_NODES),orgDraftNodes=null,selectedOrgNodeId='org-root',orgHasChanges=false;
+try{
+ const storedOrg=JSON.parse(localStorage.getItem(ORG_STORAGE_KEY)||'null');
+ if(Array.isArray(storedOrg)&&storedOrg.some(node=>node.id==='org-root'))orgNodes=storedOrg;
+}catch(error){orgNodes=cloneData(DEFAULT_ORG_NODES)}
+function orgNodeById(id,list=orgDraftNodes||orgNodes){return list.find(node=>node.id===id)}
+function orgChildren(parentId,list=orgDraftNodes||orgNodes){return list.filter(node=>node.parentId===parentId).sort((a,b)=>(a.order||0)-(b.order||0)||a.name.localeCompare(b.name,'zh-CN'))}
+function orgDescendantIds(id,list=orgDraftNodes||orgNodes){
+ const result=[];orgChildren(id,list).forEach(child=>{result.push(child.id,...orgDescendantIds(child.id,list))});return result;
+}
+function orgNodeDepth(node,list=orgDraftNodes||orgNodes){
+ let depth=0,current=node;while(current?.parentId&&current.parentId!=='org-root'){depth+=1;current=orgNodeById(current.parentId,list)}return depth;
+}
+function orgNodePath(node,list=orgDraftNodes||orgNodes){
+ const names=[];let current=node;while(current?.parentId){current=orgNodeById(current.parentId,list);if(current)names.unshift(current.name)}return names.join(' / ');
+}
+function orgNodeScopeNames(name,list=orgDraftNodes||orgNodes){
+ const node=list.find(item=>item.name===name);if(!node)return [name];return [node.name,...orgDescendantIds(node.id,list).map(id=>orgNodeById(id,list)?.name).filter(Boolean)];
+}
+function departmentEmployeeCount(name,list=orgDraftNodes||orgNodes){const scope=new Set(orgNodeScopeNames(name,list));return employees.filter(employee=>scope.has(employee.dept)).length}
+function syncOrgNodesFromEmployees(){
+ const known=new Set(orgNodes.map(node=>node.name)),departments=[...new Set(employees.map(employee=>String(employee.dept||'').trim()).filter(name=>name&&name!=='未分配部门'))];let changed=false;
+ departments.forEach((name,index)=>{if(known.has(name))return;orgNodes.push({id:`org-roster-${Date.now()}-${index}`,name,parentId:'org-root',leader:'',active:true,order:(orgChildren('org-root',orgNodes).at(-1)?.order||0)+10});known.add(name);changed=true});
+ if(changed)localStorage.setItem(ORG_STORAGE_KEY,JSON.stringify(orgNodes));
+}
+function selectRosterDepartment(encodedName){
+ currentDept=decodeURIComponent(encodedName);document.getElementById('rosterTitle').textContent=currentDept==='全部公司'?'全部员工':currentDept;renderRoster();
+}
+let orgPanelCollapsed=false;
+function toggleOrgPanel(){
+ orgPanelCollapsed=!orgPanelCollapsed;const workspace=document.getElementById('rosterWorkspace'),button=document.getElementById('orgPanelToggle');workspace.classList.toggle('org-panel-collapsed',orgPanelCollapsed);button.setAttribute('aria-expanded',String(!orgPanelCollapsed));button.setAttribute('aria-label',orgPanelCollapsed?'展开组织范围':'收起组织范围');
+}
+function resetRosterFilters(){
+ document.getElementById('rosterSearch').value='';document.getElementById('employmentStatus').value='';document.getElementById('regularStatus').value='';currentDept='全部公司';document.getElementById('rosterTitle').textContent='全部员工';renderRoster();
+}
+function jumpToRosterField(value){
+ if(value==='')return;const index=Number(value),wrap=document.querySelector('.roster-ledger-wrap'),headers=document.querySelectorAll('#rosterHead th'),target=headers[index];if(!wrap||!target)return;const left=Math.max(0,target.offsetLeft-(index>1?250:0));wrap.scrollLeft=left;document.getElementById('rosterScrollStatus').textContent=`定位：${target.textContent}（${index+1}/${headers.length}）`;wrap.classList.toggle('is-scrolled',left>8);clearTimeout(window.rosterFieldStatusTimer);window.rosterFieldStatusTimer=setTimeout(updateRosterScrollStatus,1200);
+}
+function updateRosterScrollStatus(){
+ const wrap=document.querySelector('.roster-ledger-wrap'),headers=[...document.querySelectorAll('#rosterHead th')],status=document.getElementById('rosterScrollStatus');if(!wrap||!headers.length||!status)return;
+ if(!wrap.clientWidth){status.textContent=`字段 1–${Math.min(10,headers.length)} / ${headers.length}`;return}
+ const startPoint=wrap.scrollLeft+8,endPoint=wrap.scrollLeft+wrap.clientWidth-8;let start=0,end=Math.min(9,headers.length-1);headers.forEach((header,index)=>{if(header.offsetLeft<=startPoint)start=index;if(header.offsetLeft<endPoint)end=index});status.textContent=`字段 ${start+1}–${Math.max(start,end)+1} / ${headers.length}`;wrap.classList.toggle('is-scrolled',wrap.scrollLeft>8);
+}
+function mainOrgTreeRows(parentId,keyword){
+ return orgChildren(parentId,orgNodes).filter(node=>node.active).map(node=>{
+  const childHtml=mainOrgTreeRows(node.id,keyword),matches=!keyword||node.name.toLowerCase().includes(keyword);
+  if(!matches&&!childHtml)return '';
+  const depth=orgNodeDepth(node,orgNodes),selected=currentDept===node.name;
+  return `<div class="tree-row ${selected?'active':''}" data-dept="${escapeHtml(node.name)}" style="padding-left:${9+depth*18}px" onclick="selectRosterDepartment('${encodeURIComponent(node.name)}')"><span>${orgChildren(node.id,orgNodes).some(child=>child.active)?'▾':'•'}</span><span>${escapeHtml(node.name)}</span><span class="count">${departmentEmployeeCount(node.name)}</span></div>${childHtml}`;
+ }).join('');
+}
+function renderMainOrgTree(){
+ const container=document.getElementById('orgTree');if(!container)return;
+ const keyword=(document.getElementById('orgTreeSearch')?.value||'').trim().toLowerCase(),root=orgNodeById('org-root',orgNodes);
+ const children=mainOrgTreeRows('org-root',keyword),rootMatches=!keyword||root.name.toLowerCase().includes(keyword);
+ container.innerHTML=(rootMatches||children?`<div class="tree-row ${currentDept==='全部公司'?'active':''}" data-dept="全部公司" onclick="selectRosterDepartment('${encodeURIComponent('全部公司')}')"><span>▾</span><span>${escapeHtml(root.name)}</span><span class="count">${employees.length}</span></div>${children}`:'<div class="org-manager-empty">未找到匹配的组织节点</div>');
+}
+function renderEmployeeDepartmentOptions(preferred){
+ const select=document.getElementById('empDept');if(!select)return;
+ const selected=preferred||select.value,options=orgNodes.filter(node=>node.id!=='org-root'&&node.active).sort((a,b)=>(a.order||0)-(b.order||0));
+ select.innerHTML=options.map(node=>`<option value="${escapeHtml(node.name)}">${escapeHtml(node.name)}</option>`).join('');
+ if(selected&&options.some(node=>node.name===selected))select.value=selected;
+}
+function markOrgDirty(){orgHasChanges=true;document.getElementById('orgUnsavedIndicator')?.classList.add('show')}
+function openOrgManager(){
+ orgDraftNodes=cloneData(orgNodes);selectedOrgNodeId='org-root';orgHasChanges=false;
+ document.getElementById('orgUnsavedIndicator').classList.remove('show');document.getElementById('orgManagerSearch').value='';
+ renderOrgManagerTree();renderOrgManagerEditor();openModal('orgModal');
+}
+function cancelOrgManager(){
+ const hadChanges=orgHasChanges;orgDraftNodes=null;orgHasChanges=false;closeModal('orgModal');if(hadChanges)toast('未保存的组织调整已取消');
+}
+function selectOrgNode(id){selectedOrgNodeId=id;renderOrgManagerTree();renderOrgManagerEditor()}
+function orgManagerFlatRows(parentId,keyword){
+ return orgChildren(parentId,orgDraftNodes).map(node=>{
+  const childHtml=orgManagerFlatRows(node.id,keyword),matches=!keyword||node.name.toLowerCase().includes(keyword)||orgNodePath(node,orgDraftNodes).toLowerCase().includes(keyword);
+  if(!matches&&!childHtml)return '';
+  const depth=orgNodeDepth(node,orgDraftNodes),count=departmentEmployeeCount(node.name),selected=node.id===selectedOrgNodeId;
+  return `<div class="org-manager-node" style="padding-left:${depth*18}px"><button class="org-manager-node-row ${selected?'selected':''} ${node.active?'':'inactive'}" type="button" onclick="selectOrgNode('${escapeHtml(node.id)}')"><span class="org-manager-node-icon">${node.active?'▦':'○'}</span><span><span class="org-manager-node-name">${escapeHtml(node.name||'未命名部门')}</span><span class="org-manager-node-path">${escapeHtml(orgNodePath(node,orgDraftNodes))}${node.active?'':' · 已停用'}</span></span><span class="org-manager-node-count">${count}人</span></button></div>${childHtml}`;
+ }).join('');
+}
+function renderOrgManagerTree(){
+ if(!orgDraftNodes)return;const container=document.getElementById('orgManagerTree'),keyword=(document.getElementById('orgManagerSearch')?.value||'').trim().toLowerCase(),root=orgNodeById('org-root',orgDraftNodes);
+ const childHtml=orgManagerFlatRows('org-root',keyword),rootMatches=!keyword||root.name.toLowerCase().includes(keyword);
+ container.innerHTML=(rootMatches?`<div class="org-manager-node"><button class="org-manager-node-row ${selectedOrgNodeId==='org-root'?'selected':''}" type="button" onclick="selectOrgNode('org-root')"><span class="org-manager-node-icon">⌂</span><span><span class="org-manager-node-name">${escapeHtml(root.name)}</span><span class="org-manager-node-path">公司根组织</span></span><span class="org-manager-node-count">${employees.length}人</span></button></div>`:'')+childHtml||'<div class="org-manager-empty">未找到匹配的部门<br>可更换关键词继续查找</div>';
+}
+function renderOrgManagerEditor(){
+ if(!orgDraftNodes)return;const editor=document.getElementById('orgManagerEditor'),node=orgNodeById(selectedOrgNodeId,orgDraftNodes)||orgNodeById('org-root',orgDraftNodes);
+ if(node.id==='org-root'){
+  const activeDepartments=orgDraftNodes.filter(item=>item.id!=='org-root'&&item.active).length,inactiveDepartments=orgDraftNodes.filter(item=>item.id!=='org-root'&&!item.active).length;
+  editor.innerHTML=`<div class="org-edit-heading"><div><div class="org-edit-kicker">组织总览</div><h3>${escapeHtml(node.name)}</h3></div><span class="org-edit-count">根组织</span></div><div class="org-root-summary"><div class="org-root-stat"><span>启用部门</span><b>${activeDepartments}</b></div><div class="org-root-stat"><span>已停用</span><b>${inactiveDepartments}</b></div><div class="org-root-stat"><span>当前员工</span><b>${employees.length}</b></div></div><div class="org-root-guide">从左侧选择任一部门即可在这里直接修改。新增部门时，系统会自动带入当前节点作为上级；所有调整确认无误后，只需点击一次“保存全部更改”。</div><div class="org-quick-actions"><button class="btn primary" type="button" onclick="addOrgNode('org-root')">＋ 新增一级部门</button></div>`;return;
+ }
+ const count=departmentEmployeeCount(node.name),excluded=new Set([node.id,...orgDescendantIds(node.id,orgDraftNodes)]),parentOptions=orgDraftNodes.filter(item=>item.active&&!excluded.has(item.id)).map(item=>`<option value="${escapeHtml(item.id)}" ${item.id===node.parentId?'selected':''}>${escapeHtml(item.name)}</option>`).join('');
+ editor.innerHTML=`<div class="org-edit-heading"><div><div class="org-edit-kicker">选中部门</div><h3>${escapeHtml(node.name||'未命名部门')}</h3></div><span class="org-edit-count">${count} 名员工</span></div><div class="org-edit-form"><div class="form-item full"><label for="orgNodeName">部门名称</label><input class="input" id="orgNodeName" value="${escapeHtml(node.name)}" placeholder="请输入部门名称" oninput="updateOrgDraftField('name',this.value)" /><span class="org-field-help">修改名称后，本月花名册中属于该部门的员工会同步更新。</span></div><div class="form-item"><label for="orgNodeParent">上级组织</label><select class="select" id="orgNodeParent" onchange="updateOrgDraftField('parentId',this.value)">${parentOptions}</select></div><div class="form-item"><label for="orgNodeLeader">部门负责人</label><input class="input" id="orgNodeLeader" value="${escapeHtml(node.leader||'')}" placeholder="请输入负责人" oninput="updateOrgDraftField('leader',this.value)" /></div></div><div class="org-validation" id="orgValidation"></div><div class="org-quick-actions"><button class="btn" type="button" onclick="addOrgNode('${escapeHtml(node.id)}')">＋ 新增下级部门</button><button class="btn" type="button" onclick="addOrgNode('${escapeHtml(node.parentId||'org-root')}')">＋ 新增同级部门</button></div><div class="org-danger-zone"><div><strong>${node.active?'停用部门':'重新启用部门'}</strong><p>${node.active?(count?'该部门仍有员工，需先调整员工归属后才能停用。':'停用后不再出现在花名册组织筛选和新增员工选项中。'):'启用后将恢复到组织树和新增员工选项中。'}</p></div>${node.isNew?`<button class="btn danger" type="button" onclick="removeNewOrgNode('${escapeHtml(node.id)}')">删除新增节点</button>`:`<button class="btn ${node.active?'danger':''}" type="button" ${node.active&&count?'disabled':''} onclick="toggleOrgNodeActive('${escapeHtml(node.id)}')">${node.active?'停用':'重新启用'}</button>`}</div>`;
+ if(node.isNew)setTimeout(()=>document.getElementById('orgNodeName')?.select(),0);
+}
+function updateOrgDraftField(field,value){
+ const node=orgNodeById(selectedOrgNodeId,orgDraftNodes);if(!node||node.id==='org-root')return;node[field]=value;markOrgDirty();renderOrgManagerTree();
+}
+function addOrgNode(parentId){
+ if(!orgDraftNodes)orgDraftNodes=cloneData(orgNodes);const parent=orgNodeById(parentId,orgDraftNodes)||orgNodeById('org-root',orgDraftNodes),siblings=orgChildren(parent.id,orgDraftNodes),id=`org-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+ orgDraftNodes.push({id,name:'未命名部门',parentId:parent.id,leader:'',active:true,order:(siblings.at(-1)?.order||0)+10,isNew:true});selectedOrgNodeId=id;markOrgDirty();renderOrgManagerTree();renderOrgManagerEditor();
+}
+function removeNewOrgNode(id){
+ const removeIds=new Set([id,...orgDescendantIds(id,orgDraftNodes)]);orgDraftNodes=orgDraftNodes.filter(node=>!removeIds.has(node.id));selectedOrgNodeId='org-root';markOrgDirty();renderOrgManagerTree();renderOrgManagerEditor();
+}
+function toggleOrgNodeActive(id){
+ const node=orgNodeById(id,orgDraftNodes);if(!node||node.id==='org-root')return;if(node.active&&departmentEmployeeCount(node.name)){toast('请先调整该部门员工归属');return}node.active=!node.active;markOrgDirty();renderOrgManagerTree();renderOrgManagerEditor();
+}
+function validateOrgDraft(){
+ const errors=[],names=new Set();
+ orgDraftNodes.forEach(node=>{
+  node.name=String(node.name||'').trim();if(!node.name)errors.push('部门名称不能为空');
+  const key=`${node.parentId||'root'}::${node.name.toLowerCase()}`;if(names.has(key))errors.push(`同一上级下不能存在重名部门：${node.name}`);names.add(key);
+  if(node.id!=='org-root'&&!orgNodeById(node.parentId,orgDraftNodes))errors.push(`${node.name} 缺少有效上级组织`);
+ });return [...new Set(errors)];
+}
+function saveOrgChanges(){
+ if(!orgDraftNodes)return;const errors=validateOrgDraft(),validation=document.getElementById('orgValidation');
+ if(errors.length){validation.textContent=errors[0];validation.classList.add('show');toast('请先修正组织信息');return}
+ const oldById=new Map(orgNodes.map(node=>[node.id,node]));
+ orgDraftNodes.forEach(node=>{
+  const oldNode=oldById.get(node.id);if(!oldNode||oldNode.name===node.name)return;
+  employees.forEach(employee=>{if(employee.dept!==oldNode.name)return;employee.dept=node.name;employee.source=employee.source||{};let updated=false;Object.keys(employee.source).forEach(key=>{if(ROSTER_ALIASES.dept.map(normalizeHeader).includes(normalizeHeader(key))){employee.source[key]=node.name;updated=true}});if(!updated)employee.source['部门']=node.name});
+  if(currentDept===oldNode.name)currentDept=node.name;
+ });
+ orgNodes=orgDraftNodes.map(({isNew,...node})=>node);localStorage.setItem(ORG_STORAGE_KEY,JSON.stringify(orgNodes));persistEmployees();orgDraftNodes=null;orgHasChanges=false;renderEmployeeDepartmentOptions();renderRoster();closeModal('orgModal');toast('组织架构已保存，花名册已同步');
+}
+syncOrgNodesFromEmployees();
 let currentDept='全部公司';
 function ensureRosterMonth(month){
  if(!Array.isArray(rosterMonthlyData[month]))rosterMonthlyData[month]=inheritMonthlySnapshot(rosterMonthlyData,month,employees);
- currentRosterMonth=month;employees=rosterMonthlyData[month];currentDept='全部公司';rosterEditMode=false;persistEmployees();renderRoster();
+ currentRosterMonth=month;employees=rosterMonthlyData[month];currentDept='全部公司';rosterEditMode=false;syncOrgNodesFromEmployees();persistEmployees();renderEmployeeDepartmentOptions();renderRoster();
 }
 function recordValue(record,aliases){
  const entries=Object.entries(record||{}),targets=aliases.map(normalizeHeader);
@@ -989,14 +1236,15 @@ function normalizeRosterRecord(source,rowIndex){
 }
 function visibleEmployees(){
  const kw=document.getElementById('rosterSearch').value.trim().toLowerCase(),st=document.getElementById('employmentStatus').value,rt=document.getElementById('regularStatus').value;
- return employees.filter(e=>(currentDept==='全部公司'||e.dept===currentDept)&&(!st||e.status===st)&&(!rt||e.regular===rt)&&(!kw||[e.name,e.alias,e.dept,e.role].join('|').toLowerCase().includes(kw)));
+ const departmentScope=currentDept==='全部公司'?null:new Set(orgNodeScopeNames(currentDept,orgNodes));
+ return employees.filter(e=>(!departmentScope||departmentScope.has(e.dept))&&(!st||e.status===st)&&(!rt||e.regular===rt)&&(!kw||[e.name,e.alias,e.dept,e.role].join('|').toLowerCase().includes(kw)));
 }
 function renderRosterSource(){
  const detail=document.getElementById('rosterSourceDetail');if(!detail)return;
  detail.textContent=rosterSourceMeta?.fileName?`${currentRosterMonth} · ${rosterSourceMeta.fileName} · ${employees.length} 条`:`${currentRosterMonth} · ${employees.length} 条月度快照，可导入 XLSX、XLS 或 CSV 替换`;
 }
 function renderOrgCounts(){
- document.querySelectorAll('#view-org .tree-row[data-dept]').forEach(row=>{const count=row.dataset.dept==='全部公司'?employees.length:employees.filter(e=>e.dept===row.dataset.dept).length;const target=row.querySelector('.count');if(target)target.textContent=count});
+ renderMainOrgTree();
 }
 function renderRoster(){
  const rows=visibleEmployees();
@@ -1004,21 +1252,24 @@ function renderRoster(){
  document.getElementById('rosterEditButton').textContent=rosterEditMode?'完成编辑':'编辑本月';
  document.getElementById('rosterEditButton').classList.toggle('primary',rosterEditMode);
  document.getElementById('rosterEditingIndicator').classList.toggle('show',rosterEditMode);
+ document.querySelector('.roster-ledger').classList.toggle('is-editing',rosterEditMode);
  document.getElementById('rosterTotal').textContent=rows.length;
  document.getElementById('rosterActive').textContent=rows.filter(e=>e.status==='在职').length;
  document.getElementById('rosterProbation').textContent=rows.filter(e=>e.status==='实习期').length;
  document.getElementById('rosterIncomplete').textContent=rows.filter(e=>Number.parseInt(e.complete,10)<100).length;
+ document.getElementById('rosterScopePill').textContent=`${currentDept} · ${rows.length} 人`;
+ document.getElementById('rosterScopeMeta').textContent=rosterEditMode?`正在编辑 ${currentRosterMonth}：部门请从组织架构中选择，其他字段点击单元格即可修改`:`当前范围：${currentDept} · 匹配 ${rows.length} 人；按原表顺序展示完整字段，关键身份列保持冻结`;
+ document.getElementById('rosterFilterReset').classList.toggle('show',Boolean(currentDept!=='全部公司'||document.getElementById('rosterSearch').value||document.getElementById('employmentStatus').value||document.getElementById('regularStatus').value));
  document.getElementById('rosterHead').innerHTML=`<tr>${ROSTER_EXPORT_FIELDS.map(field=>`<th>${escapeHtml(field)}</th>`).join('')}</tr>`;
  document.getElementById('rosterBody').innerHTML=rows.length?rows.map(employee=>`<tr>${ROSTER_EXPORT_FIELDS.map(field=>renderRosterCell(employee,field,employees.indexOf(employee))).join('')}</tr>`).join(''):`<tr><td colspan="${ROSTER_EXPORT_FIELDS.length}"><div class="empty">本月暂无员工数据，可导入文件或新增员工</div></td></tr>`;
- renderRosterSource();renderOrgCounts();
+ renderRosterSource();renderOrgCounts();setTimeout(updateRosterScrollStatus,0);
 }
+renderEmployeeDepartmentOptions();
 renderRoster();
 document.getElementById('rosterMonth').addEventListener('change',event=>{if(event.target.value)ensureRosterMonth(event.target.value)});
 ['rosterSearch','employmentStatus','regularStatus'].forEach(id=>document.getElementById(id).addEventListener(id==='rosterSearch'?'input':'change',renderRoster));
-document.querySelectorAll('#view-org .tree-row[data-dept]').forEach(row=>row.addEventListener('click',()=>{
- document.querySelectorAll('#view-org .tree-row').forEach(x=>x.classList.remove('active'));row.classList.add('active');
- currentDept=row.dataset.dept;document.getElementById('rosterTitle').textContent=currentDept==='全部公司'?'全部员工':currentDept;renderRoster();
-}));
+document.getElementById('orgTreeSearch').addEventListener('input',renderMainOrgTree);
+document.querySelector('.roster-ledger-wrap').addEventListener('scroll',updateRosterScrollStatus,{passive:true});
 function openEmployee(no){
  const e=employees.find(x=>x.no===no);if(!e)return;
  document.getElementById('employeeDrawerBody').innerHTML=`
@@ -1087,6 +1338,7 @@ function nextEmployeeNo(){
 }
 function openEmployeeModal(){
  selectedRecruitmentArrival=null;
+ renderEmployeeDepartmentOptions();
  document.getElementById('empNo').value=nextEmployeeNo();
  document.getElementById('empName').value='';document.getElementById('empAlias').value='';document.getElementById('empRole').value='';
  document.getElementById('empDate').value=REPORT_DATE;document.getElementById('empStatus').value='实习期';document.getElementById('empPhone').value='';document.getElementById('empLeader').value='';
@@ -1113,7 +1365,7 @@ function addEmployee(){
   status:document.getElementById('empStatus').value,complete:selectedRecruitmentArrival?'78%':'68%',phone:document.getElementById('empPhone').value.trim()||'-',leader:document.getElementById('empLeader').value.trim()||'-',source:{},
   recruitmentCandidateId:selectedRecruitmentArrival?.candidateId||'',recruitmentApplicationId:selectedRecruitmentArrival?.applicationId||''
  };
- employees.unshift(employee);linkRecruitmentApplication(employee);persistEmployees();closeModal('employeeModal');renderRoster();toast(selectedRecruitmentArrival?'员工已新增并关联招聘记录':'员工已新增');
+ employees.unshift(employee);syncOrgNodesFromEmployees();linkRecruitmentApplication(employee);persistEmployees();closeModal('employeeModal');renderEmployeeDepartmentOptions();renderRoster();toast(selectedRecruitmentArrival?'员工已新增并关联招聘记录':'员工已新增');
 }
 function employeeFieldValue(employee,field){
  if(employee.source){
@@ -1126,19 +1378,30 @@ function employeeFieldValue(employee,field){
  if(field==='司龄'&&employee.date){const start=new Date(employee.date),now=new Date();if(!Number.isNaN(start.getTime()))return Math.max(0,(now-start)/31557600000).toFixed(1)}
  return mapping[field]??recordValue(employee.source||{},[field])??'';
 }
+function rosterDepartmentOptions(currentName){
+ const rows=[];
+ function append(parentId,depth){orgChildren(parentId,orgNodes).filter(node=>node.active||node.name===currentName).forEach(node=>{rows.push({node,depth});append(node.id,depth+1)})}
+ append('org-root',0);
+ if(currentName&&!rows.some(({node})=>node.name===currentName))rows.push({node:{name:currentName,active:false},depth:0});
+ return rows.map(({node,depth})=>`<option value="${escapeHtml(node.name)}" ${node.name===currentName?'selected':''}>${'　'.repeat(depth)}${depth?'└ ':''}${escapeHtml(node.name)}${node.active===false?'（已停用）':''}</option>`).join('');
+}
 function renderRosterCell(employee,field,employeeIndex){
  const raw=employeeFieldValue(employee,field),value=raw===''?'-':raw,title=escapeHtml(value);
+ if(rosterEditMode&&field==='部门')return `<td class="department-edit-cell" title="从组织架构中选择部门"><select class="roster-dept-select" data-field="部门" aria-label="修改 ${escapeHtml(employee.name)} 的部门" onchange="updateRosterCell(${employeeIndex},'部门',this.value)">${rosterDepartmentOptions(String(raw||employee.dept||''))}</select></td>`;
  if(rosterEditMode){const editableValue=raw===''?'':raw;return `<td class="editable-cell" contenteditable="true" spellcheck="false" data-field="${escapeHtml(field)}" onblur="updateRosterCell(${employeeIndex},this.dataset.field,this.textContent)" title="编辑 ${escapeHtml(field)}">${escapeHtml(editableValue)}</td>`}
  if(field==='姓名')return `<td title="${title}"><button class="ledger-name" data-no="${escapeHtml(employee.no)}" onclick="openEmployee(this.dataset.no)">${title}</button></td>`;
  return `<td title="${title}">${title}</td>`;
 }
 function updateRosterCell(employeeIndex,field,value){
- const employee=employees[employeeIndex];if(!employee)return;const next=String(value??'').trim();employee.source=employee.source||{};employee.source[field]=next;
+ const employee=employees[employeeIndex];if(!employee)return;const next=String(value??'').trim(),previous=field==='部门'?employee.dept:employeeFieldValue(employee,field);employee.source=employee.source||{};
+ if(field==='部门'){
+  let matched=false;const aliases=ROSTER_ALIASES.dept.map(normalizeHeader);Object.keys(employee.source).forEach(key=>{if(aliases.includes(normalizeHeader(key))){employee.source[key]=next;matched=true}});if(!matched)employee.source['部门']=next;
+ }else employee.source[field]=next;
  const coreMap={员工编号:'no',部门:'dept',职务:'role',姓名:'name',花名:'alias',入职时间:'date',转正状态:'regular',联系方式:'phone',离职日期:'departureDate'};
  if(coreMap[field])employee[coreMap[field]]=next;
  if(field==='转正状态'&&employee.status!=='已离职')employee.status=/实习|试用/.test(next)?'实习期':'在职';
  if(field==='离职日期')employee.status=next?'已离职':employee.regular==='实习期'?'实习期':'在职';
- persistEmployees();renderOrgCounts();
+ if(field==='部门'&&previous!==next){employee.orgHistory=[...(employee.orgHistory||[]),{month:currentRosterMonth,from:previous,to:next,changedAt:new Date().toLocaleString('zh-CN',{hour12:false}),operator:'SSC服务中心'}];renderEmployeeDepartmentOptions(next)}persistEmployees();renderOrgCounts();
 }
 function toggleRosterEdit(){rosterEditMode=!rosterEditMode;if(!rosterEditMode){persistEmployees();toast(`${currentRosterMonth} 花名册已保存`)}renderRoster()}
 function rosterRows(fields,list=employees){return list.map(employee=>fields.map(field=>employeeFieldValue(employee,field)))}
@@ -1151,7 +1414,7 @@ async function importRosterFile(file){
   const fields=best.header.headers.map(value=>String(value??'').trim()),records=best.sheet.rows.slice(best.header.index+1).map(row=>Object.fromEntries(fields.map((field,index)=>[field,excelDateValue(row[index]??'',field)]))).filter(record=>Object.values(record).some(value=>String(value).trim()));
   if(!records.length)throw new Error('已识别花名册表头，但未发现员工数据；当前文件可能只是空模板');
   employees=records.map(normalizeRosterRecord);rosterSourceFields=fields.filter(Boolean);rosterSourceMeta={fileName:file.name,importedAt:new Date().toLocaleString('zh-CN',{hour12:false}),sheetName:best.sheet.name,month:currentRosterMonth,fields:rosterSourceFields};
-  persistEmployees();currentDept='全部公司';document.querySelectorAll('#view-org .tree-row').forEach(row=>row.classList.toggle('active',row.dataset.dept==='全部公司'));renderRoster();toast(`花名册导入成功：${employees.length} 条`);
+  syncOrgNodesFromEmployees();persistEmployees();renderEmployeeDepartmentOptions();currentDept='全部公司';renderRoster();toast(`花名册导入成功：${employees.length} 条`);
  }catch(error){toast(error.message||'花名册导入失败')}finally{setButtonLoading('rosterImportButton',false)}
 }
 function downloadRosterTemplate(){downloadExcel(`花名册导入模板-${REPORT_DATE}`,[{name:'花名册',rows:worksheetRows('员工花名册',ROSTER_EXPORT_FIELDS,[])}]);toast('花名册导入模板已生成')}
@@ -1320,14 +1583,14 @@ document.getElementById('tableFileInput').addEventListener('change',event=>{cons
 
 /* 模板管理 */
 const templates=[
- {name:'员工信息采集表',category:'人事行政',version:'V3.1',desc:'用于新员工入职资料收集及花名册信息维护。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'XLS',previewFields:['姓名','花名','所属部门','职务','入职日期','联系电话','紧急联系人','紧急联系电话'],versions:[{version:'V3.1',status:'当前版本',note:'新增紧急联系人字段',uploader:'王敏',uploadedAt:'2026-07-12 16:20'},{version:'V3.0',status:'历史版本',note:'调整部门字段格式',uploader:'王敏',uploadedAt:'2026-06-02 10:15'}]},
- {name:'离职交接清单',category:'人事行政',version:'V2.4',desc:'用于员工离职时进行工作、设备及账号交接。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'DOC',previewFields:['离职人员','所属部门','最后工作日','工作事项交接','设备归还','账号关闭','资料归档','交接人签字','负责人确认'],versions:[{version:'V2.4',status:'当前版本',note:'补充账号与设备交接检查项',uploader:'王敏',uploadedAt:'2026-07-10 09:40'},{version:'V2.3',status:'历史版本',note:'优化交接人签字栏',uploader:'王敏',uploadedAt:'2026-05-28 14:10'}]},
- {name:'费用报销明细表',category:'财务报销',version:'V4.2',desc:'用于各部门提交费用报销明细及凭证信息。',departments:['全部部门'],permission:'指定部门可下载',status:'启用',format:'XLS',previewFields:['报销人员','所属部门','费用日期','费用类型','归属项目','报销金额','发票号码','支付方式','费用说明'],versions:[{version:'V4.2',status:'当前版本',note:'新增费用归属项目字段',uploader:'周静',uploadedAt:'2026-07-08 17:25'},{version:'V4.1',status:'历史版本',note:'统一金额与发票号码格式',uploader:'周静',uploadedAt:'2026-05-16 11:05'}]},
- {name:'账号开通申请单',category:'账号申请',version:'V2.0',desc:'用于申请系统账号、账号等级及权限范围。',departments:['全部部门'],permission:'登录即可下载',status:'启用',format:'DOC',previewFields:['申请人员','所属部门','系统名称','账号类型','权限等级','有效期','申请原因','直属负责人','系统管理员'],versions:[{version:'V2.0',status:'当前版本',note:'增加账号有效期和等级',uploader:'李哲',uploadedAt:'2026-07-09 11:30'},{version:'V1.9',status:'历史版本',note:'调整负责人审批信息',uploader:'李哲',uploadedAt:'2026-05-20 15:45'}]},
- {name:'项目汇报模板',category:'项目管理',version:'V1.8',desc:'用于项目阶段性汇报与管理层进度同步。',departments:['平台与中台研发部','内容经营中心'],permission:'指定部门可下载',status:'启用',format:'PPT',previewFields:['项目概况','阶段目标','完成进度','本期成果','成本执行','风险事项','待协调事项','下期计划','关键里程碑'],versions:[{version:'V1.8',status:'当前版本',note:'新增成本执行与风险页',uploader:'陈雨',uploadedAt:'2026-07-06 13:50'},{version:'V1.7',status:'历史版本',note:'优化管理层摘要版式',uploader:'陈雨',uploadedAt:'2026-05-12 10:30'}]},
- {name:'部门月度数据表',category:'通用表格',version:'V1.3',desc:'用于各部门统一提交月度基础数据。',departments:['全部部门'],permission:'申请后下载',status:'停用',format:'XLS',previewFields:['统计月份','所属部门','指标名称','指标口径','目标值','实际值','完成率','差异原因','改进计划'],versions:[{version:'V1.3',status:'当前版本',note:'补充指标口径与差异原因',uploader:'赵宁',uploadedAt:'2026-06-30 18:20'},{version:'V1.2',status:'历史版本',note:'增加目标值与完成率',uploader:'赵宁',uploadedAt:'2026-04-30 16:15'}]}
+ {name:'员工信息采集表',category:'人事行政',version:'V3.1',desc:'用于新员工入职资料收集及花名册信息维护。',departments:['全部部门'],permission:'登录即可下载',permissionTargets:[],purposeRequired:true,status:'启用',format:'XLS',previewFields:['姓名','花名','所属部门','职务','入职日期','联系电话','紧急联系人','紧急联系电话'],versions:[{version:'V3.1',status:'当前版本',note:'新增紧急联系人字段',uploader:'王敏',uploadedAt:'2026-07-12 16:20'},{version:'V3.0',status:'历史版本',note:'调整部门字段格式',uploader:'王敏',uploadedAt:'2026-06-02 10:15'}]},
+ {name:'离职交接清单',category:'人事行政',version:'V2.4',desc:'用于员工离职时进行工作、设备及账号交接。',departments:['全部部门'],permission:'登录即可下载',permissionTargets:[],purposeRequired:true,status:'启用',format:'DOC',previewFields:['离职人员','所属部门','最后工作日','工作事项交接','设备归还','账号关闭','资料归档','交接人签字','负责人确认'],versions:[{version:'V2.4',status:'当前版本',note:'补充账号与设备交接检查项',uploader:'王敏',uploadedAt:'2026-07-10 09:40'},{version:'V2.3',status:'历史版本',note:'优化交接人签字栏',uploader:'王敏',uploadedAt:'2026-05-28 14:10'}]},
+ {name:'费用报销明细表',category:'财务报销',version:'V4.2',desc:'用于各部门提交费用报销明细及凭证信息。',departments:['全部部门'],permission:'指定部门可下载',permissionTargets:['综合管理中心','商务中心'],purposeRequired:true,status:'启用',format:'XLS',previewFields:['报销人员','所属部门','费用日期','费用类型','归属项目','报销金额','发票号码','支付方式','费用说明'],versions:[{version:'V4.2',status:'当前版本',note:'新增费用归属项目字段',uploader:'周静',uploadedAt:'2026-07-08 17:25'},{version:'V4.1',status:'历史版本',note:'统一金额与发票号码格式',uploader:'周静',uploadedAt:'2026-05-16 11:05'}]},
+ {name:'账号开通申请单',category:'账号申请',version:'V2.0',desc:'用于申请系统账号、账号等级及权限范围。',departments:['全部部门'],permission:'登录即可下载',permissionTargets:[],purposeRequired:true,status:'启用',format:'DOC',previewFields:['申请人员','所属部门','系统名称','账号类型','权限等级','有效期','申请原因','直属负责人','系统管理员'],versions:[{version:'V2.0',status:'当前版本',note:'增加账号有效期和等级',uploader:'李哲',uploadedAt:'2026-07-09 11:30'},{version:'V1.9',status:'历史版本',note:'调整负责人审批信息',uploader:'李哲',uploadedAt:'2026-05-20 15:45'}]},
+ {name:'项目汇报模板',category:'项目管理',version:'V1.8',desc:'用于项目阶段性汇报与管理层进度同步。',departments:['平台与中台研发部','内容经营中心'],permission:'指定部门可下载',permissionTargets:['平台与中台研发部','内容经营中心'],purposeRequired:true,status:'启用',format:'PPT',previewFields:['项目概况','阶段目标','完成进度','本期成果','成本执行','风险事项','待协调事项','下期计划','关键里程碑'],versions:[{version:'V1.8',status:'当前版本',note:'新增成本执行与风险页',uploader:'陈雨',uploadedAt:'2026-07-06 13:50'},{version:'V1.7',status:'历史版本',note:'优化管理层摘要版式',uploader:'陈雨',uploadedAt:'2026-05-12 10:30'}]},
+ {name:'部门月度数据表',category:'通用表格',version:'V1.3',desc:'用于各部门统一提交月度基础数据。',departments:['全部部门'],permission:'登录即可下载',permissionTargets:[],purposeRequired:true,status:'停用',format:'XLS',previewFields:['统计月份','所属部门','指标名称','指标口径','目标值','实际值','完成率','差异原因','改进计划'],versions:[{version:'V1.3',status:'当前版本',note:'补充指标口径与差异原因',uploader:'赵宁',uploadedAt:'2026-06-30 18:20'},{version:'V1.2',status:'历史版本',note:'增加目标值与完成率',uploader:'赵宁',uploadedAt:'2026-04-30 16:15'}]}
 ];
-let templateCategory='全部模板',selectedDownload=null,selectedTemplate=null;
+let templateCategory='全部模板',selectedDownload=null,selectedTemplate=null,editingTemplateName=null,templateTargetSelection=[];
 function renderTemplates(){
  const kw=document.getElementById('templateSearch').value.trim().toLowerCase(),st=document.getElementById('templateStatus').value;
  const list=templates.filter(t=>(templateCategory==='全部模板'||t.category===templateCategory)&&(!st||t.status===st)&&(!kw||[t.name,t.desc,t.category].join('|').toLowerCase().includes(kw)));
@@ -1335,9 +1598,9 @@ function renderTemplates(){
   <div class="template-card">
    <div class="template-top"><div class="file-icon">${t.format}</div><div><div class="template-name">${t.name}</div><div class="template-version">${t.category} · ${t.version} · <span class="${t.status==='启用'?'':'muted'}">${t.status}</span></div></div></div>
    <div class="template-desc">${t.desc}</div>
-   <div class="template-tags"><span class="tag">适用：${t.departments.join('、')}</span><span class="tag">权限：${t.permission}</span></div>
+    <div class="template-tags"><span class="tag">适用：${t.departments.join('、')}</span><span class="tag">权限：${t.permission}</span>${t.permissionTargets?.length?`<span class="tag">指定：${t.permissionTargets.join('、')}</span>`:''}</div>
    <div class="template-bottom"><span style="font-size:11px;color:var(--muted)">更新于 2026-07-${12-i}</span>
-     <div class="template-actions"><button class="btn small" onclick="openTemplatePreview('${encodeURIComponent(t.name)}')">预览</button><button class="btn small" onclick="openTemplateVersions('${encodeURIComponent(t.name)}')">版本</button><button class="btn small primary" onclick="openDownload('${t.name}','${t.version}')">下载</button></div>
+      <div class="template-actions"><button class="btn small" onclick="openTemplateEditor('${encodeURIComponent(t.name)}')">编辑</button><button class="btn small" onclick="openTemplatePreview('${encodeURIComponent(t.name)}')">预览</button><button class="btn small" onclick="openTemplateVersions('${encodeURIComponent(t.name)}')">版本</button><button class="btn small primary" onclick="openDownload('${t.name}','${t.version}')">下载</button></div>
    </div>
   </div>`).join(''):`<div class="empty" style="grid-column:1/-1">暂无符合条件的模板</div>`;
 }
@@ -1353,12 +1616,77 @@ document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>
  document.querySelectorAll('.tab-pane').forEach(x=>x.classList.remove('active'));document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
 }));
 function findTemplate(key){const name=decodeURIComponent(key);return templates.find(template=>template.name===name)}
+function activeTemplateDepartments(){return orgNodes.filter(node=>node.id!=='org-root'&&node.active).sort((a,b)=>(a.order||0)-(b.order||0)).map(node=>node.name)}
+function renderTemplateApplicableDepartments(selected=['全部部门']){
+ const selectedSet=new Set(selected?.length?selected:['全部部门']),options=['全部部门',...activeTemplateDepartments()];
+ document.getElementById('templateApplicableDepartments').innerHTML=options.map(name=>`<label class="check-card"><input class="template-applicable-department" type="checkbox" value="${escapeHtml(name)}" ${selectedSet.has(name)?'checked':''} onchange="toggleTemplateApplicableDepartment(this)"> ${escapeHtml(name)}</label>`).join('');
+}
+function toggleTemplateApplicableDepartment(input){
+ const options=[...document.querySelectorAll('.template-applicable-department')];
+ if(input.checked&&input.value==='全部部门')options.forEach(option=>{if(option!==input)option.checked=false});
+ if(input.checked&&input.value!=='全部部门')options.find(option=>option.value==='全部部门').checked=false;
+}
+function syncTemplateTargetSelection(){
+ templateTargetSelection=[...document.querySelectorAll('.template-permission-target:checked')].map(input=>input.value);
+ document.getElementById('templatePermissionTargetCount').textContent=`已选 ${templateTargetSelection.length} 项`;
+ document.getElementById('templatePermissionScopeError').classList.remove('show');
+}
+function renderTemplatePermissionTargets(resetSelection=false){
+ const permission=document.getElementById('templateDownloadPermission').value,panel=document.getElementById('templatePermissionTargetPanel');
+ if(resetSelection)templateTargetSelection=[];
+ const isDepartment=permission==='指定部门可下载',isPerson=permission==='指定人员可下载';
+ panel.classList.toggle('show',isDepartment||isPerson);
+ document.getElementById('templatePermissionScopeError').classList.remove('show');
+ if(!isDepartment&&!isPerson){document.getElementById('templatePermissionTargets').innerHTML='';return}
+ const options=isDepartment?activeTemplateDepartments():employees.filter(employee=>employee.status!=='已离职').map(employee=>({value:employee.name,meta:`${employee.dept} · ${employee.role}`}));
+ document.getElementById('templatePermissionTargetTitle').textContent=isDepartment?'指定可下载部门':'指定可下载人员';
+ document.getElementById('templatePermissionTargetHint').textContent=isDepartment?'仅选中的部门成员可下载':'仅选中的员工本人可下载';
+ document.getElementById('templatePermissionTargets').innerHTML=options.map(option=>{
+  const value=typeof option==='string'?option:option.value,meta=typeof option==='string'?'':option.meta;
+  return `<label class="check-card"><input class="template-permission-target" type="checkbox" value="${escapeHtml(value)}" ${templateTargetSelection.includes(value)?'checked':''} onchange="syncTemplateTargetSelection()"><span>${escapeHtml(value)}${meta?`<small>${escapeHtml(meta)}</small>`:''}</span></label>`;
+ }).join('');
+ syncTemplateTargetSelection();
+}
+function openTemplateForm(){
+ editingTemplateName=null;templateTargetSelection=[];
+ document.getElementById('templateFormTitle').textContent='上传文件模板';
+ document.getElementById('templateFormSubmit').textContent='确认上传';
+ document.getElementById('templateName').value='';document.getElementById('templateCategory').value='人事行政';document.getElementById('templateVersion').value='V1.0';document.getElementById('templateStatusField').value='启用';document.getElementById('templateFile').value='';document.getElementById('templateDesc').value='';document.getElementById('templateDownloadPermission').value='登录即可下载';document.getElementById('templatePurposeRule').value='必须填写';
+ document.getElementById('templateFileHelp').textContent='新建模板时请选择文件。';
+ renderTemplateApplicableDepartments(['全部部门']);renderTemplatePermissionTargets();openModal('uploadTemplateModal');
+}
+function openTemplateEditor(key){
+ const template=findTemplate(key);if(!template)return;editingTemplateName=template.name;templateTargetSelection=[...(template.permissionTargets||[])];
+ document.getElementById('templateFormTitle').textContent='编辑文件模板';document.getElementById('templateFormSubmit').textContent='保存修改';
+ document.getElementById('templateName').value=template.name;document.getElementById('templateCategory').value=template.category;document.getElementById('templateVersion').value=template.version;document.getElementById('templateStatusField').value=template.status;document.getElementById('templateFile').value='';document.getElementById('templateDesc').value=template.desc;document.getElementById('templateDownloadPermission').value=template.permission;document.getElementById('templatePurposeRule').value=template.purposeRequired===false?'无需填写':'必须填写';
+ document.getElementById('templateFileHelp').textContent=`当前文件格式：${template.format}；不选择文件将保留现有文件。`;
+ renderTemplateApplicableDepartments(template.departments);renderTemplatePermissionTargets();openModal('uploadTemplateModal');
+}
+function saveTemplateForm(){
+ const name=document.getElementById('templateName').value.trim(),category=document.getElementById('templateCategory').value,version=document.getElementById('templateVersion').value.trim(),status=document.getElementById('templateStatusField').value,desc=document.getElementById('templateDesc').value.trim(),permission=document.getElementById('templateDownloadPermission').value,purposeRequired=document.getElementById('templatePurposeRule').value==='必须填写',file=document.getElementById('templateFile').files?.[0];
+ const departments=[...document.querySelectorAll('.template-applicable-department:checked')].map(input=>input.value);
+ if(!name){toast('请填写模板名称');return}if(!version){toast('请填写版本号');return}if(!departments.length){toast('请至少选择一个适用部门');return}
+ if(templates.some(template=>template.name===name&&template.name!==editingTemplateName)){toast('模板名称已存在');return}
+ if((permission==='指定部门可下载'||permission==='指定人员可下载')&&!templateTargetSelection.length){document.getElementById('templatePermissionScopeError').classList.add('show');toast('请指定可下载的部门或人员');return}
+ if(!editingTemplateName&&!file){toast('请选择要上传的模板文件');return}
+ const format=file?.name.split('.').pop()?.toUpperCase()||'FILE',now=new Date().toLocaleString('zh-CN',{hour12:false}),permissionTargets=(permission==='指定部门可下载'||permission==='指定人员可下载')?[...templateTargetSelection]:[];
+ if(editingTemplateName){
+  const template=templates.find(item=>item.name===editingTemplateName),versionChanged=template.version!==version;
+  if(versionChanged){template.versions.forEach(item=>{if(item.status==='当前版本')item.status='历史版本'});template.versions.unshift({version,status:'当前版本',note:file?'编辑模板并上传新文件':'编辑模板并更新版本',uploader:'当前用户',uploadedAt:now})}
+  else if(file&&template.versions[0]){template.versions[0]={...template.versions[0],note:'替换当前版本文件',uploader:'当前用户',uploadedAt:now}}
+  Object.assign(template,{name,category,version,status,desc,departments,permission,permissionTargets,purposeRequired,format:file?format:template.format});
+  closeModal('uploadTemplateModal');renderTemplates();toast('文件模板修改已保存');
+ }else{
+  templates.unshift({name,category,version,desc,departments,permission,permissionTargets,purposeRequired,status,format,previewFields:['文件内容与字段以实际上传模板为准'],versions:[{version,status:'当前版本',note:'首次上传',uploader:'当前用户',uploadedAt:now}]});
+  closeModal('uploadTemplateModal');renderTemplates();toast(`文件模板已上传并创建 ${version} 版本`);
+ }
+}
 function openTemplatePreview(key){
  const t=findTemplate(key);if(!t)return;selectedTemplate=t;
  document.getElementById('templatePreviewTitle').textContent=`${t.name} · 模板预览`;
  document.getElementById('templatePreviewBody').innerHTML=`
   <div class="template-preview-hero"><div class="file-icon">${escapeHtml(t.format)}</div><div><strong>${escapeHtml(t.name)}</strong><p>${escapeHtml(t.desc)}</p></div></div>
-  <div class="template-preview-meta"><div><span>当前版本</span><strong>${escapeHtml(t.version)}</strong></div><div><span>模板状态</span><strong>${escapeHtml(t.status)}</strong></div><div><span>适用部门</span><strong>${escapeHtml(t.departments.join('、'))}</strong></div><div><span>下载权限</span><strong>${escapeHtml(t.permission)}</strong></div></div>
+  <div class="template-preview-meta"><div><span>当前版本</span><strong>${escapeHtml(t.version)}</strong></div><div><span>模板状态</span><strong>${escapeHtml(t.status)}</strong></div><div><span>适用部门</span><strong>${escapeHtml(t.departments.join('、'))}</strong></div><div><span>下载权限</span><strong>${escapeHtml(t.permission)}${t.permissionTargets?.length?` · ${escapeHtml(t.permissionTargets.join('、'))}`:''}</strong></div></div>
   <section class="template-preview-structure"><div class="template-preview-structure-head"><strong>模板结构预览</strong><span>${t.previewFields.length} 个主要填写项</span></div><div class="template-preview-field-grid">${t.previewFields.map((field,index)=>`<div class="template-preview-field"><span>${String(index+1).padStart(2,'0')}</span><b>${escapeHtml(field)}</b></div>`).join('')}</div></section>`;
  openModal('templatePreviewModal');
 }

@@ -11,7 +11,7 @@ const html = readFileSync(
 const views = [
   { view: "org", title: "组织架构与花名册" },
   { view: "tables", title: "表格管理" },
-  { view: "templates", title: "模板管理" },
+  { view: "templates", title: "文件模板管理" },
 ];
 
 function loadDocument(query = "", initialStorage = {}) {
@@ -267,6 +267,128 @@ describe("SSC服务中心独立页面", () => {
     dom.window.close();
   });
 
+  test("花名册页面提供组织面板收起、字段定位和清晰的筛选范围反馈", () => {
+    const { dom, errors } = loadDocument("?embed=1&view=org");
+    const { document } = dom.window;
+
+    expect(document.getElementById("rosterScopePill")?.textContent).toBe(
+      "全部公司 · 6 人",
+    );
+    expect(document.getElementById("rosterFieldNavigator")?.options).toHaveLength(
+      7,
+    );
+
+    dom.window.toggleOrgPanel();
+    expect(
+      document.getElementById("rosterWorkspace")?.classList.contains(
+        "org-panel-collapsed",
+      ),
+    ).toBe(true);
+    expect(document.getElementById("orgPanelToggle")?.getAttribute("aria-expanded")).toBe(
+      "false",
+    );
+
+    dom.window.selectRosterDepartment(encodeURIComponent("内容经营中心"));
+    expect(document.getElementById("rosterScopePill")?.textContent).toBe(
+      "内容经营中心 · 1 人",
+    );
+    expect(document.getElementById("rosterFilterReset")?.classList.contains("show")).toBe(
+      true,
+    );
+
+    dom.window.jumpToRosterField("35");
+    expect(document.getElementById("rosterScrollStatus")?.textContent).toContain(
+      "试用期薪资",
+    );
+    dom.window.resetRosterFilters();
+    expect(document.getElementById("rosterScopePill")?.textContent).toBe(
+      "全部公司 · 6 人",
+    );
+    expect(errors).toEqual([]);
+    dom.window.close();
+  });
+
+  test("组织维护改为选择节点后直接编辑，不再要求先选择操作类型", () => {
+    const { dom, errors } = loadDocument("?embed=1&view=org");
+    const { document } = dom.window;
+
+    dom.window.openOrgManager();
+
+    expect(document.getElementById("orgModal")?.classList.contains("show")).toBe(
+      true,
+    );
+    expect(document.querySelector(".org-manager-subtitle")?.textContent).toContain(
+      "选择左侧节点即可编辑",
+    );
+    expect(document.getElementById("orgManagerTree")?.textContent).toContain(
+      "平台与中台研发部",
+    );
+    expect(document.getElementById("orgManagerTree")?.textContent).toContain(
+      "运营增长中心",
+    );
+    expect(document.getElementById("orgManagerEditor")?.textContent).toContain(
+      "组织总览",
+    );
+    expect(
+      [...document.querySelectorAll("#orgModal label")].some(
+        (label) => label.textContent === "操作类型",
+      ),
+    ).toBe(false);
+    expect(errors).toEqual([]);
+    dom.window.close();
+  });
+
+  test("组织名称修改一次保存即可同步本月花名册和新增员工部门选项", () => {
+    const { dom, errors } = loadDocument("?embed=1&view=org");
+    const { document } = dom.window;
+
+    dom.window.openOrgManager();
+    dom.window.selectOrgNode("org-platform");
+    dom.window.updateOrgDraftField("name", "平台产品与研发部");
+    dom.window.saveOrgChanges();
+
+    const employees = JSON.parse(
+      dom.window.localStorage.getItem("kpi-bi:ssc-employees"),
+    );
+    const structure = JSON.parse(
+      dom.window.localStorage.getItem("kpi-bi:ssc-org-structure"),
+    );
+    expect(structure).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "org-platform",
+          name: "平台产品与研发部",
+        }),
+      ]),
+    );
+    expect(employees.filter((employee) => employee.name === "陈雨")[0].dept).toBe(
+      "平台产品与研发部",
+    );
+    expect(
+      [...document.getElementById("empDept").options].map((option) => option.value),
+    ).toContain("平台产品与研发部");
+    expect(document.getElementById("orgModal")?.classList.contains("show")).toBe(
+      false,
+    );
+    expect(errors).toEqual([]);
+    dom.window.close();
+  });
+
+  test("仍有员工的部门不能直接停用", () => {
+    const { dom, errors } = loadDocument("?embed=1&view=org");
+
+    dom.window.openOrgManager();
+    dom.window.selectOrgNode("org-content");
+    dom.window.toggleOrgNodeActive("org-content");
+
+    expect(dom.window.orgNodeById("org-content").active).toBe(true);
+    expect(dom.window.document.getElementById("toast")?.textContent).toBe(
+      "请先调整该部门员工归属",
+    );
+    expect(errors).toEqual([]);
+    dom.window.close();
+  });
+
   test("新工作簿字段可映射到截图式花名册列", () => {
     const { dom, errors } = loadDocument("?embed=1&view=org");
     const employee = dom.window.normalizeRosterRecord(
@@ -326,6 +448,15 @@ describe("SSC服务中心独立页面", () => {
     expect(document.getElementById("rosterEditButton")?.textContent).toBe(
       "完成编辑",
     );
+    expect(document.querySelector(".roster-ledger")?.classList.contains("is-editing")).toBe(
+      true,
+    );
+    expect(document.querySelector("#rosterBody td:nth-child(2)")?.classList.contains(
+      "department-edit-cell",
+    )).toBe(true);
+    expect(document.getElementById("rosterScopeMeta")?.textContent).toContain(
+      "部门请从组织架构中选择",
+    );
     expect(
       document.querySelectorAll("#rosterBody [contenteditable='true']").length,
     ).toBeGreaterThan(0);
@@ -348,6 +479,36 @@ describe("SSC服务中心独立页面", () => {
       "2099-01",
     );
     expect(document.getElementById("tableMonth")?.value).toBe("2099-01");
+    expect(errors).toEqual([]);
+    dom.window.close();
+  });
+
+  test("花名册编辑部门时只能从启用的组织节点中选择并记录异动", () => {
+    const { dom, errors } = loadDocument("?embed=1&view=org");
+    const { document } = dom.window;
+
+    dom.window.toggleRosterEdit();
+    const departmentSelectors = [
+      ...document.querySelectorAll("#rosterBody .roster-dept-select"),
+    ];
+    expect(departmentSelectors).toHaveLength(6);
+    expect(
+      [...departmentSelectors[0].options].map((option) => option.value),
+    ).toEqual(
+      expect.arrayContaining(["平台与中台研发部", "内容经营中心", "运营增长中心"]),
+    );
+
+    dom.window.updateRosterCell(0, "部门", "内容经营中心");
+    const employee = dom.window.visibleEmployees()[0];
+    expect(employee.dept).toBe("内容经营中心");
+    expect(dom.window.employeeFieldValue(employee, "部门")).toBe("内容经营中心");
+    expect(employee.orgHistory.at(-1)).toEqual(
+      expect.objectContaining({
+        month: "2026-07",
+        from: "平台与中台研发部",
+        to: "内容经营中心",
+      }),
+    );
     expect(errors).toEqual([]);
     dom.window.close();
   });
@@ -407,4 +568,81 @@ describe("SSC服务中心独立页面", () => {
     expect(errors).toEqual([]);
     dom.window.close();
   });
+
+  test("文件模板下载权限不再提供申请后下载，并要求指定具体部门或人员", () => {
+    const { dom, errors } = loadDocument("?embed=1&view=templates");
+    const { document } = dom.window;
+    const permission = document.getElementById("templateDownloadPermission");
+
+    expect([...permission.options].map((option) => option.textContent)).toEqual([
+      "登录即可下载",
+      "指定部门可下载",
+      "指定人员可下载",
+      "仅预览",
+    ]);
+
+    dom.window.openTemplateEditor(encodeURIComponent("员工信息采集表"));
+    permission.value = "指定人员可下载";
+    dom.window.renderTemplatePermissionTargets(true);
+    expect(
+      document.getElementById("templatePermissionTargetPanel")?.classList.contains("show"),
+    ).toBe(true);
+    expect(document.querySelectorAll(".template-permission-target").length).toBeGreaterThan(0);
+
+    dom.window.saveTemplateForm();
+    expect(
+      document.getElementById("templatePermissionScopeError")?.classList.contains("show"),
+    ).toBe(true);
+    expect(
+      document.getElementById("uploadTemplateModal")?.classList.contains("show"),
+    ).toBe(true);
+
+    const firstPerson = document.querySelector(".template-permission-target");
+    firstPerson.checked = true;
+    firstPerson.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    dom.window.saveTemplateForm();
+    expect(
+      document.getElementById("uploadTemplateModal")?.classList.contains("show"),
+    ).toBe(false);
+    expect(document.getElementById("templateCardList")?.textContent).toContain(
+      `指定：${firstPerson.value}`,
+    );
+    expect(errors).toEqual([]);
+    dom.window.close();
+  });
+
+  test("模板卡片提供可回显并保存的编辑操作", () => {
+    const { dom, errors } = loadDocument("?embed=1&view=templates");
+    const { document } = dom.window;
+    const templateKey = encodeURIComponent("项目汇报模板");
+
+    expect(
+      [...document.querySelectorAll(".template-actions button")].some(
+        (button) => button.textContent === "编辑",
+      ),
+    ).toBe(true);
+    dom.window.openTemplateEditor(templateKey);
+    expect(document.getElementById("templateFormTitle")?.textContent).toBe(
+      "编辑文件模板",
+    );
+    expect(document.getElementById("templateName")?.value).toBe("项目汇报模板");
+    expect(document.getElementById("templateDownloadPermission")?.value).toBe(
+      "指定部门可下载",
+    );
+    expect(
+      [...document.querySelectorAll(".template-permission-target:checked")].map(
+        (input) => input.value,
+      ),
+    ).toEqual(["平台与中台研发部", "内容经营中心"]);
+
+    document.getElementById("templateDesc").value = "用于项目周度汇报和管理层同步。";
+    dom.window.saveTemplateForm();
+    dom.window.openTemplatePreview(templateKey);
+    expect(document.getElementById("templatePreviewBody")?.textContent).toContain(
+      "用于项目周度汇报和管理层同步。",
+    );
+    expect(errors).toEqual([]);
+    dom.window.close();
+  });
+
 });

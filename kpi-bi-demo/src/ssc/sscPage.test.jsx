@@ -14,8 +14,8 @@ afterEach(cleanup);
 
 const sscEntries = [
   { label: "组织架构与花名册", frameLabel: "组织架构与花名册", view: "org" },
-  { label: "人事表格管理", frameLabel: "表格管理", view: "tables" },
-  { label: "人事模板管理", frameLabel: "模板管理", view: "templates" },
+  { label: "表格管理", frameLabel: "表格管理", view: "tables" },
+  { label: "文件模板管理", frameLabel: "文件模板管理", view: "templates" },
 ];
 
 function getMainNavigation() {

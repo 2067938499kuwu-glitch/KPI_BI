@@ -16,6 +16,17 @@ export const performanceFocusOptions = [
   { value: "appeal", label: "申诉中" },
 ];
 
+function createSampleAppealFile(employee, uploadedAt = "2026-07-10 10:00") {
+  const content = `绩效申诉表\n员工：${employee}\n申诉事项：对绩效评分结果存在异议，申请复核。`;
+  return {
+    name: `${employee}-绩效申诉表.doc`,
+    size: content.length * 2,
+    type: "application/msword",
+    dataUrl: `data:application/msword;charset=utf-8,${encodeURIComponent(content)}`,
+    uploadedAt,
+  };
+}
+
 function createReview({
   id,
   employee,
@@ -38,6 +49,14 @@ function createReview({
   operationLogs,
   comment,
   evidence,
+  appealDate,
+  appealFormFile,
+  appealNote,
+  appealAcceptanceComment,
+  hrAppealDecision,
+  hrAppealDecisionReason,
+  hrRecommendedScore,
+  isFullFlowTest = false,
 }) {
   const template = getRoleTemplate(templateId);
   const targetIssued = status !== REVIEW_STATUS.targetIssue;
@@ -82,10 +101,89 @@ function createReview({
     ],
     comment,
     evidence,
+    appealDate,
+    appealFormFile,
+    appealNote,
+    appealAcceptanceComment,
+    hrAppealDecision,
+    hrAppealDecisionReason,
+    hrRecommendedScore,
+    isFullFlowTest,
   };
 }
 
+export const FULL_FLOW_TEST_REVIEW_ID = "rv-full-flow-test-1";
+
+export function createFullFlowTestReview() {
+  return createReview({
+    id: FULL_FLOW_TEST_REVIEW_ID,
+    employee: "张小北",
+    role: "中级剪辑师",
+    department: "剪辑中心",
+    templateId: ROLE_TEMPLATE_IDS.editor,
+    directLeader: "江晚",
+    indirectLeader: "江晚",
+    status: REVIEW_STATUS.targetIssue,
+    owner: "江晚",
+    isFullFlowTest: true,
+    templateHighlights: [
+      { label: "测试用途", value: "全流程流转" },
+      { label: "当前起点", value: "目标待下发" },
+      { label: "测试员工", value: "张小北" },
+      { label: "测试负责人", value: "江晚" },
+    ],
+    values: {
+      editOutput: {
+        selfText: "全流程测试：计划完成短剧正片剪辑 20 集及高光素材 30 条。",
+        completionNote: "已完成正片剪辑 20 集及高光素材 30 条，交付记录完整。",
+        evidence: "全流程测试附件：剪辑任务清单与交付记录。",
+        firstScore: 88,
+        firstComment: "交付数量达到目标，节点响应及时。",
+        secondScore: 86,
+        secondComment: "复核通过，产出数据与交付记录一致。",
+      },
+      editQuality: {
+        selfText: "全流程测试：一次审核通过率目标为 90%，重大质量问题为 0。",
+        completionNote: "一次审核通过率达到 92%，无重大质量问题。",
+        evidence: "全流程测试附件：审核结果汇总与返修记录。",
+        firstScore: 90,
+        firstComment: "质量稳定，一次通过率超过目标。",
+        secondScore: 88,
+        secondComment: "审核数据可追溯，质量评分合理。",
+      },
+      editEfficiency: {
+        selfText: "全流程测试：所有计划任务按期交付，紧急任务当日响应。",
+        completionNote: "计划任务全部按期交付，紧急任务均在当日响应。",
+        evidence: "全流程测试附件：排期表、提交时间与响应记录。",
+        firstScore: 86,
+        firstComment: "交付及时，未发生影响项目的延期。",
+        secondScore: 85,
+        secondComment: "排期和提交时间核验无误。",
+      },
+      editAsset: {
+        selfText: "全流程测试：沉淀一套可复用的高光剪辑节奏模板。",
+        completionNote: "已完成模板沉淀并在组内共享。",
+        evidence: "全流程测试附件：模板文件与共享记录。",
+        firstScore: 2,
+        firstComment: "形成可复用方法，给予 2 分加分。",
+        secondScore: 2,
+        secondComment: "加分依据充分。",
+      },
+    },
+    comment: "全流程测试专用数据，可从目标下发依次验证员工确认、结果填报、两级评分、HR复审、绩效委员会审批、面谈、申诉与裁决。",
+    evidence: "内置测试完成情况、评分、评语和证明材料，可直接打开各节点页面验证。",
+  });
+}
+
+export function ensureFullFlowTestReview(reviews) {
+  const reviewList = Array.isArray(reviews) ? reviews : [];
+  return reviewList.some((review) => review.id === FULL_FLOW_TEST_REVIEW_ID)
+    ? reviewList
+    : [createFullFlowTestReview(), ...reviewList];
+}
+
 export const reviewsSeed = [
+  createFullFlowTestReview(),
   createReview({
     id: "rv-editor-1",
     employee: "张小北",
@@ -258,7 +356,7 @@ export const reviewsSeed = [
       domesticEfficiency: { selfText: "多账号并发发布稳定，异常处理平均 2 小时内响应。", firstScore: 82, secondScore: 80 },
       domesticAccountAsset: { selfText: "沉淀账号异常排查清单。", firstScore: 2, secondScore: 1 },
     },
-    comment: "HR 已提交CEO审批。",
+    comment: "HR 已提交绩效委员会审批。",
     evidence: "账号运营记录、人工导入表、截图附件、HR复核意见。",
   }),
   createReview({
@@ -298,8 +396,11 @@ export const reviewsSeed = [
     indirectLeader: "江晚",
     status: REVIEW_STATUS.appealSubmitted,
     owner: "HR-唐宁",
-    appealStatus: "待HR调查",
+    appealStatus: "待HR受理",
     committeeStatus: "已审批",
+    appealDate: "2026-07-10 09:30",
+    appealFormFile: createSampleAppealFile("何编导", "2026-07-10 09:30"),
+    appealNote: "请重点核验质量维度的协作方评价依据。",
     templateHighlights: [
       { label: "分镜提交", value: "21 组" },
       { label: "协作反馈", value: "有争议" },
@@ -354,13 +455,13 @@ export const reviewsSeed = [
         action: "结果归档",
         operator: "HR-唐宁",
         actedAt: "2026-07-08 09:20",
-        note: "CEO审批通过，申诉期结束后归档。",
+        note: "绩效委员会审批通过，申诉期结束后归档。",
         fromStatus: REVIEW_STATUS.feedback,
         toStatus: REVIEW_STATUS.archived,
       },
     ],
     comment: "已完成归档，可作为一期流程样例。",
-    evidence: "HR汇总表、CEO审批记录、归档日志。",
+    evidence: "HR汇总表、绩效委员会审批记录、归档日志。",
   }),
   createReview({
     id: "rv-screenwriter-dispute-1",
@@ -426,12 +527,15 @@ export const reviewsSeed = [
     indirectLeader: "江晚",
     status: REVIEW_STATUS.appealInvestigation,
     owner: "HR-唐宁",
-    appealStatus: "HR调查中",
+    appealStatus: "HR已受理",
     committeeStatus: "已审批",
     lastActionAt: "2026-07-11 15:10",
+    appealDate: "2026-07-11 09:20",
+    appealFormFile: createSampleAppealFile("唐制片", "2026-07-11 09:20"),
+    appealAcceptanceComment: "申诉表完整，受理进度与成本两个争议事项。",
     templateHighlights: [
       { label: "申诉维度", value: "进度成本" },
-      { label: "当前状态", value: "HR调查中" },
+      { label: "当前状态", value: "HR已受理" },
       { label: "补充材料", value: "3份" },
       { label: "原结果", value: "A" },
     ],
@@ -441,8 +545,8 @@ export const reviewsSeed = [
       producerWorkload: { selfText: "跟进 4 个项目，提交 9 份统筹记录。", firstScore: 82, secondScore: 80 },
       producerRisk: { selfText: "提前上报两项供应商风险。", firstScore: 1, secondScore: 1 },
     },
-    operationLogs: [{ id: "rv-producer-appeal-investigation-1-log-1", action: "受理并调查申诉", operator: "HR-唐宁", actedAt: "2026-07-11 15:10", note: "已收集项目成本变动说明和领导评分依据。", fromStatus: REVIEW_STATUS.appealSubmitted, toStatus: REVIEW_STATUS.appealInvestigation }],
-    comment: "HR正在核验成本偏差归因与原始评分依据。",
+    operationLogs: [{ id: "rv-producer-appeal-investigation-1-log-1", action: "受理绩效申诉", operator: "HR-唐宁", actedAt: "2026-07-11 15:10", note: "申诉表完整，已受理并进入HR裁定。", fromStatus: REVIEW_STATUS.appealSubmitted, toStatus: REVIEW_STATUS.appealInvestigation }],
+    comment: "HR正在核验成本偏差归因与原始评分依据并形成裁定意见。",
     evidence: "申诉材料、项目成本台账、评分记录。",
   }),
   createReview({
@@ -455,13 +559,19 @@ export const reviewsSeed = [
     indirectLeader: "江晚",
     status: REVIEW_STATUS.appealInProgress,
     owner: "CEO",
-    appealStatus: "待CEO裁决",
+    appealStatus: "待绩效委员会复核",
     committeeStatus: "已审批",
     lastActionAt: "2026-07-12 10:30",
+    appealDate: "2026-07-11 10:10",
+    appealFormFile: createSampleAppealFile("郑商务", "2026-07-11 10:10"),
+    appealAcceptanceComment: "申诉表完整，已受理资源质量争议。",
+    hrAppealDecision: "partial",
+    hrAppealDecisionReason: "新增客户有效性证明可支持部分调整资源质量评分。",
+    hrRecommendedScore: 72,
     templateHighlights: [
       { label: "申诉维度", value: "资源质量" },
       { label: "调查结论", value: "已完成" },
-      { label: "当前状态", value: "待CEO裁决" },
+      { label: "当前状态", value: "待绩效委员会复核" },
       { label: "原结果", value: "B" },
     ],
     values: {
@@ -469,8 +579,8 @@ export const reviewsSeed = [
       businessMiddleQuality: { selfText: "补充了客户有效性证明，申请复核资源质量评分。", firstScore: 66, secondScore: 64 },
       businessMiddleDeal: { selfText: "完成 1 次意向合作推进。", firstScore: 1, secondScore: 1 },
     },
-    operationLogs: [{ id: "rv-business-appeal-ceo-1-log-1", action: "提交申诉调查", operator: "HR-唐宁", actedAt: "2026-07-12 10:30", note: "HR调查完成，建议CEO结合补充证明裁决。", fromStatus: REVIEW_STATUS.appealInvestigation, toStatus: REVIEW_STATUS.appealInProgress }],
-    comment: "等待CEO决定维持原结果或生成修正结果版本。",
+    operationLogs: [{ id: "rv-business-appeal-ceo-1-log-1", action: "裁定并提交绩效委员会", operator: "HR-唐宁", actedAt: "2026-07-12 10:30", note: "HR裁定申诉部分成立，提交绩效委员会复核。", fromStatus: REVIEW_STATUS.appealInvestigation, toStatus: REVIEW_STATUS.appealInProgress }],
+    comment: "等待绩效委员会复核后维持原结果或生成修正结果版本。",
     evidence: "客户沟通纪要、资源证明、HR调查记录。",
   }),
 ];

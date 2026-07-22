@@ -17,8 +17,17 @@ export const ROLE_TEMPLATE_IDS = {
 const internalSource = "日报周报 / 项目统筹表 / 提交记录 / 评审记录 / 表格导入";
 const proofSource = "员工填报 / 附件证明 / 负责人评价 / HR核验";
 
+function createPerformanceStandards(standard) {
+  return [
+    { id: "excellent", label: "优秀", scoreRange: "80分（含）-100分", description: `${standard}，完成度显著高于岗位基准，结果和过程证明完整。` },
+    { id: "good", label: "良好", scoreRange: "70分（含）-80分", description: `${standard}，达到岗位要求并稳定完成核心交付。` },
+    { id: "qualified", label: "合格", scoreRange: "60分（含）-70分", description: `${standard}，基本达到岗位基准，存在少量延期或质量问题。` },
+    { id: "improve", label: "待提升", scoreRange: "60分以下", description: `${standard}，未达到岗位基准，需要说明原因并制定改进计划。` },
+  ];
+}
+
 function metric(key, label, weight, source, standard, businessLine) {
-  return { key, label, weight, source, standard, type: "weighted", businessLine };
+  return { key, label, weight, source, standard, standards: createPerformanceStandards(standard), type: "weighted", businessLine };
 }
 
 function adjustment(key, label, standard) {
@@ -203,5 +212,7 @@ function createMetricRow(item, value = {}) {
     firstComment: value.firstComment ?? "",
     secondScore: value.secondScore ?? 0,
     secondComment: value.secondComment ?? "",
+    completionNote: value.completionNote ?? "",
+    evidence: value.evidence ?? "",
   };
 }

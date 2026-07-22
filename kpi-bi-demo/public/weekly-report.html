@@ -277,7 +277,9 @@ svg{display:block}
 .leader-left,.leader-right{min-height:0;display:flex;flex-direction:column;gap:12px}
 .team-brief{min-height:0;flex:1;display:flex;flex-direction:column}
 .brief-head{padding:14px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;flex:none}
+.brief-head{justify-content:space-between;gap:12px}
 .brief-head h2{margin:0;font-size:15px}
+.brief-head-meta{font-size:9.5px;color:var(--text-3)}
 .brief-body{min-height:0;flex:1;overflow:auto;padding:13px 15px 18px}
 .brief-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .brief-section{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fff}
@@ -285,6 +287,10 @@ svg{display:block}
 .brief-section-head strong{font-size:10.5px}
 .brief-section ul{margin:0;padding-left:16px}
 .brief-section li{font-size:10px;line-height:1.65;color:#455166;margin:3px 0}
+.brief-section-count{margin-left:auto;font-size:9px;color:var(--text-3);font-weight:600}
+.source-note{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px dashed #e5e8f0;color:var(--text-3);font-size:9px}
+.source-note::before{content:"";width:5px;height:5px;border-radius:50%;background:#aab2c3}
+.leader-empty{padding:18px;text-align:center;color:var(--text-3);font-size:10px}
 .department-card,.decision-card{display:flex;flex-direction:column}
 .department-card{height:258px;flex:none}
 .department-head,.decision-head{padding:13px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none}
@@ -500,27 +506,36 @@ svg{display:block}
   .team-grid{grid-template-columns:245px minmax(520px,1fr)}
   .hero p{max-width:450px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* Screenshot-aligned weekly report shell */
+body{background:#eef2f8;overflow:hidden}
+.app{min-width:1240px;margin:2px 18px 18px;height:calc(100vh - 20px);border:1px solid #dfe5ef;border-radius:22px;background:#f9fbfe;box-shadow:0 12px 30px rgba(33,49,86,.10);overflow:hidden}
+.topbar{height:92px;padding:0 22px;border-bottom:1px solid #e2e7f0;background:linear-gradient(100deg,#fff,#f8faff);box-shadow:0 4px 14px rgba(39,52,86,.06)}
+.brand{gap:12px}.brand-mark{width:46px;height:46px;border-radius:14px;color:var(--primary);background:#eef0ff;border:1px solid #dce2ff;box-shadow:none}.brand-name{font-size:24px;letter-spacing:-.5px}.brand-divider,.brand-page,.user{display:none}
+.header-tag{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;font-size:10px;font-weight:700}.header-tag--danger{color:#e65d6a;background:#fff0f2;border:1px solid #ffd9de}.header-tag--primary{color:var(--primary);background:#eef0ff;border:1px solid #dce2ff}
+.top-actions{gap:9px}.top-actions .period-box{height:48px}.top-actions .view-switch{height:48px}.top-actions .view-switch button{height:38px;font-size:11px}
+.hero{display:none}.main{padding:16px 10px 10px}.status-strip{display:none}
+.employee-grid{grid-template-columns:minmax(620px,1fr) 300px;gap:14px}.editor-card,.ai-card{border-radius:16px}.editor-card .card-head{display:none}.editor-body{padding:14px 10px 72px}.smart-tip{margin:0 0 10px;padding:11px 13px}.required-card{margin-bottom:10px}.required-head{padding:11px 13px}.freeform-ai-field textarea{min-height:66px}.report-textarea{min-height:390px;font-size:12px;line-height:1.75}.field-label{margin:0 2px 7px}.ai-card .card-head{min-height:66px;padding:14px}.ai-body{padding:10px 10px 72px}.ai-section{margin-bottom:8px}.ai-section-head{min-height:34px;padding:7px 10px}.ai-item{font-size:10px;line-height:1.55;padding:7px 20px 7px 17px}.ai-foot{min-height:58px;padding:9px 10px}.ai-foot .btn{width:100%;height:38px}
+@media(max-width:1500px){.employee-grid{grid-template-columns:minmax(560px,1fr) 300px}.brand-name{font-size:21px}}
 </style>
 </head>
 <body>
 <div class="app">
   <header class="topbar">
     <div class="brand">
-      <div class="brand-mark">汇</div>
-      <div class="brand-name">经营管理平台</div>
-      <div class="brand-divider"></div>
-      <div class="brand-page">智能汇报中心</div>
+      <div class="brand-mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></div>
+      <div class="brand-name">智能周报</div>
+      <span class="header-tag header-tag--danger">逾期已提交</span>
+      <span class="header-tag header-tag--primary">截止：7月13日 10:00</span>
     </div>
     <div class="top-actions">
-      <div class="user">
-        <div class="user-avatar">林</div>
-        <div class="user-info"><strong>林制片</strong><span>制片中心 · 中级制片</span></div>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" stroke-width="1.8"><path d="m6 9 6 6 6-6"/></svg>
-      </div>
+      <div class="period-box"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><div class="period-meta"><label>汇报周期</label><select id="weekSelect"><option data-cycle="2026-07" data-deadline="2026-07-13T10:00:00+08:00" data-end="2026-07-12" data-start="2026-07-06" value="W28">2026年7月6日 - 7月12日</option><option value="W27">2026年6月29日 - 7月5日</option><option value="W29">2026年7月13日 - 7月19日</option></select></div></div>
+      <button class="btn history-entry" id="historyBtn">◷ 历史周报</button>
+      <div class="view-switch" id="viewSwitch"><button class="active" data-view="employee">♙ 我的周报</button><button data-view="team">♧ 团队周报</button><button data-view="leader">▥ 领导概览</button></div>
     </div>
   </header>
 
-  <section class="hero">
+  <section class="hero" aria-hidden="true">
     <div class="hero-left">
       <div class="hero-icon">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
@@ -631,7 +646,7 @@ svg{display:block}
               <div class="ai-section" data-section="aiusage"><div class="ai-section-head"><div class="ai-section-title"><span class="dot cyan"></span>本周AI使用</div><span class="section-count">1条</span></div><div class="ai-items"><div class="ai-item" id="aiUsageAiItem">本周使用内部AI助手优化拍摄排期并整理风险清单，人工复核后采用，预计节省1-2小时。</div></div></div>
             </div>
           </div>
-          <div class="ai-foot"><button class="btn primary" id="submitReportBtn">提交周报</button></div>
+          <div class="ai-foot"><button class="btn primary" id="submitReportBtn">锁定周报</button></div>
         </aside>
       </div>
     </section>
@@ -660,33 +675,23 @@ svg{display:block}
           <select class="select-box" id="departmentSelect" aria-label="领导概览部门"><option>内容经营中心</option><option>制片部门</option><option>编剧中心</option><option>剪辑部门</option><option>运营部门</option></select>
           <select class="select-box" id="leaderTeamSelect" aria-label="领导概览团队"><option>全部团队</option><option>制片组</option><option>导演组</option><option>剪辑一组</option></select>
           <button class="btn leader-people-entry" id="openLeaderReportsBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="7" r="4"/><path d="M2 21a7 7 0 0 1 14 0M17 11h5m-2.5-2.5v5"/></svg>人员周报</button>
-          <span class="tag success">数据更新至今天 10:35</span>
+          <span class="tag success">来源：正式周报最新版本</span>
         </div>
       </div>
-      <div class="kpi-grid">
-        <div class="kpi-card"><div><label>覆盖员工</label><strong>46</strong><div class="sub">4个部门，11个业务组</div></div><div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div></div>
-        <div class="kpi-card"><div><label>周报提交率</label><strong>87%</strong><div class="sub">较上周提升 5%</div></div><div class="kpi-icon success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="m7 16 4-5 3 3 5-7"/></svg></div></div>
-        <div class="kpi-card"><div><label>关键项目进展</label><strong>6</strong><div class="sub">5项正常，1项有风险</div></div><div class="kpi-icon warning"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14"/><path d="M8 7h8M8 11h8M8 15h5"/></svg></div></div>
-        <div class="kpi-card"><div><label>需决策/协调</label><strong>5</strong><div class="sub">跨部门3项，预算2项</div></div><div class="kpi-icon danger"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg></div></div>
-      </div>
+      <div class="kpi-grid" id="leaderKpiGrid"></div>
       <div class="leader-grid">
         <div class="leader-left">
           <article class="card team-brief">
-            <div class="brief-head"><h2>AI团队周报简报</h2></div>
+            <div class="brief-head"><h2>AI 团队周报简报</h2><span class="brief-head-meta" id="leaderBriefMeta">仅汇总正式提交的最新版本</span></div>
             <div class="brief-body">
-              <div class="ai-adoption-banner"><div class="ai-adoption-main"><strong>本周 AI 应用洞察</strong><span>来自员工必填的“本周AI使用情况”，仅展示聚合结果</span></div><div class="ai-adoption-metric"><label>填写覆盖率</label><strong>100%</strong></div><div class="ai-adoption-metric"><label>实际使用率</label><strong>83%</strong></div><div class="ai-adoption-metric"><label>人均节省</label><strong>2.6小时</strong></div></div>
-              <div class="brief-grid">
-                <section class="brief-section"><div class="brief-section-head"><span class="dot success"></span><strong>关键成果</strong></div><ul><li>《城市回声》完成前10集拍摄，计划达成率92%。</li><li>“夏夜计划”完成全季剧本定稿，比计划提前2天。</li><li>内容投放ROI提升至1.68，较上周增长11%。</li></ul></section>
-                <section class="brief-section"><div class="brief-section-head"><span class="dot warning"></span><strong>主要风险</strong></div><ul><li>特效镜头变更可能影响7月15日首版交付。</li><li>配音演员档期未锁定，粗剪节点存在延迟风险。</li><li>剪辑一组设备负荷达到95%，下周产能承压。</li></ul></section>
-                <section class="brief-section"><div class="brief-section-head"><span class="dot"></span><strong>需要决策与支持</strong></div><ul><li>审批备用录音棚与替补配音演员临时预算。</li><li>协调技术中心临时借调2台高性能剪辑设备。</li><li>确认B项目新增场景的预算上限。</li></ul></section>
-                <section class="brief-section"><div class="brief-section-head"><span class="dot cyan"></span><strong>下周关键节点</strong></div><ul><li>7月15日：《城市回声》首版交付。</li><li>7月16日：B项目正式开机。</li><li>7月18日：“夏夜计划”完成分镜评审。</li></ul></section>
-              </div>
+              <div class="ai-adoption-banner" id="leaderAiInsight"></div>
+              <div class="brief-grid" id="leaderBriefGrid"></div>
             </div>
           </article>
         </div>
         <div class="leader-right">
-          <article class="card department-card"><div class="department-head"><strong>部门提交与风险分布</strong><span class="tag neutral">点击查看人员</span></div><div class="department-body"><div class="dept-row" data-leader-department="制片部门" role="button" tabindex="0"><div class="dept-top"><strong>制片部门</strong><span>提交率 75% · 风险 4 ›</span></div><div class="bar warning"><span style="width:75%"></span></div></div><div class="dept-row" data-leader-department="编剧中心" role="button" tabindex="0"><div class="dept-top"><strong>编剧中心</strong><span>提交率 92% · 风险 3 ›</span></div><div class="bar"><span style="width:92%"></span></div></div><div class="dept-row" data-leader-department="剪辑部门" role="button" tabindex="0"><div class="dept-top"><strong>剪辑部门</strong><span>提交率 92% · 风险 3 ›</span></div><div class="bar"><span style="width:92%"></span></div></div><div class="dept-row" data-leader-department="运营部门" role="button" tabindex="0"><div class="dept-top"><strong>运营部门</strong><span>提交率 90% · 风险 1 ›</span></div><div class="bar"><span style="width:90%"></span></div></div></div></article>
-          <article class="card decision-card"><div class="decision-head"><strong>领导关注事项</strong><button class="btn link">查看全部 5 项</button></div><div class="decision-body"><div class="decision-item"><div class="decision-item-top"><strong>配音资源与临时预算</strong><span class="tag danger">高优先级</span></div><p>最晚周二前确认替补配音演员和备用录音棚，否则影响第18集粗剪节奏。</p></div><div class="decision-item"><div class="decision-item-top"><strong>剪辑设备产能协调</strong><span class="tag warning">跨部门</span></div><p>剪辑一组设备负荷达到95%，建议从技术中心临时借调2台设备。</p></div><div class="decision-item"><div class="decision-item-top"><strong>B项目新增场景预算</strong><span class="tag primary">待决策</span></div><p>新增室外夜景可能增加约8万元成本，需要在开机前确认预算上限。</p></div></div></article>
+          <article class="card department-card"><div class="department-head"><strong>部门周报与风险分布</strong><span class="tag neutral">点击查看来源</span></div><div class="department-body" id="leaderDepartmentBody"></div></article>
+          <article class="card decision-card"><div class="decision-head"><strong>需要领导支持</strong><button class="btn link" id="viewAllSupportBtn">查看全部</button></div><div class="decision-body" id="leaderSupportBody"></div></article>
         </div>
       </div>
     </section>
@@ -1067,6 +1072,59 @@ leaderPeople.push(...leaderAdditionalPeopleSeed.map((row,index)=>{
   const riskText=hasRisk?'一项跨团队依赖仍待对方确认，当前不影响本周交付。':'当前未识别到需要升级协调的重大风险。';
   return {id,name,department,team,role,status,time,risk:hasRisk?1:0,summary:`${template.work}；${template.result}。`,original:`本周完成：${template.work}。\n\n数据与结果：${template.result}。\n\n问题与风险：${riskText}\n\n下周计划：${template.next}。`,achievements:[template.work+'。',template.result+'。'],risks:[riskText],nextPlan:[template.next+'。'],aiUsage:index%4===0?'本周未使用 AI，主要工作依赖现场沟通和专业判断。':'使用内部 AI 助手整理会议纪要和行动项，人工复核后同步相关协作方。'};
 }));
+const submittedLeaderStatuses=new Set(['submitted','locked','overdue_submitted','revision_requested']);
+const noRiskText=/未识别到|无重大风险|暂无风险|当前无/;
+const supportText=/需|待|协调|确认|支持|审批|资源|决策|配合|借调|预算|档期/;
+function getSupportItems(person){
+  if(Array.isArray(person.supportNeeds))return person.supportNeeds;
+  return (person.risks||[]).filter(item=>!noRiskText.test(item)&&supportText.test(item));
+}
+function getLeaderOverviewPeople(){
+  const department=$('departmentSelect').value;
+  const team=$('leaderTeamSelect').value;
+  return leaderPeople.filter(person=>(department==='内容经营中心'||person.department===department)&&(team==='全部团队'||person.team===team));
+}
+function renderLeaderOverview(){
+  const scoped=getLeaderOverviewPeople();
+  const submitted=scoped.filter(person=>submittedLeaderStatuses.has(person.status));
+  const aiUsageRecords=submitted.filter(person=>Boolean(person.aiUsage));
+  const riskEntries=submitted.flatMap(person=>(person.risks||[]).filter(item=>!noRiskText.test(item)).map(text=>({person,text})));
+  const supportEntries=submitted.flatMap(person=>getSupportItems(person).map(text=>({person,text})));
+  const achievements=submitted.flatMap(person=>(person.achievements||[]).map(text=>({person,text})));
+  const nextPlans=submitted.flatMap(person=>(person.nextPlan||[]).map(text=>({person,text})));
+  const metricCard=(label,value,sub,tone,icon)=>`<div class="kpi-card"><div><label>${label}</label><strong>${value}</strong><div class="sub">${sub}</div></div><div class="kpi-icon ${tone}">${icon}</div></div>`;
+  $('leaderKpiGrid').innerHTML=
+    metricCard('已提交周报',submitted.length+'份',`来自当前筛选范围 · ${scoped.length-submitted.length}份未正式提交`,'','<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>')+
+    metricCard('AI 使用说明',aiUsageRecords.length+'份',`周报必填项 · 对应 ${submitted.length} 份正式周报`,'success','<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3-2 5-5 2 5 2 2 5 2-5 5-2-5-2Z"/></svg>')+
+    metricCard('风险与阻塞',riskEntries.length+'项',`来自 ${new Set(riskEntries.map(item=>item.person.id)).size} 份正式周报`,'warning','<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg>')+
+    metricCard('需要支持',supportEntries.length+'项',`由“需要支持”及风险中的待协调事项汇总`,'danger','<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>');
+  $('leaderBriefMeta').textContent=`汇总 ${submitted.length} 份正式周报 · 可追溯到人员`;
+  $('leaderAiInsight').innerHTML=`<div class="ai-adoption-main"><strong>本周 AI 使用说明</strong><span>每人每周必填，直接汇总正式周报中的 AI 使用场景与效果说明</span></div><div class="ai-adoption-metric"><label>说明记录</label><strong>${aiUsageRecords.length}份</strong></div><div class="ai-adoption-metric"><label>涉及人员</label><strong>${new Set(aiUsageRecords.map(person=>person.id)).size}人</strong></div><div class="ai-adoption-metric"><label>数据完整度</label><strong>${submitted.length?Math.round(aiUsageRecords.length/submitted.length*100):0}%</strong></div>`;
+  const briefSection=(title,tone,entries,sourceLabel)=>{
+    const visible=entries.slice(0,3);
+    return `<section class="brief-section"><div class="brief-section-head"><span class="dot ${tone}"></span><strong>${title}</strong><span class="brief-section-count">${entries.length}项</span></div>${visible.length?`<ul>${visible.map(item=>`<li>${item.text}</li>`).join('')}</ul><div class="source-note">来自 ${new Set(entries.map(item=>item.person.id)).size} 份人员周报 · ${sourceLabel}</div>`:'<div class="leader-empty">当前范围暂无数据</div>'}</section>`;
+  };
+  $('leaderBriefGrid').innerHTML=briefSection('关键成果','success',achievements,'AI 提取')+briefSection('风险与阻塞','warning',riskEntries,'AI 提取')+briefSection('需要支持','',supportEntries,'AI 提取')+briefSection('下周重点','cyan',nextPlans,'AI 提取');
+  const departments=[...new Set(scoped.map(person=>person.department))];
+  const departmentStats=departments.map(department=>{
+    const people=scoped.filter(person=>person.department===department);
+    const reports=people.filter(person=>submittedLeaderStatuses.has(person.status));
+    const risks=reports.reduce((sum,person)=>sum+(person.risks||[]).filter(item=>!noRiskText.test(item)).length,0);
+    return {department,reports:reports.length,risks};
+  });
+  const maxReports=Math.max(1,...departmentStats.map(item=>item.reports));
+  $('leaderDepartmentBody').innerHTML=departmentStats.map(item=>`<div class="dept-row" data-overview-department="${item.department}" role="button" tabindex="0"><div class="dept-top"><strong>${item.department}</strong><span>已提交 ${item.reports}份 · 风险 ${item.risks}项 ›</span></div><div class="bar ${item.risks?'warning':''}"><span style="width:${Math.max(8,item.reports/maxReports*100)}%"></span></div></div>`).join('')||'<div class="leader-empty">当前范围暂无部门数据</div>';
+  $('leaderSupportBody').innerHTML=supportEntries.slice(0,5).map((item,index)=>`<div class="decision-item" data-support-person="${item.person.id}" role="button" tabindex="0"><div class="decision-item-top"><strong>${item.person.name} · ${item.person.department}</strong><span class="tag ${index===0?'danger':'warning'}">待跟进</span></div><p>${item.text}</p><div class="source-note">来源：${item.person.name}的正式周报</div></div>`).join('')||'<div class="leader-empty">当前范围暂无需要领导支持的事项</div>';
+  $('viewAllSupportBtn').textContent=`查看全部 ${supportEntries.length} 项`;
+  document.querySelectorAll('[data-overview-department]').forEach(row=>{
+    const open=()=>openLeaderReports(row.dataset.overviewDepartment);
+    row.onclick=open;row.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open()}};
+  });
+  document.querySelectorAll('[data-support-person]').forEach(row=>{
+    const open=()=>{const person=leaderPeople.find(item=>item.id===row.dataset.supportPerson);if(!person)return;state.leaderPerson=person.id;openLeaderReports(person.department);state.leaderPerson=person.id;renderLeaderDirectory()};
+    row.onclick=open;row.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open()}};
+  });
+}
 function statusLabel(s){
   return ({
     submitted:['已提交',''],locked:['已锁定','locked'],overdue_submitted:['逾期已提交','draft'],
@@ -1225,10 +1283,11 @@ $('exportLeaderReportBtn').onclick=()=>{
   if(person)toast(`已生成${person.name}的个人周报导出文件`);
 };
 
-$('departmentSelect').onchange=()=>{syncLeaderTeamOptions();toast(`已切换至${$('departmentSelect').value}领导概览`)};
-$('leaderTeamSelect').onchange=()=>toast(`已切换至${$('leaderTeamSelect').value}数据范围`);
+$('departmentSelect').onchange=()=>{syncLeaderTeamOptions();renderLeaderOverview();toast(`已切换至${$('departmentSelect').value}领导概览`)};
+$('leaderTeamSelect').onchange=()=>{renderLeaderOverview();toast(`已切换至${$('leaderTeamSelect').value}数据范围`)};
 $('weekSelect').addEventListener('change',()=>{if($('leaderReportsDrawerMask').classList.contains('show')){state.leaderWeek=$('weekSelect').value;openLeaderReports(state.leaderDepartment)}});
 syncLeaderTeamOptions();
+renderLeaderOverview();
 
 const queryParams=new URLSearchParams(location.search);
 const queryView=queryParams.get('view');
