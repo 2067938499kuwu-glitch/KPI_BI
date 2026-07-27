@@ -38,7 +38,7 @@ export const WORKFLOW_ACTIONS = {
   [REVIEW_STATUS.committeeApproval]: { type: "committee_approve", label: "绩效委员会审批", nextStatus: REVIEW_STATUS.feedback },
   [REVIEW_STATUS.feedback]: { type: "interview_feedback", label: "反馈与面谈记录", nextStatus: REVIEW_STATUS.archived },
   [REVIEW_STATUS.appealSubmitted]: { type: "accept_appeal", label: "受理绩效申诉", nextStatus: REVIEW_STATUS.appealInvestigation },
-  [REVIEW_STATUS.appealInvestigation]: { type: "adjudicate_appeal", label: "裁定并提交绩效委员会", nextStatus: REVIEW_STATUS.appealInProgress },
+  [REVIEW_STATUS.appealInvestigation]: { type: "adjudicate_appeal", label: "填写处理记录并提交绩效委员会", nextStatus: REVIEW_STATUS.appealInProgress },
   [REVIEW_STATUS.appealInProgress]: { type: "resolve_appeal", label: "绩效委员会复核申诉", nextStatus: REVIEW_STATUS.archived },
 };
 
@@ -63,7 +63,6 @@ const pendingReviewStatuses = new Set([
 ]);
 
 export function calcRowComposite(row, review) {
-  if (row.type === "adjustment") return Number(row.firstScore || 0);
   if (!requiresSecondReview(review)) return row.firstScore;
   return row.firstScore * performanceScoreRatio.firstLeader + row.secondScore * performanceScoreRatio.secondLeader;
 }
@@ -80,7 +79,7 @@ export function calcBaseScore(review) {
 }
 
 export function calcAdjustmentScore(review) {
-  return Number(review.rows.reduce((sum, row) => row.type === "adjustment" ? sum + Number(row.firstScore || 0) : sum, 0).toFixed(2));
+  return Number(review.rows.reduce((sum, row) => row.type === "adjustment" ? sum + calcRowComposite(row, review) : sum, 0).toFixed(2));
 }
 
 export function calcScore(review) {
@@ -213,9 +212,71 @@ export function validateTargetWeights(targets) {
   };
 }
 
-export function validateAdjustmentTotal(rows) {
-  const total = Number(rows.filter((row) => row.type === "adjustment").reduce((sum, row) => sum + Number(row.firstScore || 0), 0).toFixed(2));
+export function materializeTargetRows(targets = [], previousRows = []) {
+  const previousByKey = new Map((previousRows ?? [])
+    .filter((row) => row?.type !== "section")
+    .map((row) => [row.key ?? row.id ?? row.label, row]));
+
+  return (targets ?? [])
+    .filter((target) => target?.type !== "section")
+    .map((target, index) => {
+      const key = target.key ?? target.id ?? `target-${index + 1}`;
+      const previous = previousByKey.get(key) ?? {};
+      const type = target.type === "adjustment" || target.origin === "adjustment" ? "adjustment" : "metric";
+      const rawWeight = Number(target.weight || 0);
+      return {
+        ...previous,
+        ...target,
+        key,
+        label: target.label ?? target.name ?? previous.label ?? `绩效指标${index + 1}`,
+        section: target.section ?? target.dimensionName ?? previous.section ?? target.name ?? "绩效目标",
+        standard: target.standard ?? target.requirement ?? previous.standard ?? "",
+        standards: (target.standards ?? previous.standards ?? []).map((standard) => ({ ...standard })),
+        source: target.source ?? previous.source ?? "月度绩效目标 / 工作平台记录 / 负责人评价",
+        weight: type === "adjustment" ? 0 : rawWeight > 1 ? rawWeight / 100 : rawWeight,
+        type,
+        selfText: target.selfText ?? previous.selfText ?? "",
+        completionNote: target.completionNote ?? previous.completionNote ?? "",
+        evidence: target.evidence ?? previous.evidence ?? "",
+        reference: target.reference ?? previous.reference ?? "",
+        firstScore: target.firstScore ?? previous.firstScore ?? "",
+        firstComment: target.firstComment ?? previous.firstComment ?? "",
+        secondScore: target.secondScore ?? previous.secondScore ?? "",
+        secondComment: target.secondComment ?? previous.secondComment ?? "",
+      };
+    });
+}
+
+export function validateAdjustmentTotal(rows, scoreField = "firstScore") {
+  const adjustmentRows = rows.filter((row) => row.type === "adjustment");
+  const invalidRow = adjustmentRows.find((row) => {
+    const score = Number(row[scoreField] || 0);
+    const minScore = Number(row.minScore ?? -10);
+    const maxScore = Number(row.maxScore ?? 10);
+    return score < minScore || score > maxScore;
+  });
+  if (invalidRow) {
+    const minScore = Number(invalidRow.minScore ?? -10);
+    const maxScore = Number(invalidRow.maxScore ?? 10);
+    return {
+      total: Number(adjustmentRows.reduce((sum, row) => sum + Number(row[scoreField] || 0), 0).toFixed(2)),
+      valid: false,
+      reason: `“${invalidRow.label || invalidRow.name || "加减分项"}”评分必须在${minScore}至${maxScore}分之间`,
+    };
+  }
+  const total = Number(adjustmentRows.reduce((sum, row) => sum + Number(row[scoreField] || 0), 0).toFixed(2));
   return { total, valid: total >= -10 && total <= 10, reason: total >= -10 && total <= 10 ? "加减分校验通过" : "全部加减分累计必须在-10至+10分之间" };
+}
+
+export function validateAdjustmentEvidence(rows, files = [], scoreFields = ["firstScore"]) {
+  const required = rows.some((row) => row.type === "adjustment"
+    && scoreFields.some((field) => Number(row[field] || 0) !== 0));
+  const valid = !required || files.length > 0;
+  return {
+    required,
+    valid,
+    reason: valid ? "加减分材料校验通过" : "存在非零加减分，请至少上传一个共用佐证文件",
+  };
 }
 
 export const ROLE_ACTIONS = {
@@ -285,7 +346,9 @@ export function confirmTargetVersion(review, { operator, actedAt, expectedVersio
     confirmedBy: item.version === pendingVersion ? operator : item.confirmedBy,
     confirmedAt: item.version === pendingVersion ? actedAt : item.confirmedAt,
   }));
-  const next = { ...review, status: REVIEW_STATUS.resultEntry, confirmStatus: "绩效目标已确认", activeTargetVersion: pendingVersion, pendingTargetVersion: null, targetVersions: versions, version: Number(review.version ?? 1) + 1 };
+  const confirmedTargets = versions.find((item) => item.version === pendingVersion)?.targets ?? review.assignedCategories ?? [];
+  const rows = materializeTargetRows(confirmedTargets, review.activeTargetVersion ? review.rows : []);
+  const next = { ...review, rows, status: REVIEW_STATUS.resultEntry, confirmStatus: "绩效目标已确认", activeTargetVersion: pendingVersion, pendingTargetVersion: null, targetVersions: versions, version: Number(review.version ?? 1) + 1 };
   next.operationLogs = appendLog(review, { action: "确认绩效目标", operator, actedAt, note: `V${pendingVersion}已生效，进入结果填报`, fromStatus: review.status, toStatus: next.status });
   return { ok: true, review: next };
 }

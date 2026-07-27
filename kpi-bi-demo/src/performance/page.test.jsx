@@ -254,6 +254,12 @@ describe("绩效中心交互与权限", () => {
     expect(screen.getByDisplayValue("按时交付率")).toBeInTheDocument();
     expect(screen.getAllByDisplayValue("优秀").length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue("完成基准量的130%以上（含130%）。")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("IP成交")).toBeInTheDocument();
+    expect(screen.getByLabelText("IP成交评定标准").value).toContain("IP合作成交");
+    expect(screen.getByLabelText("IP成交数据来源").value).toContain("上级和协作方评价");
+    expect(screen.getByLabelText("IP成交最低分")).toHaveValue(0);
+    expect(screen.getByLabelText("IP成交最高分")).toHaveValue(10);
+    expect(within(templateDialog).getByText("无权重 · 总评分 -10～+10")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "+ 添加档位" })[0]);
     expect(screen.getByDisplayValue("新增档位")).toBeInTheDocument();
     expect(screen.getByLabelText("模板所属部门")).toBeInTheDocument();
@@ -283,6 +289,15 @@ describe("绩效中心交互与权限", () => {
     expect(screen.getByText("绩效结果版本")).toBeInTheDocument();
     expect(screen.getByText("基础绩效分")).toBeInTheDocument();
     expect(screen.getAllByText("加减分").length).toBeGreaterThan(0);
+    const firstLeaderReviews = screen.getAllByLabelText(/一级领导评价/);
+    const secondLeaderReviews = screen.getAllByLabelText(/二级领导评价/);
+    expect(firstLeaderReviews.length).toBeGreaterThan(0);
+    expect(secondLeaderReviews).toHaveLength(firstLeaderReviews.length);
+    expect(firstLeaderReviews[0]).toHaveTextContent("一级领导");
+    expect(firstLeaderReviews[0]).toHaveTextContent("江晚");
+    expect(firstLeaderReviews[0]).toHaveTextContent("交付数量达到目标，节点响应及时。");
+    expect(secondLeaderReviews[0]).toHaveTextContent("二级领导");
+    expect(secondLeaderReviews[0]).toHaveTextContent("复核通过，产出数据与交付记录一致。");
   });
 
   test("二级复评恢复完整绩效表并保留结果审核结论", () => {

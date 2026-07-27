@@ -18,10 +18,12 @@ import {
   isPendingReviewStatus,
   matchesPerformanceTab,
   matchesTemplateFilter,
+  materializeTargetRows,
   raiseTargetDispute,
   rejectTargetVersion,
   resolveAppealResult,
   returnResultForSupplement,
+  validateAdjustmentEvidence,
   validateAdjustmentTotal,
   validateTargetWeights,
 } from "./logic";
@@ -64,7 +66,7 @@ describe("绩效目标与评分纯函数", () => {
     ])).toMatchObject({ total: 90, valid: false });
   });
 
-  test("按一级60%与二级40%计算基础分，加减分由Leader直接录入", () => {
+  test("基础指标与加减分均按一级60%和二级40%合成", () => {
     const review = {
       rows: [
         { type: "weighted", weight: 0.4, firstScore: 75, secondScore: 65 },
@@ -75,8 +77,8 @@ describe("绩效目标与评分纯函数", () => {
     expect(calcRowScore(review.rows[0], review)).toBe(28.4);
     expect(calcRowScore(review.rows[1], review)).toBe(23.1);
     expect(calcBaseScore(review)).toBe(51.5);
-    expect(calcAdjustmentScore(review)).toBe(3);
-    expect(calcScore(review)).toBe(54.5);
+    expect(calcAdjustmentScore(review)).toBe(-1.4);
+    expect(calcScore(review)).toBe(50.1);
   });
 
   test("无需二级复评时只使用一级评分，最终分限制在0至100", () => {
@@ -92,9 +94,20 @@ describe("绩效目标与评分纯函数", () => {
   });
 
   test("加减分累计限制在-10至+10", () => {
-    expect(validateAdjustmentTotal([{ type: "adjustment", firstScore: -4 }, { type: "adjustment", firstScore: 14 }])).toMatchObject({ total: 10, valid: true });
+    expect(validateAdjustmentTotal([{ type: "adjustment", firstScore: 6 }, { type: "adjustment", firstScore: 4 }])).toMatchObject({ total: 10, valid: true });
     expect(validateAdjustmentTotal([{ type: "adjustment", firstScore: 11 }])).toMatchObject({ total: 11, valid: false });
     expect(validateAdjustmentTotal([{ type: "adjustment", firstScore: -10.01 }])).toMatchObject({ valid: false });
+    expect(validateAdjustmentTotal([{ type: "adjustment", label: "工作态度", minScore: -3, maxScore: 3, secondScore: 4 }], "secondScore")).toMatchObject({ valid: false, reason: "“工作态度”评分必须在-3至3分之间" });
+  });
+
+  test("任一级出现非零加减分时整组共用材料至少上传一个文件", () => {
+    const rows = [
+      { type: "adjustment", firstScore: 0, secondScore: 0 },
+      { type: "adjustment", firstScore: 0, secondScore: 2 },
+    ];
+    expect(validateAdjustmentEvidence(rows, [], ["firstScore"])).toMatchObject({ required: false, valid: true });
+    expect(validateAdjustmentEvidence(rows, [], ["firstScore", "secondScore"])).toMatchObject({ required: true, valid: false });
+    expect(validateAdjustmentEvidence(rows, [{ name: "复评材料.pdf" }], ["firstScore", "secondScore"])).toMatchObject({ required: true, valid: true });
   });
 
   test.each([
@@ -111,7 +124,7 @@ describe("绩效目标与评分纯函数", () => {
     expect(getWorkflowAction({ status: REVIEW_STATUS.hrReview }).label).toBe("HR复审并提交绩效委员会");
     expect(getWorkflowAction({ status: REVIEW_STATUS.committeeApproval }).label).toBe("绩效委员会审批");
     expect(getWorkflowAction({ status: REVIEW_STATUS.appealSubmitted })).toEqual({ type: "accept_appeal", label: "受理绩效申诉", nextStatus: REVIEW_STATUS.appealInvestigation });
-    expect(getWorkflowAction({ status: REVIEW_STATUS.appealInvestigation })).toEqual({ type: "adjudicate_appeal", label: "裁定并提交绩效委员会", nextStatus: REVIEW_STATUS.appealInProgress });
+    expect(getWorkflowAction({ status: REVIEW_STATUS.appealInvestigation })).toEqual({ type: "adjudicate_appeal", label: "填写处理记录并提交绩效委员会", nextStatus: REVIEW_STATUS.appealInProgress });
     expect(getWorkflowAction({ status: REVIEW_STATUS.appealInProgress }).label).toBe("绩效委员会复核申诉");
   });
 
@@ -122,14 +135,34 @@ describe("绩效目标与评分纯函数", () => {
   });
 
   test("目标变更生成V2，员工确认后V1归档", () => {
-    const targets = [{ type: "weighted", origin: "template", weight: 80 }, { type: "weighted", origin: "personal", weight: 20 }];
-    const review = { id: "rv-change", status: REVIEW_STATUS.resultEntry, activeTargetVersion: 1, version: 3, targetVersions: [{ version: 1, status: "已生效" }], operationLogs: [] };
+    const targets = [
+      { id: "delivery", name: "调整后的交付目标", dimensionName: "本月重点", type: "weighted", origin: "template", weight: 80, standards: [{ id: "s1", label: "达标", scoreRange: "80-100", description: "按调整后的目标交付" }] },
+      { id: "growth", name: "调整后的成长目标", dimensionName: "个人成长", type: "weighted", origin: "personal", weight: 20 },
+    ];
+    const review = { id: "rv-change", status: REVIEW_STATUS.resultEntry, activeTargetVersion: 1, version: 3, rows: [{ key: "delivery", label: "原交付目标", selfText: "已填写结果" }], targetVersions: [{ version: 1, status: "已生效" }], operationLogs: [] };
     const changed = createTargetChange(review, { reason: "项目范围调整", targets, operator: "江晚", actedAt, expectedVersion: 3 });
     expect(changed.review).toMatchObject({ pendingTargetVersion: 2, activeTargetVersion: 1, status: REVIEW_STATUS.employeeConfirm });
     expect(changed.review.targetVersions.map((item) => item.status)).toEqual(["已生效", "待员工确认"]);
     const confirmed = confirmTargetVersion(changed.review, { operator: "张小北", actedAt, expectedVersion: 4 });
     expect(confirmed.review).toMatchObject({ activeTargetVersion: 2, pendingTargetVersion: null, status: REVIEW_STATUS.resultEntry });
     expect(confirmed.review.targetVersions.map((item) => item.status)).toEqual(["已归档", "已生效"]);
+    expect(confirmed.review.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "delivery", label: "调整后的交付目标", section: "本月重点", weight: 0.8, selfText: "已填写结果" }),
+      expect.objectContaining({ key: "growth", label: "调整后的成长目标", section: "个人成长", weight: 0.2 }),
+    ]));
+    expect(confirmed.review.rows[0].standards[0].description).toBe("按调整后的目标交付");
+  });
+
+  test("下发目标快照可完整转换为后续填报与评分行", () => {
+    const rows = materializeTargetRows([
+      { id: "custom-delivery", dimensionName: "自定义交付维度", name: "本月定制交付", weight: 65, requirement: "完成本月定制内容", standards: [{ id: "excellent", label: "优秀", scoreRange: "90-100", description: "超额完成定制内容" }], source: "月度下发目标" },
+      { id: "custom-quality", dimensionName: "自定义质量维度", name: "本月定制质量", weight: 35, requirement: "达到定制质量要求", standards: [] },
+    ]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ key: "custom-delivery", label: "本月定制交付", section: "自定义交付维度", standard: "完成本月定制内容", weight: 0.65, type: "metric" });
+    expect(rows[0].standards).toEqual([{ id: "excellent", label: "优秀", scoreRange: "90-100", description: "超额完成定制内容" }]);
+    expect(rows[1]).toMatchObject({ label: "本月定制质量", section: "自定义质量维度", weight: 0.35 });
   });
 
   test("员工拒绝V2时V1继续生效且历史版本保留", () => {

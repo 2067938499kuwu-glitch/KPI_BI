@@ -35,7 +35,7 @@ describe("performance action column", () => {
       "一级评分与评语",
       "反馈与面谈记录",
       "变更目标",
-      "提供评分依据",
+      "填写部门负责人意见",
       "详情",
     ]);
     expect(leaderButtons[0]).toHaveClass("performance-row-action--workflow");
@@ -49,7 +49,7 @@ describe("performance action column", () => {
     expect(hrButtons.map((button) => button.textContent.trim())).toEqual([
       "HR复审并提交绩效委员会",
       "受理绩效申诉",
-      "裁定并提交绩效委员会",
+      "填写处理记录并提交绩效委员会",
       "详情",
     ]);
 

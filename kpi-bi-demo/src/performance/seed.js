@@ -27,6 +27,20 @@ function createSampleAppealFile(employee, uploadedAt = "2026-07-10 10:00") {
   };
 }
 
+function createSampleAdjustmentEvidenceFile(employee, uploadedAt) {
+  const content = `加减分佐证材料\n员工：${employee}\n说明：用于演示加减分评分材料的上传、复核与归档。`;
+  return {
+    id: `adjustment-evidence-${employee}`,
+    name: `${employee}-加减分佐证材料.pdf`,
+    size: content.length * 2,
+    type: "application/pdf",
+    dataUrl: `data:application/pdf;charset=utf-8,${encodeURIComponent(content)}`,
+    uploadedAt,
+    uploader: "一级评分人",
+    sourceStage: "first_score",
+  };
+}
+
 function createReview({
   id,
   employee,
@@ -61,6 +75,8 @@ function createReview({
   const template = getRoleTemplate(templateId);
   const targetIssued = status !== REVIEW_STATUS.targetIssue;
   const targetConfirmed = targetIssued && ![REVIEW_STATUS.employeeConfirm, REVIEW_STATUS.targetDispute].includes(status);
+  const rows = createRowsFromTemplate(templateId, values);
+  const hasAdjustmentScore = rows.some((row) => row.type === "adjustment" && (Number(row.firstScore || 0) !== 0 || Number(row.secondScore || 0) !== 0));
 
   return {
     id,
@@ -83,11 +99,12 @@ function createReview({
     businessLines: businessLines ?? template.businessLines ?? [],
     templateHighlights,
     sheetMeta: `花名：${employee} / 部门：内容经营中心 / ${department} / 岗位：${role}`,
-    rows: createRowsFromTemplate(templateId, values),
+    rows,
+    adjustmentEvidenceFiles: hasAdjustmentScore ? [createSampleAdjustmentEvidenceFile(employee, lastActionAt)] : [],
     version: 1,
     activeTargetVersion: targetConfirmed ? 1 : null,
     pendingTargetVersion: targetIssued && !targetConfirmed ? 1 : null,
-    targetVersions: targetIssued ? [{ version: 1, status: targetConfirmed ? "已生效" : "待员工确认", targets: createRowsFromTemplate(templateId, values), operator: directLeader, actedAt: lastActionAt, changeReason: "首次下发" }] : [],
+    targetVersions: targetIssued ? [{ version: 1, status: targetConfirmed ? "已生效" : "待员工确认", targets: rows.map((row) => ({ ...row })), operator: directLeader, actedAt: lastActionAt, changeReason: "首次下发" }] : [],
     operationLogs: operationLogs ?? [
       {
         id: `${id}-log-1`,

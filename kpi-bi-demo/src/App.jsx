@@ -1,5 +1,6 @@
 ﻿
 import { Children, useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
 import {
   ArrowLeft,
   BookOpenText,
@@ -11,6 +12,7 @@ import {
   ClockCounterClockwise,
   Database,
   DownloadSimple,
+  Eye,
   FileCsv,
   FileDoc,
   GearSix,
@@ -43,9 +45,11 @@ import {
   isOpenAppealReview,
   isPendingReviewStatus,
   matchesPerformanceTab,
+  materializeTargetRows,
   rejectTargetVersion,
   resolveAppealResult,
   requiresSecondReview,
+  validateAdjustmentEvidence,
   validateAdjustmentTotal,
   validateTargetWeights,
   WORKFLOW_ACTIONS,
@@ -111,7 +115,10 @@ const defaultPerformanceCategories = [
   }), origin: "template", mandatory: true, type: "weighted" },
   { id: "efficiency-response", dimensionId: "efficiency", dimensionName: "工作效率", name: "任务响应时效", weight: 10, requirement: "按任务响应速度、异常处理效率和过程记录评分。", standards: createMetricStandards("efficiency-response"), origin: "template", mandatory: true, type: "weighted" },
   { id: "monthly-focus", dimensionId: "personal", dimensionName: "个人月度重点", name: "个人月度重点目标", weight: 20, requirement: "结合本月重点项目填写可量化目标、交付标准和截止时间。", standards: createMetricStandards("monthly-focus"), origin: "personal", mandatory: false, type: "weighted" },
-  { id: "adjustment", dimensionId: "adjustment", dimensionName: "独立加减分", name: "加减分项", weight: 0, requirement: "累计范围-10至+10；每条均需填写原因和证明材料。", standards: [], origin: "adjustment", mandatory: true, type: "adjustment" },
+  { id: "adjustment-ip-deal", dimensionId: "adjustment", dimensionName: "加减分项（总评分区间 -10分至10分）", name: "IP成交", weight: 0, minScore: 0, maxScore: 10, requirement: "当月促成了IP合作成交，可加分，单个最高不超过5分；当月促成2个及以上IP合作成交，累计加分不超过10分。", source: "被考核人填写的完成情况 / 上级和协作方评价", standards: [], origin: "adjustment", mandatory: true, type: "adjustment" },
+  { id: "adjustment-attitude", dimensionId: "adjustment", dimensionName: "加减分项（总评分区间 -10分至10分）", name: "工作态度", weight: 0, minScore: -3, maxScore: 3, requirement: "主动承担任务、遇到问题通过正规渠道积极反馈寻求解决的，加分，最高不超过3分；消极应付、推诿责任、对反馈意见抵触的，减分，最低不低于-3分。", source: "被考核人填写的完成情况 / 上级和协作方评价", standards: [], origin: "adjustment", mandatory: true, type: "adjustment" },
+  { id: "adjustment-discipline", dimensionId: "adjustment", dimensionName: "加减分项（总评分区间 -10分至10分）", name: "工作纪律", weight: 0, minScore: -3, maxScore: 3, requirement: "劝阻或纠正同事不符合工作纪律的行为，加分，最高不超过3分；不遵守团队工作规范、违反公司规章制度，减分，最低不低于-3分。", source: "被考核人填写的完成情况 / 上级和协作方评价", standards: [], origin: "adjustment", mandatory: true, type: "adjustment" },
+  { id: "adjustment-collaboration", dimensionId: "adjustment", dimensionName: "加减分项（总评分区间 -10分至10分）", name: "团队协作", weight: 0, minScore: -3, maxScore: 3, requirement: "主动分享经验、输出可复用方法、帮助他人解决难题的，加分，最高不超过3分；协作意愿低或协作质量低造成跨部门摩擦的，减分，最低不低于-3分。", source: "被考核人填写的完成情况 / 上级和协作方评价", standards: [], origin: "adjustment", mandatory: true, type: "adjustment" },
 ];
 
 const performanceMetricHistoryReferences = {
@@ -131,7 +138,6 @@ const performanceMetricSources = {
   "efficiency-delivery": "任务截止时间 / 提交记录",
   "efficiency-response": "任务流转记录",
   "monthly-focus": "月度目标 / 项目记录",
-  adjustment: "证明材料 / 审批记录",
 };
 
 function clonePerformanceCategories(categories = defaultPerformanceCategories) {
@@ -181,13 +187,30 @@ function migratePerformanceAppealReview(review) {
     "待CEO裁决": "待绩效委员会复核",
   };
   const seedReview = reviewsSeed.find((item) => item.id === review.id);
+  const initialIssuedVersion = !review.activeTargetVersion
+    ? review.targetVersions?.find((item) => item.version === review.pendingTargetVersion || item.status === "待员工确认")
+    : null;
+  const issuedRows = initialIssuedVersion?.targets?.length
+    ? materializeTargetRows(initialIssuedVersion.targets)
+    : review.assignedCategories?.length && review.pendingTargetVersion && !review.activeTargetVersion
+      ? materializeTargetRows(review.assignedCategories)
+      : review.rows;
   return {
     ...review,
+    rows: issuedRows,
     status: statusMap[review.status] ?? review.status,
     appealStatus: appealStatusMap[review.appealStatus] ?? review.appealStatus,
     appealFormFile: review.appealFormFile ?? seedReview?.appealFormFile,
     appealDate: review.appealDate ?? seedReview?.appealDate,
+    appealContent: review.appealContent ?? seedReview?.appealContent ?? review.appealNote ?? seedReview?.appealNote ?? "",
+    appealEvidenceList: review.appealEvidenceList ?? seedReview?.appealEvidenceList ?? review.evidence ?? seedReview?.evidence ?? "",
+    appealReceptionist: review.appealReceptionist ?? seedReview?.appealReceptionist ?? "HR-唐宁",
     appealAcceptanceComment: review.appealAcceptanceComment ?? seedReview?.appealAcceptanceComment,
+    appealInvestigationResult: review.appealInvestigationResult ?? seedReview?.appealInvestigationResult ?? review.appealInvestigation ?? "",
+    appealProposedSolution: review.appealProposedSolution ?? seedReview?.appealProposedSolution ?? "",
+    appealCoordinationResult: review.appealCoordinationResult ?? seedReview?.appealCoordinationResult ?? "",
+    appealManagementCenterOpinion: review.appealManagementCenterOpinion ?? seedReview?.appealManagementCenterOpinion ?? review.hrAppealDecisionReason ?? "",
+    appealCommitteeOpinion: review.appealCommitteeOpinion ?? seedReview?.appealCommitteeOpinion ?? review.appealResolution ?? "",
     hrAppealDecision: review.hrAppealDecision ?? seedReview?.hrAppealDecision,
     hrAppealDecisionReason: review.hrAppealDecisionReason ?? seedReview?.hrAppealDecisionReason,
     hrRecommendedScore: review.hrRecommendedScore ?? seedReview?.hrRecommendedScore,
@@ -530,8 +553,14 @@ function normalizeScore(value) {
 
 function getWorkflowDefaultDraft(review, action) {
   if (!review || !action) return { rows: [] };
+  const pendingTarget = action.type === "confirm_target"
+    ? review.targetVersions?.find((item) => item.version === review.pendingTargetVersion || item.status === "待员工确认")
+    : null;
+  const workflowRows = pendingTarget?.targets?.length
+    ? materializeTargetRows(pendingTarget.targets, review.activeTargetVersion ? review.rows : [])
+    : review.rows;
   return {
-    rows: review.rows.map((row) => ({ ...row })),
+    rows: (workflowRows ?? []).map((row) => ({ ...row, standards: (row.standards ?? []).map((standard) => ({ ...standard })) })),
     resultSummary: review.resultSummary ?? "",
     targetDecision: "confirm",
     targetDisputeReason: "",
@@ -540,17 +569,20 @@ function getWorkflowDefaultDraft(review, action) {
     returnReason: "",
     secondDecision: review.secondReviewConclusion === "退回员工补充" ? "return" : "score",
     secondReviewComment: review.secondReviewComment ?? "",
+    adjustmentEvidenceFiles: (review.adjustmentEvidenceFiles ?? []).map((file) => ({ ...file })),
     hrReviewComment: review.hrReviewComment ?? "",
     hrDecision: "submit",
     committeeDecision: "approve",
     committeeComment: review.committeeComment ?? "",
-    interviewSummary: review.interviewSummary ?? "",
-    improvementPlan: review.improvementPlan ?? "",
+    interviewFormFile: review.interviewFormFile ?? null,
     appealInvestigation: review.appealInvestigation ?? "",
+    appealInvestigationResult: review.appealInvestigationResult ?? review.appealInvestigation ?? "",
+    appealProposedSolution: review.appealProposedSolution ?? "",
+    appealCoordinationResult: review.appealCoordinationResult ?? "",
     appealAcceptanceDecision: "accept",
     appealAcceptanceComment: review.appealAcceptanceComment ?? "",
     appealAdjudication: review.hrAppealDecision ?? "rejected",
-    appealAdjudicationReason: review.hrAppealDecisionReason ?? "",
+    appealAdjudicationReason: review.appealManagementCenterOpinion ?? review.hrAppealDecisionReason ?? "",
     appealRecommendedScore: review.hrRecommendedScore ?? review.resultVersions?.at(-1)?.score ?? calcScore(review),
     leaderAppealEvidence: review.leaderAppealEvidence ?? "",
     appealResolution: review.appealResolution ?? "",
@@ -566,6 +598,9 @@ function getWorkflowSubmitPayload(review, action, draft) {
 
   if (["enter_result", "first_score", "second_review", "reissue_target", "change_target"].includes(action.type)) {
     updates.rows = draft.rows;
+  }
+  if (["first_score", "second_review"].includes(action.type)) {
+    updates.adjustmentEvidenceFiles = draft.adjustmentEvidenceFiles;
   }
 
   if (action.type === "confirm_target") {
@@ -621,10 +656,12 @@ function getWorkflowSubmitPayload(review, action, draft) {
       updates.resultReturnReason = draft.returnReason.trim();
       note = `证明材料不足，退回员工补充：${draft.returnReason.trim()}`;
     } else {
-      const adjustmentValidation = validateAdjustmentTotal(draft.rows);
+      const adjustmentValidation = validateAdjustmentTotal(draft.rows, "firstScore");
       if (!adjustmentValidation.valid) return { validationError: adjustmentValidation.reason };
-      const invalidAdjustment = draft.rows.some((row) => row.type === "adjustment" && Number(row.firstScore || 0) !== 0 && (!String(row.firstComment || "").trim() || !String(row.evidence || "").trim()));
-      if (invalidAdjustment) return { validationError: "每条加减分必须填写原因和证明材料" };
+      const missingReason = draft.rows.some((row) => row.type === "adjustment" && Number(row.firstScore || 0) !== 0 && !String(row.firstComment || "").trim());
+      if (missingReason) return { validationError: "请为每条非零加减分填写一级评分原因" };
+      const evidenceValidation = validateAdjustmentEvidence(draft.rows, draft.adjustmentEvidenceFiles, ["firstScore"]);
+      if (!evidenceValidation.valid) return { validationError: evidenceValidation.reason };
       note ||= "一级负责人已完成评分、评语和加减分录入。";
     }
   }
@@ -638,6 +675,12 @@ function getWorkflowSubmitPayload(review, action, draft) {
       updates.secondReviewConclusion = "退回员工补充";
       note = `二级结果审核退回员工补充：${draft.secondReviewComment.trim()}`;
     } else {
+      const adjustmentValidation = validateAdjustmentTotal(draft.rows, "secondScore");
+      if (!adjustmentValidation.valid) return { validationError: adjustmentValidation.reason };
+      const missingReason = draft.rows.some((row) => row.type === "adjustment" && Number(row.secondScore || 0) !== 0 && !String(row.secondComment || "").trim());
+      if (missingReason) return { validationError: "请为每条非零加减分填写二级评分原因" };
+      const evidenceValidation = validateAdjustmentEvidence(draft.rows, draft.adjustmentEvidenceFiles, ["firstScore", "secondScore"]);
+      if (!evidenceValidation.valid) return { validationError: evidenceValidation.reason };
       updates.secondReviewConclusion = "结果完整，复评通过";
       note = `二级结果审核通过：${draft.secondReviewComment.trim()}`;
     }
@@ -671,122 +714,324 @@ function getWorkflowSubmitPayload(review, action, draft) {
   }
 
   if (action.type === "interview_feedback") {
-    updates.interviewSummary = draft.interviewSummary;
-    updates.improvementPlan = draft.improvementPlan;
-    updates.feedbackStatus = "已面谈";
-    note ||= `面谈完成：${draft.interviewSummary || "已完成绩效反馈与改进计划沟通。"}`;
+    if (!draft.interviewFormFile?.dataUrl) return { validationError: "请先下载并填写绩效反馈与面谈记录表，再上传已填写文件" };
+    updates.interviewFormFile = draft.interviewFormFile;
+    updates.interviewArchivedAt = draft.interviewFormFile.uploadedAt ?? getActionTimestamp();
+    updates.feedbackStatus = "已面谈并归档";
+    note ||= `面谈完成并归档附件“${draft.interviewFormFile.name}”。`;
   }
 
   if (action.type === "accept_appeal") {
-    if (!review.appealFormFile) return { validationError: "未找到员工上传的绩效申诉表，暂不能受理" };
     if (!draft.appealAcceptanceComment.trim()) return { validationError: draft.appealAcceptanceDecision === "reject" ? "请填写HR不受理原因" : "请填写HR受理意见" };
     updates.appealAcceptanceComment = draft.appealAcceptanceComment.trim();
+    updates.appealReceptionist = review.appealReceptionist || "HR-唐宁";
     if (draft.appealAcceptanceDecision === "reject") {
       updates.appealStatus = "HR不予受理";
       updates.appealAcceptanceDecision = "reject";
+      updates.owner = review.employee;
       nextStatus = REVIEW_STATUS.archived;
       note = `HR不予受理绩效申诉：${draft.appealAcceptanceComment.trim()}`;
     } else {
       updates.appealStatus = "HR已受理";
       updates.appealAcceptanceDecision = "accept";
+      updates.owner = "HR-唐宁";
       nextStatus = REVIEW_STATUS.appealInvestigation;
       note = `HR受理绩效申诉：${draft.appealAcceptanceComment.trim()}`;
     }
   }
 
   if (action.type === "adjudicate_appeal") {
-    if (!draft.appealAdjudicationReason.trim()) return { validationError: "请填写HR申诉裁定意见" };
+    if (!String(review.leaderAppealEvidence || "").trim()) return { validationError: "请先由用人部门负责人填写意见" };
+    if (!draft.appealInvestigationResult.trim()) return { validationError: "请填写调查结果" };
+    if (!draft.appealProposedSolution.trim()) return { validationError: "请填写建议解决方案" };
+    if (!draft.appealCoordinationResult.trim()) return { validationError: "请填写协调结果" };
+    if (!draft.appealAdjudicationReason.trim()) return { validationError: "请填写综合管理中心意见" };
     if (!["rejected", "partial", "approved"].includes(draft.appealAdjudication)) return { validationError: "请选择HR申诉裁定结论" };
     if (draft.appealAdjudication !== "rejected" && (!Number.isFinite(Number(draft.appealRecommendedScore)) || Number(draft.appealRecommendedScore) < 0 || Number(draft.appealRecommendedScore) > 100)) return { validationError: "建议修正分数需在0至100之间" };
     const decisionLabel = draft.appealAdjudication === "rejected" ? "申诉不成立" : draft.appealAdjudication === "partial" ? "申诉部分成立" : "申诉成立";
     updates.hrAppealDecision = draft.appealAdjudication;
     updates.hrAppealDecisionReason = draft.appealAdjudicationReason.trim();
+    updates.appealInvestigationResult = draft.appealInvestigationResult.trim();
+    updates.appealProposedSolution = draft.appealProposedSolution.trim();
+    updates.appealCoordinationResult = draft.appealCoordinationResult.trim();
+    updates.appealManagementCenterOpinion = draft.appealAdjudicationReason.trim();
     updates.hrRecommendedScore = draft.appealAdjudication === "rejected" ? calcScore(review) : Number(draft.appealRecommendedScore);
     updates.appealInvestigation = draft.appealAdjudicationReason.trim();
     updates.appealStatus = "待绩效委员会复核";
+    updates.owner = "CEO";
     nextStatus = REVIEW_STATUS.appealInProgress;
     note = `HR完成申诉裁定并提交绩效委员会：${decisionLabel}；${draft.appealAdjudicationReason.trim()}`;
   }
 
   if (action.type === "provide_appeal_evidence") {
-    if (!draft.leaderAppealEvidence.trim()) return { validationError: "请填写原评分依据" };
+    if (!draft.leaderAppealEvidence.trim()) return { validationError: "请填写用人部门负责人意见" };
     const actedAt = getActionTimestamp();
-    return { replaceReview: { ...review, leaderAppealEvidence: draft.leaderAppealEvidence.trim(), version: Number(review.version ?? 1) + 1, operationLogs: [...(review.operationLogs ?? []), { id: `${review.id}-log-${(review.operationLogs?.length ?? 0) + 1}`, action: "Leader提供原评分依据", operator: review.directLeader, actedAt, note: draft.leaderAppealEvidence.trim(), fromStatus: review.status, toStatus: review.status }] } };
+    return { replaceReview: { ...review, leaderAppealEvidence: draft.leaderAppealEvidence.trim(), version: Number(review.version ?? 1) + 1, operationLogs: [...(review.operationLogs ?? []), { id: `${review.id}-log-${(review.operationLogs?.length ?? 0) + 1}`, action: "用人部门负责人填写申诉意见", operator: review.directLeader, actedAt, note: draft.leaderAppealEvidence.trim(), fromStatus: review.status, toStatus: review.status }] } };
   }
 
   if (action.type === "resolve_appeal") {
     const result = resolveAppealResult(review, { decision: draft.appealDecision, correctedScore: draft.correctedScore, reason: draft.appealResolution, operator: "绩效委员会", actedAt: getActionTimestamp() });
     if (!result.ok) return { validationError: result.message };
-    return { replaceReview: result.review };
+    return { replaceReview: { ...result.review, appealCommitteeOpinion: draft.appealResolution.trim(), owner: review.employee } };
   }
 
   return { nextStatus, note, updates };
 }
 
-export function AppealPage({ review, onBack, onSave }) {
-  const [draft, setDraft] = useState({
-    file: null,
-    note: "",
-  });
-  const [uploadError, setUploadError] = useState("");
+function ScoreSignatureModal({ review, onClose, onConfirm }) {
+  const [qrSvg, setQrSvg] = useState("");
+  const [signedRecord, setSignedRecord] = useState(null);
+  const signatureToken = useMemo(() => `${review.id}-${Date.now().toString(36)}`, [review.id]);
   const score = calcScore(review);
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!/\.(doc|docx|pdf)$/i.test(file.name)) {
-      setUploadError("仅支持上传已填写的 DOC、DOCX 或 PDF 申诉表");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setUploadError("申诉表文件不能超过2MB");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setDraft((current) => ({ ...current, file: { name: file.name, size: file.size, type: file.type || "application/octet-stream", dataUrl: reader.result, uploadedAt: getActionTimestamp() } }));
-      setUploadError("");
-    };
-    reader.onerror = () => setUploadError("文件读取失败，请重新选择申诉表");
-    reader.readAsDataURL(file);
+
+  useEffect(() => {
+    let cancelled = false;
+    const payload = `kpibi://performance/sign?task=${encodeURIComponent(review.id)}&employee=${encodeURIComponent(review.employee)}&cycle=${encodeURIComponent(review.cycle)}&token=${signatureToken}`;
+    QRCode.toString(payload, { type: "svg", errorCorrectionLevel: "M", margin: 2, width: 228 })
+      .then((svg) => { if (!cancelled) setQrSvg(svg); })
+      .catch(() => { if (!cancelled) setQrSvg(""); });
+    return () => { cancelled = true; };
+  }, [review.cycle, review.employee, review.id, signatureToken]);
+
+  const simulateSigned = () => {
+    setSignedRecord({
+      decision: "confirm_no_appeal",
+      decisionLabel: "确认绩效成绩，不发起申诉",
+      signer: review.employee,
+      signedAt: getActionTimestamp(),
+      signatureId: `SIGN-${signatureToken.toUpperCase()}`,
+      signatureMethod: "二维码扫码签名",
+      confirmedScore: score,
+      confirmedGrade: `${getGrade(score)}-${getLevelLabel(score)}`,
+    });
   };
+
+  return (
+    <div className="overlay score-signature-overlay" onClick={onClose} role="presentation">
+      <section className="score-signature-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="扫码签名确认绩效成绩">
+        <header><div><span>绩效成绩确认</span><strong>扫码完成电子签名</strong><small>{review.employee} · {review.cycle} · {score}分</small></div><button aria-label="关闭扫码签名" className="icon-btn" onClick={onClose} type="button"><X size={18} /></button></header>
+        <div className="score-signature-modal__body">
+          <div className={`score-signature-qr ${signedRecord ? "is-signed" : ""}`}>
+            {qrSvg ? <div aria-label="绩效成绩签名二维码" dangerouslySetInnerHTML={{ __html: qrSvg }} /> : <div className="score-signature-qr__loading">正在生成二维码…</div>}
+            {signedRecord ? <span><CheckCircle size={26} weight="fill" />签名完成</span> : null}
+          </div>
+          <div className="score-signature-summary">
+            <span>待确认成绩</span><strong>{score}<small>分</small></strong><b>{getGrade(score)}-{getLevelLabel(score)}</b>
+            <p>本人已查看本周期绩效评分明细，确认该成绩且不发起绩效申诉。扫码签名完成后，该确认记录将归档至当前绩效任务。</p>
+            {signedRecord ? <dl><div><dt>签名人</dt><dd>{signedRecord.signer}</dd></div><div><dt>签名时间</dt><dd>{signedRecord.signedAt}</dd></div><div><dt>签名编号</dt><dd>{signedRecord.signatureId}</dd></div></dl> : <button className="secondary-btn" onClick={simulateSigned} type="button">演示：模拟扫码签名完成</button>}
+          </div>
+        </div>
+        <footer><span>生产环境由移动端签名服务回传签名结果；当前原型使用模拟回传完成流程验证。</span><div><button className="ghost-chip" onClick={onClose} type="button">取消</button><button className="primary-btn" disabled={!signedRecord} onClick={() => onConfirm(signedRecord)} type="button">完成确认并归档</button></div></footer>
+      </section>
+    </div>
+  );
+}
+
+function AppealFormField({
+  label,
+  value,
+  editable = false,
+  onChange,
+  placeholder,
+  rows = 4,
+  active = false,
+}) {
+  const filled = Boolean(String(value || "").trim());
+  return (
+    <div className={`performance-appeal-form__field ${active ? "is-active" : ""} ${filled ? "is-filled" : "is-empty"}`}>
+      <div className="performance-appeal-form__field-head">
+        <span>{label}</span>
+        <small>{editable ? "当前节点填写" : filled ? "已填写" : "待后续节点填写"}</small>
+      </div>
+      {editable
+        ? <textarea aria-label={label} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} rows={rows} value={value} />
+        : <p>{filled ? value : "—"}</p>}
+    </div>
+  );
+}
+
+function PerformanceAppealForm({ review, mode = "readonly", draft = {}, onChange = () => {} }) {
+  const stageLabels = {
+    employee: "申诉人填写",
+    accept: "HR受理",
+    leader: "用人部门负责人填写",
+    adjudicate: "综合管理中心填写",
+    resolve: "绩效管理委员会填写",
+    readonly: "只读查看",
+  };
+  const getDraftOrReview = (draftKey, reviewKeys, fallback = "") => {
+    if (Object.prototype.hasOwnProperty.call(draft, draftKey)) return draft[draftKey];
+    const keys = Array.isArray(reviewKeys) ? reviewKeys : [reviewKeys];
+    const matched = keys.map((key) => review?.[key]).find((value) => value !== undefined && value !== null && value !== "");
+    return matched ?? fallback;
+  };
+  const appealContent = getDraftOrReview("appealContent", ["appealContent", "appealNote"]);
+  const appealEvidenceList = getDraftOrReview("appealEvidenceList", ["appealEvidenceList", "evidence"]);
+  const acceptanceDecision = getDraftOrReview("appealAcceptanceDecision", "appealAcceptanceDecision", review.appealStatus === "HR不予受理" ? "reject" : "accept");
+  const acceptanceComment = getDraftOrReview("appealAcceptanceComment", "appealAcceptanceComment");
+  const investigationResult = getDraftOrReview("appealInvestigationResult", ["appealInvestigationResult", "appealInvestigation"]);
+  const proposedSolution = getDraftOrReview("appealProposedSolution", "appealProposedSolution");
+  const coordinationResult = getDraftOrReview("appealCoordinationResult", "appealCoordinationResult");
+  const departmentLeaderOpinion = getDraftOrReview("leaderAppealEvidence", "leaderAppealEvidence");
+  const managementOpinion = getDraftOrReview("appealAdjudicationReason", ["appealManagementCenterOpinion", "hrAppealDecisionReason"]);
+  const committeeOpinion = getDraftOrReview("appealResolution", ["appealCommitteeOpinion", "appealResolution"]);
+  const receptionist = review.appealReceptionist || "HR-唐宁";
+  const appealDate = review.appealDate || (mode === "employee" ? "提交后自动生成" : "--");
+
+  return (
+    <section className={`performance-appeal-form performance-appeal-form--${mode}`} aria-label="在线绩效申诉表">
+      <header className="performance-appeal-form__title">
+        <div>
+          <span>PERFORMANCE APPEAL</span>
+          <h2>绩效申诉表</h2>
+          <p>全流程共用一张在线表单，各角色仅填写当前节点对应区域</p>
+        </div>
+        <b>{stageLabels[mode]}</b>
+      </header>
+
+      <div className="performance-appeal-form__identity">
+        <div><span>申诉人姓名</span><strong>{review.employee}</strong></div>
+        <div><span>部门</span><strong>{review.department}</strong></div>
+        <div><span>职位</span><strong>{review.role}</strong></div>
+      </div>
+
+      <AppealFormField
+        active={mode === "employee"}
+        editable={mode === "employee"}
+        label="申诉内容"
+        onChange={(value) => onChange("appealContent", value)}
+        placeholder="请具体说明对绩效结果存在异议的指标、原评分、事实依据及希望复核的事项"
+        rows={6}
+        value={appealContent}
+      />
+      <AppealFormField
+        active={mode === "employee"}
+        editable={mode === "employee"}
+        label="申诉证据清单"
+        onChange={(value) => onChange("appealEvidenceList", value)}
+        placeholder="请逐条列出可供核验的业务记录、数据来源、沟通纪要等；无实物附件时直接写明记录名称与所在系统"
+        rows={5}
+        value={appealEvidenceList}
+      />
+
+      <div className="performance-appeal-form__reception">
+        <div><span>接待人</span><strong>{receptionist}</strong></div>
+        <div><span>申诉日期</span><strong>{appealDate}</strong></div>
+      </div>
+
+      <div className={`performance-appeal-form__acceptance ${mode === "accept" ? "is-active" : ""}`}>
+        <div className="performance-appeal-form__section-label"><span>是否受理</span><small>{mode === "accept" ? "当前节点填写" : acceptanceComment ? "已填写" : "待HR填写"}</small></div>
+        <div className="performance-appeal-form__acceptance-body">
+          {mode === "accept" ? (
+            <div className="performance-appeal-form__decision">
+              <label><input checked={acceptanceDecision === "accept"} name="appeal-acceptance" onChange={() => onChange("appealAcceptanceDecision", "accept")} type="radio" /><span>受理</span></label>
+              <label><input checked={acceptanceDecision === "reject"} name="appeal-acceptance" onChange={() => onChange("appealAcceptanceDecision", "reject")} type="radio" /><span>不受理</span></label>
+            </div>
+          ) : <strong>{review.appealAcceptanceDecision || acceptanceComment ? acceptanceDecision === "reject" ? "不受理" : "受理" : "—"}</strong>}
+          {mode === "accept"
+            ? <textarea aria-label={acceptanceDecision === "reject" ? "HR不受理原因" : "HR受理意见"} onChange={(event) => onChange("appealAcceptanceComment", event.target.value)} placeholder={acceptanceDecision === "reject" ? "必填；说明不符合受理条件的具体原因" : "必填；说明受理范围和下一步核验事项"} rows={3} value={acceptanceComment} />
+            : <p>{acceptanceComment || "—"}</p>}
+        </div>
+      </div>
+
+      <div className="performance-appeal-form__processing">
+        <div className="performance-appeal-form__processing-label"><span>处理记录</span><small>{mode === "adjudicate" ? "当前节点填写" : "综合管理中心填写"}</small></div>
+        <div>
+          <AppealFormField active={mode === "adjudicate"} editable={mode === "adjudicate"} label="调查结果" onChange={(value) => onChange("appealInvestigationResult", value)} placeholder="记录对申诉事实、原评分依据及证据清单的核验结果" rows={4} value={investigationResult} />
+          <AppealFormField active={mode === "adjudicate"} editable={mode === "adjudicate"} label="建议解决方案" onChange={(value) => onChange("appealProposedSolution", value)} placeholder="填写建议维持、调整或补充核验的处理方案" rows={4} value={proposedSolution} />
+          <AppealFormField active={mode === "adjudicate"} editable={mode === "adjudicate"} label="协调结果" onChange={(value) => onChange("appealCoordinationResult", value)} placeholder="记录与申诉人、用人部门负责人等相关人员的协调结论" rows={4} value={coordinationResult} />
+        </div>
+      </div>
+
+      <AppealFormField
+        active={mode === "leader"}
+        editable={mode === "leader"}
+        label="用人部门负责人意见"
+        onChange={(value) => onChange("leaderAppealEvidence", value)}
+        placeholder="填写对争议指标、原评分依据、证据清单及建议处理方式的负责人意见"
+        rows={5}
+        value={departmentLeaderOpinion}
+      />
+
+      <div className={`performance-appeal-form__opinion ${mode === "adjudicate" ? "is-active" : ""}`}>
+        <AppealFormField
+          active={mode === "adjudicate"}
+          editable={mode === "adjudicate"}
+          label="综合管理中心意见"
+          onChange={(value) => onChange("appealAdjudicationReason", value)}
+          placeholder="填写综合管理中心的裁定依据、处理意见及提交绩效管理委员会的建议"
+          rows={5}
+          value={managementOpinion}
+        />
+        {mode === "adjudicate" ? <div className="performance-appeal-form__result-controls"><label><span>裁定结论</span><select aria-label="HR裁定结论" onChange={(event) => onChange("appealAdjudication", event.target.value)} value={draft.appealAdjudication}><option value="rejected">申诉不成立，维持原结果</option><option value="partial">申诉部分成立</option><option value="approved">申诉成立</option></select></label>{draft.appealAdjudication !== "rejected" ? <label><span>建议修正分数</span><input aria-label="建议修正分数" max="100" min="0" onChange={(event) => onChange("appealRecommendedScore", Number(event.target.value))} type="number" value={draft.appealRecommendedScore} /></label> : null}</div> : null}
+      </div>
+
+      <div className={`performance-appeal-form__opinion ${mode === "resolve" ? "is-active" : ""}`}>
+        <AppealFormField
+          active={mode === "resolve"}
+          editable={mode === "resolve"}
+          label="绩效管理委员会意见（综合管理中心无法解决的申诉需填此项）"
+          onChange={(value) => onChange("appealResolution", value)}
+          placeholder="填写对在线申诉表、处理记录和综合管理中心意见的最终复核结论"
+          rows={5}
+          value={committeeOpinion}
+        />
+        {mode === "resolve" ? <div className="performance-appeal-form__result-controls"><label><span>最终结论</span><select aria-label="绩效委员会复核结论" onChange={(event) => onChange("appealDecision", event.target.value)} value={draft.appealDecision}><option value="rejected">申诉不成立，维持原结果</option><option value="partial">申诉部分成立</option><option value="approved">申诉成立</option></select></label>{draft.appealDecision !== "rejected" ? <label><span>最终修正分数</span><input aria-label="最终修正分数" max="100" min="0" onChange={(event) => onChange("correctedScore", Number(event.target.value))} type="number" value={draft.correctedScore} /></label> : null}</div> : null}
+      </div>
+    </section>
+  );
+}
+
+export function AppealPage({ review, onBack, onSave, onConfirm }) {
+  const [draft, setDraft] = useState({
+    appealContent: review.appealContent ?? review.appealNote ?? "",
+    appealEvidenceList: review.appealEvidenceList ?? "",
+  });
+  const [decision, setDecision] = useState("confirm");
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const score = calcScore(review);
+  const appealComplete = Boolean(draft.appealContent.trim() && draft.appealEvidenceList.trim());
 
   return (
     <div className="workflow-page appeal-page">
       <div className="workflow-page__header">
         <button className="ghost-chip" onClick={onBack} type="button">返回列表</button>
         <div>
-          <strong>{review.employee} 绩效申诉</strong>
+          <strong>{review.employee} 绩效成绩确认</strong>
           <div className="workflow-header-meta">
             <span>{review.department}</span>
             <span>{review.role}</span>
             <span>{review.cycle}</span>
           </div>
         </div>
-        <button className="primary-btn" disabled={!draft.file} onClick={() => onSave(review.id, draft)} type="button">提交申诉</button>
+        {decision === "confirm"
+          ? <button className="primary-btn" onClick={() => setSignatureOpen(true)} type="button">确认成绩并扫码签名</button>
+          : <button className="primary-btn" disabled={!appealComplete} onClick={() => onSave(review.id, draft)} type="button">提交绩效申诉</button>}
       </div>
-      <div className="appeal-page__notice">绩效委员会审批通过后，如对结果存在异议，可下载申诉表填写并上传。提交后由HR受理、裁定，再提交绩效委员会复核。</div>
-      <div className="appeal-page__layout">
+      <div className="appeal-page__notice">请核对当前生效的绩效成绩并选择是否申诉。不申诉需扫码完成电子签名；选择申诉后直接填写在线《绩效申诉表》，无需下载或上传附件，提交后将按节点流转给HR、用人部门负责人和绩效管理委员会继续填写。</div>
+      <section className="score-confirmation-decision" aria-label="绩效成绩确认决定">
+        <button className={decision === "confirm" ? "is-active" : ""} onClick={() => setDecision("confirm")} type="button"><CheckCircle size={22} weight="duotone" /><span><strong>确认成绩，不申诉</strong><small>核对成绩后通过二维码扫码签名并归档确认记录</small></span></button>
+        <button className={decision === "appeal" ? "is-active" : ""} onClick={() => setDecision("appeal")} type="button"><WarningCircle size={22} weight="duotone" /><span><strong>对成绩有异议，发起申诉</strong><small>在线填写申诉内容与证据清单，提交后进入正式处理流程</small></span></button>
+      </section>
+      {decision === "appeal" ? (
+        <PerformanceAppealForm
+          draft={draft}
+          mode="employee"
+          onChange={(key, value) => setDraft((current) => ({ ...current, [key]: value }))}
+          review={review}
+        />
+      ) : null}
+      <div className={`appeal-page__layout ${decision === "appeal" ? "is-form-mode" : ""}`}>
         <section className="appeal-score-panel" aria-labelledby="appeal-score-title">
           <div className="appeal-score-panel__header">
-            <div><span>当前生效结果</span><strong id="appeal-score-title">绩效评分详细数据</strong><small>申诉提交后，以下评分数据将作为原始结果留存</small></div>
+            <div><span>当前生效结果</span><strong id="appeal-score-title">绩效评分详细数据</strong><small>以下成绩、评分明细和确认决定都会作为当前绩效任务记录留存</small></div>
             <div><strong>{score}<small>分</small></strong><span>{getGrade(score)}-{getLevelLabel(score)}</span></div>
           </div>
           <OkrSheetPreview review={review} actionType="readonly" />
         </section>
-        <aside className="appeal-submission-card">
-          <div className="appeal-process-steps"><span><b>1</b>下载申诉表</span><span><b>2</b>线下填写签字</span><span><b>3</b>上传并提交</span></div>
-          <div className="appeal-template-card"><FileDoc size={28} weight="duotone" /><div><strong>绩效申诉表</strong><span>模板已预填人员、周期和当前评分明细</span></div><button className="secondary-btn" onClick={() => downloadAppealTemplate(review)} type="button"><DownloadSimple size={16} />下载申诉表</button></div>
-          <label className={`appeal-upload-zone ${draft.file ? "is-ready" : ""}`} htmlFor="performance-appeal-file">
-            <UploadSimple size={24} weight="duotone" />
-            <strong>{draft.file?.name || "上传填写完成的申诉表"}</strong>
-            <span>{draft.file ? `${Math.max(1, Math.round(draft.file.size / 1024))} KB · 已准备提交` : "支持 DOC、DOCX、PDF，最大2MB"}</span>
-          </label>
-          <input accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" className="appeal-file-input" id="performance-appeal-file" onChange={handleFileChange} type="file" />
-          {uploadError ? <p className="appeal-upload-error" role="alert">{uploadError}</p> : null}
-          <label className="form-block"><span>补充说明（选填）</span><textarea rows={3} value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} placeholder="可填写需要HR重点关注的事项" /></label>
-          <p className="appeal-submit-hint">上传申诉表后，页面顶部“提交申诉”按钮将可用。</p>
-        </aside>
+        {decision === "confirm" ? <aside className="appeal-submission-card"><div className="score-confirmation-ready"><CheckCircle size={34} weight="duotone" /><strong>确认成绩且不发起申诉</strong><p>点击页面顶部“确认成绩并扫码签名”，系统将生成本次绩效任务专属二维码。扫码签名完成后保留成绩、等级、签名人、签名时间和签名编号。</p><dl><div><dt>确认成绩</dt><dd>{score}分</dd></div><div><dt>绩效等级</dt><dd>{getGrade(score)}-{getLevelLabel(score)}</dd></div><div><dt>确认人</dt><dd>{review.employee}</dd></div></dl></div></aside> : null}
       </div>
+      {signatureOpen ? <ScoreSignatureModal review={review} onClose={() => setSignatureOpen(false)} onConfirm={(record) => onConfirm(review.id, record)} /> : null}
     </div>
   );
 }
@@ -811,7 +1056,7 @@ function getReviewMetricRows(review, categories = []) {
     standards: (category.standards ?? []).map((standard) => ({ ...standard })),
     source: "月度绩效目标 / 任务记录 / 佐证材料",
     weight: Number(category.weight || 0) / 100,
-    type: category.id === "adjustment" ? "adjustment" : "metric",
+    type: category.type === "adjustment" || category.origin === "adjustment" ? "adjustment" : "metric",
     selfText: "",
     firstScore: "",
     secondScore: "",
@@ -841,28 +1086,86 @@ function escapeDocumentText(value) {
     .replaceAll('"', "&quot;");
 }
 
-function downloadAppealTemplate(review) {
+function downloadInterviewFeedbackTemplate(review) {
   const rows = getReviewMetricRows(review);
   const score = calcScore(review);
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-    body{font-family:"Microsoft YaHei",sans-serif;color:#1f2937;font-size:12pt;line-height:1.6}h1{text-align:center;font-size:20pt;margin:0 0 20px}h2{font-size:14pt;margin:24px 0 8px}table{width:100%;border-collapse:collapse;margin:10px 0 18px}th,td{border:1px solid #8b95a7;padding:7px 8px;vertical-align:top}th{background:#eef1ff}.blank{height:72px}.signature{height:44px}
+    body{font-family:"Microsoft YaHei",sans-serif;color:#1f2937;font-size:11pt;line-height:1.55}h1{text-align:center;font-size:20pt;margin:0 0 18px}h2{font-size:13pt;margin:22px 0 8px}table{width:100%;border-collapse:collapse;margin:8px 0 16px}th,td{border:1px solid #8b95a7;padding:7px 8px;vertical-align:top}th{width:16%;background:#eef1ff}.metric th{width:auto}.blank{height:72px}.signature{height:48px}
   </style></head><body>
-    <h1>绩效申诉表</h1>
-    <table><tr><th>姓名</th><td>${escapeDocumentText(review.employee)}</td><th>部门</th><td>${escapeDocumentText(review.department)}</td></tr><tr><th>岗位</th><td>${escapeDocumentText(review.role)}</td><th>考核周期</th><td>${escapeDocumentText(review.cycle)}</td></tr><tr><th>综合得分</th><td>${score}</td><th>绩效等级</th><td>${getGrade(score)}-${escapeDocumentText(getLevelLabel(score))}</td></tr></table>
-    <h2>当前绩效评分明细</h2>
-    <table><thead><tr><th>绩效指标</th><th>权重</th><th>员工完成情况</th><th>一级评分</th><th>二级评分</th><th>单项综合得分</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeDocumentText(row.label)}</td><td>${row.type === "adjustment" ? "加减分" : `${Math.round(Number(row.weight || 0) * 100)}%`}</td><td>${escapeDocumentText(row.selfText || "--")}</td><td>${escapeDocumentText(row.firstScore ?? "--")}</td><td>${requiresSecondReview(review) ? escapeDocumentText(row.secondScore ?? "--") : "无需"}</td><td>${calcRowComposite(row, review)}</td></tr>`).join("")}</tbody></table>
-    <h2>申诉内容（员工填写）</h2>
-    <table><tr><th>申诉指标/事项</th><td class="blank"></td></tr><tr><th>申诉原因及事实说明</th><td class="blank"></td></tr><tr><th>证明材料清单</th><td class="blank"></td></tr><tr><th>期望处理结果</th><td class="blank"></td></tr><tr><th>员工签字及日期</th><td class="signature"></td></tr></table>
-    <h2>处理意见（管理部门填写）</h2>
-    <table><tr><th>HR受理意见</th><td class="blank"></td></tr><tr><th>HR裁定意见</th><td class="blank"></td></tr><tr><th>绩效委员会复核意见</th><td class="blank"></td></tr></table>
+    <h1>绩效反馈与面谈记录表</h1>
+    <table><tr><th>员工姓名</th><td>${escapeDocumentText(review.employee)}</td><th>所属部门</th><td>${escapeDocumentText(review.department)}</td></tr><tr><th>岗位</th><td>${escapeDocumentText(review.role)}</td><th>考核周期</th><td>${escapeDocumentText(review.cycle)}</td></tr><tr><th>最终得分</th><td>${score}分</td><th>绩效等级</th><td>${getGrade(score)}-${escapeDocumentText(getLevelLabel(score))}</td></tr><tr><th>直属Leader</th><td>${escapeDocumentText(review.directLeader || "--")}</td><th>面谈时间</th><td></td></tr></table>
+    <h2>绩效结果摘要</h2>
+    <table class="metric"><thead><tr><th>绩效维度</th><th>指标名称</th><th>权重</th><th>综合评分</th><th>员工完成情况</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeDocumentText(row.section)}</td><td>${escapeDocumentText(row.label)}</td><td>${row.type === "adjustment" ? "加减分" : `${Math.round(Number(row.weight || 0) * 100)}%`}</td><td>${calcRowComposite(row, review)}</td><td>${escapeDocumentText(row.selfText || "--")}</td></tr>`).join("")}</tbody></table>
+    <h2>面谈记录</h2>
+    <table><tr><th>绩效亮点与认可事项</th><td class="blank"></td></tr><tr><th>差距及原因分析</th><td class="blank"></td></tr><tr><th>员工反馈与异议</th><td class="blank"></td></tr><tr><th>下周期改进计划</th><td class="blank"></td></tr><tr><th>需组织支持事项</th><td class="blank"></td></tr><tr><th>面谈结论</th><td class="blank"></td></tr><tr><th>员工签字及日期</th><td class="signature"></td></tr><tr><th>面谈人签字及日期</th><td class="signature"></td></tr></table>
   </body></html>`;
   const blob = new Blob(["\ufeff", html], { type: "application/msword;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `${review.cycle}-${review.employee}-绩效申诉表.doc`;
+  anchor.download = `${review.cycle}-${review.employee}-绩效反馈与面谈记录表.doc`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+function decodeDataUrlBytes(dataUrl) {
+  const [, encoded = ""] = String(dataUrl || "").split(",", 2);
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function InterviewAttachmentPreview({ file, onClose }) {
+  const [preview, setPreview] = useState({ loading: true, text: "", error: "" });
+  const extension = file?.name?.split(".").pop()?.toLowerCase();
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!file?.dataUrl || extension === "pdf") {
+      setPreview({ loading: false, text: "", error: file?.dataUrl ? "" : "附件内容不存在，无法预览。" });
+      return () => { cancelled = true; };
+    }
+    const loadPreview = async () => {
+      try {
+        const bytes = decodeDataUrlBytes(file.dataUrl);
+        let text = "";
+        if (extension === "docx") {
+          const mammothModule = await import("mammoth");
+          const mammoth = mammothModule.default ?? mammothModule;
+          const result = await mammoth.extractRawText({ arrayBuffer: bytes.buffer });
+          text = result.value?.trim() ?? "";
+        } else if (extension === "doc") {
+          const decoded = new TextDecoder("utf-8").decode(bytes);
+          const parsed = new DOMParser().parseFromString(decoded, "text/html");
+          text = (parsed.body?.innerText || parsed.body?.textContent || decoded).replace(/\s{3,}/g, "\n\n").trim();
+        }
+        if (!cancelled) setPreview({ loading: false, text, error: text ? "" : "该附件暂无法在浏览器中解析，请下载后查看完整内容。" });
+      } catch {
+        if (!cancelled) setPreview({ loading: false, text: "", error: "该附件暂无法在浏览器中解析，请下载后查看完整内容。" });
+      }
+    };
+    loadPreview();
+    return () => { cancelled = true; };
+  }, [extension, file?.dataUrl]);
+
+  return (
+    <div className="overlay performance-attachment-preview-overlay" onClick={onClose} role="presentation">
+      <section className="performance-attachment-preview" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="绩效反馈与面谈附件预览">
+        <header>
+          <div><span>反馈与面谈附件</span><strong>{file.name}</strong><small>{extension?.toUpperCase() || "文件"} · {Math.max(1, Math.round(Number(file.size || 0) / 1024))} KB</small></div>
+          <button aria-label="关闭附件预览" className="icon-btn" onClick={onClose} type="button"><X size={18} /></button>
+        </header>
+        <div className="performance-attachment-preview__body">
+          {extension === "pdf" && file.dataUrl ? <iframe src={file.dataUrl} title={`${file.name}预览`} /> : null}
+          {extension !== "pdf" && preview.loading ? <div className="performance-attachment-preview__state">正在解析附件内容…</div> : null}
+          {extension !== "pdf" && !preview.loading && preview.text ? <pre>{preview.text}</pre> : null}
+          {preview.error ? <div className="performance-attachment-preview__state is-error"><FileDoc size={36} weight="duotone" /><strong>暂不支持在线解析</strong><span>{preview.error}</span></div> : null}
+        </div>
+        <footer><span>预览为只读内容，归档原文件不会被修改。</span><div><button className="ghost-chip" onClick={onClose} type="button">关闭</button><a className="primary-btn" download={file.name} href={file.dataUrl}><DownloadSimple size={16} />下载附件</a></div></footer>
+      </section>
+    </div>
+  );
 }
 
 function getEmployeeReferenceData(review) {
@@ -989,14 +1292,37 @@ function exportPerformanceDetailExcel(review, hongguoUploads = []) {
       ["姓名", review.employee], ["部门", review.department], ["岗位", review.role], ["考核周期", review.cycle],
       ["岗位模板", getReviewTemplate(review).name], ["流程状态", review.status], ["目标版本", `V${review.activeTargetVersion ?? 1}`],
       ["申诉状态", review.appealStatus], ["基础绩效分", calcBaseScore(review)], ["加减分", calcAdjustmentScore(review)],
+      ["加减分佐证材料数量", review.adjustmentEvidenceFiles?.length ?? 0],
       ["最终绩效分", calcScore(review)], ["绩效等级", getGrade(calcScore(review))], ["直属Leader", review.directLeader],
       ["二级Leader", review.indirectLeader], ["二级结果审核结论", review.secondReviewConclusion || "--"], ["二级结果审核意见", review.secondReviewComment || "--"],
+      ["成绩确认决定", review.scoreConfirmation?.decisionLabel || "--"], ["成绩确认人", review.scoreConfirmation?.signer || review.scoreConfirmation?.decidedBy || "--"],
+      ["成绩确认时间", review.scoreConfirmation?.signedAt || review.scoreConfirmation?.decidedAt || "--"], ["电子签名编号", review.scoreConfirmation?.signatureId || review.scoreConfirmation?.signatureStatus || "--"],
       ["最后操作时间", review.lastActionAt], ["导出时间", getActionTimestamp()],
+    ]),
+    buildExcelWorksheet("在线申诉表", ["表单字段", "填写内容"], [
+      ["申诉人姓名", review.employee],
+      ["部门", review.department],
+      ["职位", review.role],
+      ["申诉内容", review.appealContent || review.appealNote || "--"],
+      ["申诉证据清单", review.appealEvidenceList || review.evidence || "--"],
+      ["接待人", review.appealReceptionist || "HR-唐宁"],
+      ["申诉日期", review.appealDate || "--"],
+      ["是否受理", review.appealAcceptanceDecision === "reject" ? "不受理" : review.appealAcceptanceComment ? "受理" : "--"],
+      ["受理说明", review.appealAcceptanceComment || "--"],
+      ["调查结果", review.appealInvestigationResult || "--"],
+      ["建议解决方案", review.appealProposedSolution || "--"],
+      ["协调结果", review.appealCoordinationResult || "--"],
+      ["用人部门负责人意见", review.leaderAppealEvidence || "--"],
+      ["综合管理中心意见", review.appealManagementCenterOpinion || review.hrAppealDecisionReason || "--"],
+      ["绩效管理委员会意见", review.appealCommitteeOpinion || review.appealResolution || "--"],
     ]),
     buildExcelWorksheet("评分明细", ["分组", "指标", "类型", "权重", "评定标准", "数据来源", "完成结果", "完成说明", "证明材料", "一级评分", "一级评语", "二级评分", "二级评语", "综合得分", "计入结果"], metricRows.map((row) => [
       row.section, row.label, row.type === "adjustment" ? "加减分" : "绩效目标", row.type === "adjustment" ? "--" : `${Number(row.weight || 0) * 100}%`, getScoreBands(row).join("\n"),
       row.source, row.selfText, row.completionNote, row.evidence, row.firstScore, row.firstComment, row.secondScore, row.secondComment,
       Number(calcRowComposite(row, review).toFixed(2)), calcRowScore(row, review),
+    ])),
+    buildExcelWorksheet("加减分佐证材料", ["文件名称", "文件大小", "文件类型", "上传人", "上传时间", "上传阶段"], (review.adjustmentEvidenceFiles?.length ? review.adjustmentEvidenceFiles : [{ name: "--", size: "--", type: "未上传", uploader: "--", uploadedAt: "--", sourceStage: "--" }]).map((file) => [
+      file.name, typeof file.size === "number" ? formatPerformanceFileSize(file.size) : file.size, file.type, file.uploader, file.uploadedAt, file.sourceStage === "first_score" ? "一级评分" : file.sourceStage === "second_review" ? "二级复评" : file.sourceStage,
     ])),
     buildExcelWorksheet("目标版本", ["版本", "状态", "变更原因", "操作人", "操作时间", "目标数量", "目标摘要"], targetVersions.map((version) => [
       `V${version.version}`, version.status, version.changeReason || "首次下发", version.operator || review.directLeader, version.actedAt || review.lastActionAt,
@@ -1209,7 +1535,7 @@ function OkrSheetPreview({ review, categories, actionType = "readonly", rows: co
     : canEditFirst
       ? "当前可填写：一级评分、一级评语与加减分依据"
       : canEditSecond
-        ? "当前可填写：二级评分与二级评语"
+        ? "当前可填写：二级评分、二级评语与加减分共用佐证材料"
         : "当前为只读查看，所有绩效信息均完整保留";
   useEffect(() => {
     const targetScrollLeft = {
@@ -1277,7 +1603,7 @@ function OkrSheetPreview({ review, categories, actionType = "readonly", rows: co
                   <td><strong>{row.label}</strong><small>{row.section}</small></td>
                   <td><div className="okr-score-bands">{getScoreBands(row).map((band) => <p key={band}>{band}</p>)}</div></td>
                   <td>{row.source || "月度绩效目标 / 工作平台记录 / 负责人评价"}</td>
-                  <td>{row.type === "adjustment" ? "加减分" : `${Math.round((row.weight ?? 0) * 100)}%`}</td>
+                  <td>{row.type === "adjustment" ? "无权重·独立计分" : `${Math.round((row.weight ?? 0) * 100)}%`}</td>
                   <td className="okr-sheet-table__completion">
                     <span className="okr-inline-label">员工填写</span>
                     <textarea aria-label={`${row.label} 完成情况`} disabled={!canEditResult} value={row.selfText ?? ""} onChange={(event) => updateRow(row.key, { selfText: event.target.value })} placeholder={employeePlaceholder} rows={4} />
@@ -1287,10 +1613,10 @@ function OkrSheetPreview({ review, categories, actionType = "readonly", rows: co
                       <input aria-label={`${row.label} 关联业务记录`} value={row.reference ?? ""} onChange={(event) => updateRow(row.key, { reference: event.target.value })} placeholder="引用项目、任务或周报" />
                     </> : null}
                   </td>
-                  <td><input aria-label={`${row.label} 一级评分`} disabled={!canEditFirst} min={row.type === "adjustment" ? -10 : 0} max={row.type === "adjustment" ? 10 : 100} value={row.firstScore ?? ""} onChange={(event) => updateRow(row.key, { firstScore: normalizeScore(event.target.value) })} placeholder={firstPlaceholder} type="number" /></td>
-                  <td><textarea aria-label={`${row.label} 一级评语`} disabled={!canEditFirst} value={row.firstComment ?? ""} onChange={(event) => updateRow(row.key, { firstComment: event.target.value })} placeholder={row.type === "adjustment" ? "加减分原因（必填）" : "一级评语"} rows={4} />{canEditFirst && row.type === "adjustment" ? <input aria-label={`${row.label} 加减分证明材料`} value={row.evidence ?? ""} onChange={(event) => updateRow(row.key, { evidence: event.target.value })} placeholder="加减分证明材料（必填）" /> : null}</td>
-                  <td><input aria-label={`${row.label} 二级评分`} value={needsSecondReview ? row.secondScore ?? "" : ""} disabled={!canEditSecond} min={row.type === "adjustment" ? -10 : 0} max={row.type === "adjustment" ? 10 : 100} onChange={(event) => updateRow(row.key, { secondScore: normalizeScore(event.target.value) })} placeholder={secondPlaceholder} type="number" /></td>
-                  <td><textarea aria-label={`${row.label} 二级评语`} value={needsSecondReview ? row.secondComment ?? "" : ""} disabled={!canEditSecond} onChange={(event) => updateRow(row.key, { secondComment: event.target.value })} placeholder={needsSecondReview ? "二级评语" : "无需二级评语"} rows={4} /></td>
+                  <td><input aria-label={`${row.label} 一级评分`} disabled={!canEditFirst} min={row.type === "adjustment" ? row.minScore ?? -10 : 0} max={row.type === "adjustment" ? row.maxScore ?? 10 : 100} value={row.firstScore ?? ""} onChange={(event) => updateRow(row.key, { firstScore: normalizeScore(event.target.value) })} placeholder={firstPlaceholder} type="number" /></td>
+                  <td><textarea aria-label={`${row.label} 一级评语`} disabled={!canEditFirst} value={row.firstComment ?? ""} onChange={(event) => updateRow(row.key, { firstComment: event.target.value })} placeholder={row.type === "adjustment" ? "非零加减分原因（必填）" : "一级评语"} rows={4} /></td>
+                  <td><input aria-label={`${row.label} 二级评分`} value={needsSecondReview ? row.secondScore ?? "" : ""} disabled={!canEditSecond} min={row.type === "adjustment" ? row.minScore ?? -10 : 0} max={row.type === "adjustment" ? row.maxScore ?? 10 : 100} onChange={(event) => updateRow(row.key, { secondScore: normalizeScore(event.target.value) })} placeholder={secondPlaceholder} type="number" /></td>
+                  <td><textarea aria-label={`${row.label} 二级评语`} value={needsSecondReview ? row.secondComment ?? "" : ""} disabled={!canEditSecond} onChange={(event) => updateRow(row.key, { secondComment: event.target.value })} placeholder={needsSecondReview ? row.type === "adjustment" ? "非零加减分原因（必填）" : "二级评语" : "无需二级评语"} rows={4} /></td>
                   <td><strong>{rowComposite === "" ? "--" : Number(rowComposite.toFixed(1))}</strong></td>
                 </tr>
               );
@@ -1361,25 +1687,154 @@ function HongguoUploadModal({ onClose, onImport }) {
   );
 }
 
-function AppealAttachmentCard({ review }) {
-  const file = review.appealFormFile;
+function AppealAttachmentCard({ review, mode = "readonly", draft = {}, onChange = () => {} }) {
+  return <PerformanceAppealForm draft={draft} mode={mode} onChange={onChange} review={review} />;
+}
+
+function formatPerformanceFileSize(size) {
+  const bytes = Number(size || 0);
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function AdjustmentEvidencePanel({
+  files = [],
+  required = false,
+  editable = false,
+  actionType = "readonly",
+  error = "",
+  onChange,
+  onRemove,
+}) {
   return (
-    <section className="appeal-review-file" aria-label="员工上传的绩效申诉表">
-      <div className="appeal-review-file__summary">
-        <FileDoc size={28} weight="duotone" />
-        <div><strong>{file?.name || "未找到绩效申诉表"}</strong><span>{review.employee} · {review.cycle} · 提交于 {review.appealDate || "--"}</span></div>
-        {file?.dataUrl ? <a className="secondary-btn" download={file.name} href={file.dataUrl} target="_blank" rel="noreferrer"><DownloadSimple size={16} />查看申诉表</a> : null}
+    <section className={`adjustment-evidence-panel ${required ? "is-required" : "is-optional"}`} aria-label="加减分共用佐证材料">
+      <div className="adjustment-evidence-panel__heading">
+        <div>
+          <span className="adjustment-evidence-panel__icon"><UploadSimple size={21} weight="duotone" /></span>
+          <div><strong>加减分共用佐证材料{required ? " *" : ""}</strong><small>整个加减分维度共用一组材料，可上传一个或多个文件</small></div>
+        </div>
+        <b>{files.length ? `已上传 ${files.length} 个文件` : required ? "非零分必传" : "当前选填"}</b>
       </div>
-      <dl><div><dt>原综合得分</dt><dd>{review.resultVersions?.[0]?.score ?? calcScore(review)}分</dd></div><div><dt>原绩效等级</dt><dd>{review.resultVersions?.[0]?.grade ?? getGrade(calcScore(review))}</dd></div><div><dt>员工补充说明</dt><dd>{review.appealNote || "无"}</dd></div></dl>
+      {editable ? (
+        <>
+          <label className="adjustment-evidence-panel__upload" htmlFor={`adjustment-evidence-${actionType}`}>
+            <UploadSimple size={20} weight="bold" />
+            <span><strong>选择佐证文件</strong><small>支持图片、PDF、Word、Excel；单文件不超过10MB，最多10个</small></span>
+          </label>
+          <input
+            accept=".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,.xls,.xlsx,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            aria-label="上传加减分共用佐证材料"
+            className="appeal-file-input"
+            id={`adjustment-evidence-${actionType}`}
+            multiple
+            onChange={onChange}
+            type="file"
+          />
+        </>
+      ) : null}
+      {files.length ? (
+        <div className="adjustment-evidence-panel__files">
+          {files.map((file) => {
+            const canRemove = editable && (!file.sourceStage || file.sourceStage === actionType);
+            return (
+              <article key={file.id || `${file.name}-${file.uploadedAt}`}>
+                <FileDoc size={22} weight="duotone" />
+                <div><strong>{file.name}</strong><span>{formatPerformanceFileSize(file.size)} · {file.uploader || "评分人"} · {file.uploadedAt || "本次上传"}</span></div>
+                {file.dataUrl ? <a href={file.dataUrl} target="_blank" rel="noreferrer">查看</a> : null}
+                {canRemove ? <button aria-label={`移除佐证材料：${file.name}`} onClick={() => onRemove(file.id)} type="button"><X size={15} /></button> : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : <p className="adjustment-evidence-panel__empty">{required ? "当前存在非零加减分，提交前至少上传一个佐证文件。" : "全部加减分为0时无需上传材料。"}</p>}
+      {error ? <p className="adjustment-evidence-panel__error" role="alert">{error}</p> : null}
     </section>
   );
 }
 
-function WorkflowActionPage({ review, action, onBack, onSubmit, hongguoUploads }) {
+export function WorkflowActionPage({ review, action, onBack, onSubmit, hongguoUploads }) {
   const [draft, setDraft] = useState(() => getWorkflowDefaultDraft(review, action));
   const [submitError, setSubmitError] = useState("");
+  const [interviewUploadError, setInterviewUploadError] = useState("");
+  const [adjustmentUploadError, setAdjustmentUploadError] = useState("");
   if (!review || !action) return null;
   const updateDraft = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
+  const handleInterviewFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (!["doc", "docx", "pdf"].includes(extension)) {
+      setInterviewUploadError("仅支持 DOC、DOCX 或 PDF 格式");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setInterviewUploadError("面谈记录文件不能超过2MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateDraft("interviewFormFile", {
+        name: file.name,
+        size: file.size,
+        type: file.type || "application/octet-stream",
+        dataUrl: reader.result,
+        uploadedAt: getActionTimestamp(),
+      });
+      setInterviewUploadError("");
+    };
+    reader.onerror = () => setInterviewUploadError("文件读取失败，请重新选择");
+    reader.readAsDataURL(file);
+  };
+  const handleAdjustmentEvidenceChange = async (event) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!selectedFiles.length) return;
+    if ((draft.adjustmentEvidenceFiles?.length ?? 0) + selectedFiles.length > 10) {
+      setAdjustmentUploadError("加减分佐证材料最多上传10个文件");
+      return;
+    }
+    const oversized = selectedFiles.find((file) => file.size > 10 * 1024 * 1024);
+    if (oversized) {
+      setAdjustmentUploadError(`“${oversized.name}”超过10MB，请压缩后重新上传`);
+      return;
+    }
+    const existingKeys = new Set((draft.adjustmentEvidenceFiles ?? []).map((file) => `${file.name}-${file.size}`));
+    const duplicate = selectedFiles.find((file) => existingKeys.has(`${file.name}-${file.size}`));
+    if (duplicate) {
+      setAdjustmentUploadError(`“${duplicate.name}”已上传，请勿重复添加`);
+      return;
+    }
+    try {
+      const uploadedAt = getActionTimestamp();
+      const additions = await Promise.all(selectedFiles.map((file, index) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+          id: `adjustment-evidence-${Date.now()}-${index}`,
+          name: file.name,
+          size: file.size,
+          type: file.type || "application/octet-stream",
+          dataUrl: reader.result,
+          uploadedAt,
+          uploader: action.type === "second_review" ? review.indirectLeader : review.directLeader,
+          sourceStage: action.type,
+        });
+        reader.onerror = () => reject(new Error("read_failed"));
+        reader.readAsDataURL(file);
+      })));
+      setDraft((current) => ({ ...current, adjustmentEvidenceFiles: [...(current.adjustmentEvidenceFiles ?? []), ...additions] }));
+      setAdjustmentUploadError("");
+    } catch {
+      setAdjustmentUploadError("文件读取失败，请重新选择");
+    }
+  };
+  const removeAdjustmentEvidence = (fileId) => {
+    setDraft((current) => ({
+      ...current,
+      adjustmentEvidenceFiles: (current.adjustmentEvidenceFiles ?? []).filter((file) => file.id !== fileId),
+    }));
+  };
+  const adjustmentEvidenceFields = action.type === "first_score" ? ["firstScore"] : ["firstScore", "secondScore"];
+  const adjustmentEvidenceValidation = validateAdjustmentEvidence(draft.rows, draft.adjustmentEvidenceFiles, adjustmentEvidenceFields);
   const submit = () => {
     const payload = getWorkflowSubmitPayload(review, action, draft);
     if (payload.validationError) {
@@ -1433,18 +1888,48 @@ function WorkflowActionPage({ review, action, onBack, onSubmit, hongguoUploads }
 
         {action.type === "hr_review" ? <><div className="form-grid"><label><span>处理结论</span><select value={draft.hrDecision} onChange={(event) => updateDraft("hrDecision", event.target.value)}><option value="submit">提交绩效委员会审批</option><option value="return">退回Leader重新评分</option></select></label></div><label className="form-block"><span>HR复审意见</span><textarea rows={5} value={draft.hrReviewComment} onChange={(event) => updateDraft("hrReviewComment", event.target.value)} placeholder="填写材料核验、加减分核对及需绩效委员会关注的问题" /></label></> : null}
         {action.type === "committee_approve" ? <><div className="form-grid"><label><span>审批结论</span><select value={draft.committeeDecision} onChange={(event) => updateDraft("committeeDecision", event.target.value)}><option value="approve">审批通过</option><option value="return">退回Leader重新评分</option></select></label></div><label className="form-block"><span>绩效委员会审批意见</span><textarea rows={5} value={draft.committeeComment} onChange={(event) => updateDraft("committeeComment", event.target.value)} placeholder="填写审批意见；退回时说明需修正的内容" /></label></> : null}
-        {action.type === "interview_feedback" ? <><label className="form-block"><span>面谈纪要</span><textarea rows={5} value={draft.interviewSummary} onChange={(event) => updateDraft("interviewSummary", event.target.value)} placeholder="记录绩效沟通结论、员工反馈和确认情况" /></label><label className="form-block"><span>改进计划</span><textarea rows={4} value={draft.improvementPlan} onChange={(event) => updateDraft("improvementPlan", event.target.value)} placeholder="填写下月改进事项、责任人和跟进节点" /></label></> : null}
-        {["accept_appeal", "adjudicate_appeal", "resolve_appeal"].includes(action.type) ? <AppealAttachmentCard review={review} /> : null}
-        {action.type === "accept_appeal" ? <>
-          <div className="form-grid"><label><span>受理结论</span><select aria-label="受理结论" value={draft.appealAcceptanceDecision} onChange={(event) => updateDraft("appealAcceptanceDecision", event.target.value)}><option value="accept">受理</option><option value="reject">不受理</option></select></label></div>
-          <label className="form-block"><span>{draft.appealAcceptanceDecision === "reject" ? "HR不受理原因" : "HR受理意见"}</span><textarea aria-label={draft.appealAcceptanceDecision === "reject" ? "HR不受理原因" : "HR受理意见"} rows={4} value={draft.appealAcceptanceComment} onChange={(event) => updateDraft("appealAcceptanceComment", event.target.value)} placeholder={draft.appealAcceptanceDecision === "reject" ? "必填；说明不符合受理条件的具体原因，提交后本次申诉结束" : "必填；确认已查看员工上传的绩效申诉表，并记录受理范围"} /></label>
+        {action.type === "interview_feedback" ? <>
+          <section className="interview-archive-card" aria-label="绩效反馈与面谈附件归档">
+            <div className="appeal-template-card"><FileDoc size={28} weight="duotone" /><div><strong>绩效反馈与面谈记录表</strong><span>已预填员工、周期、绩效结果及评分明细，下载后填写面谈内容并签字。</span></div><button className="secondary-btn" onClick={() => downloadInterviewFeedbackTemplate(review)} type="button"><DownloadSimple size={16} />下载面谈表</button></div>
+            <label className={`appeal-upload-zone ${draft.interviewFormFile ? "is-ready" : ""}`} htmlFor="performance-interview-file">
+              <UploadSimple size={24} weight="duotone" />
+              <strong>{draft.interviewFormFile?.name || "上传已填写的面谈记录表"}</strong>
+              <span>{draft.interviewFormFile ? `${Math.max(1, Math.round(draft.interviewFormFile.size / 1024))} KB · 提交后归档至当前绩效任务` : "支持 DOC、DOCX、PDF，最大2MB；上传后才能完成本节点"}</span>
+            </label>
+            <input accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" className="appeal-file-input" id="performance-interview-file" onChange={handleInterviewFileChange} type="file" />
+            {interviewUploadError ? <p className="appeal-upload-error" role="alert">{interviewUploadError}</p> : null}
+            {draft.interviewFormFile?.dataUrl ? <a className="interview-file-preview" download={draft.interviewFormFile.name} href={draft.interviewFormFile.dataUrl}>查看当前待归档附件</a> : null}
+          </section>
         </> : null}
-        {action.type === "adjudicate_appeal" ? <><div className="form-grid"><label><span>HR裁定结论</span><select value={draft.appealAdjudication} onChange={(event) => updateDraft("appealAdjudication", event.target.value)}><option value="rejected">申诉不成立，维持原结果</option><option value="partial">申诉部分成立</option><option value="approved">申诉成立</option></select></label>{draft.appealAdjudication !== "rejected" ? <label><span>建议修正分数</span><input min="0" max="100" type="number" value={draft.appealRecommendedScore} onChange={(event) => updateDraft("appealRecommendedScore", Number(event.target.value))} /></label> : null}</div><label className="form-block"><span>HR裁定意见</span><textarea rows={5} value={draft.appealAdjudicationReason} onChange={(event) => updateDraft("appealAdjudicationReason", event.target.value)} placeholder="必填；说明申诉表核验、原评分依据、裁定结论及提交委员会的建议" /></label></> : null}
-        {action.type === "provide_appeal_evidence" ? <label className="form-block"><span>原评分依据</span><textarea rows={5} value={draft.leaderAppealEvidence} onChange={(event) => updateDraft("leaderAppealEvidence", event.target.value)} placeholder="填写原评分、评语、加减分和证明材料依据" /></label> : null}
-        {action.type === "resolve_appeal" ? <><div className="appeal-hr-recommendation"><span>HR裁定建议</span><strong>{review.hrAppealDecision === "approved" ? "申诉成立" : review.hrAppealDecision === "partial" ? "申诉部分成立" : "申诉不成立"}{review.hrAppealDecision !== "rejected" && review.hrRecommendedScore != null ? ` · 建议修正为${review.hrRecommendedScore}分` : ""}</strong><p>{review.hrAppealDecisionReason || "暂无HR裁定意见"}</p></div><div className="form-grid"><label><span>绩效委员会复核结论</span><select value={draft.appealDecision} onChange={(event) => updateDraft("appealDecision", event.target.value)}><option value="rejected">申诉不成立，维持原结果</option><option value="partial">申诉部分成立</option><option value="approved">申诉成立</option></select></label>{draft.appealDecision !== "rejected" ? <label><span>最终修正分数</span><input min="0" max="100" type="number" value={draft.correctedScore} onChange={(event) => updateDraft("correctedScore", Number(event.target.value))} /></label> : null}</div><label className="form-block"><span>绩效委员会复核意见</span><textarea rows={4} value={draft.appealResolution} onChange={(event) => updateDraft("appealResolution", event.target.value)} placeholder="必填；说明对申诉表、HR裁定及最终结果的复核意见" /></label></> : null}
+        {action.type === "resolve_appeal" ? <div className="appeal-hr-recommendation"><span>综合管理中心裁定建议</span><strong>{review.hrAppealDecision === "approved" ? "申诉成立" : review.hrAppealDecision === "partial" ? "申诉部分成立" : "申诉不成立"}{review.hrAppealDecision !== "rejected" && review.hrRecommendedScore != null ? ` · 建议修正为${review.hrRecommendedScore}分` : ""}</strong><p>{review.appealManagementCenterOpinion || review.hrAppealDecisionReason || "暂无综合管理中心意见"}</p></div> : null}
+        {["accept_appeal", "adjudicate_appeal", "provide_appeal_evidence", "resolve_appeal"].includes(action.type) ? (
+          <AppealAttachmentCard
+            draft={draft}
+            mode={{
+              accept_appeal: "accept",
+              adjudicate_appeal: "adjudicate",
+              provide_appeal_evidence: "leader",
+              resolve_appeal: "resolve",
+            }[action.type]}
+            onChange={updateDraft}
+            review={review}
+          />
+        ) : null}
       </div>
 
       <OkrSheetPreview review={review} actionType={action.type} rows={draft.rows} onRowsChange={(rows) => updateDraft("rows", rows)} />
+
+      {["first_score", "second_review", "hr_review", "committee_approve"].includes(action.type) ? (
+        <AdjustmentEvidencePanel
+          actionType={action.type}
+          editable={["first_score", "second_review"].includes(action.type)}
+          error={adjustmentUploadError}
+          files={draft.adjustmentEvidenceFiles}
+          onChange={handleAdjustmentEvidenceChange}
+          onRemove={removeAdjustmentEvidence}
+          required={adjustmentEvidenceValidation.required}
+        />
+      ) : null}
 
       <section className="workflow-reference-section" aria-labelledby="workflow-reference-title">
         <div className="workflow-reference-section__header">
@@ -1473,7 +1958,7 @@ function RuleModal({ onClose }) {
             <div><b>查看范围</b><span>上级可查看直属下级与跨级下级；员工仅查看本人；HR 与老板可查看全公司。</span></div>
             <div><b>下发范围</b><span>下发人员只能选择自己权限范围内的下级人员，不能越权下发。</span></div>
             <div><b>绩效模板</b><span>模板采用“维度—指标名称—绩效描述”三层结构，支持维护多个指标和评分档位。</span></div>
-            <div><b>流程规则</b><span>月度绩效目标下发并由员工确认后，员工逐项填报结果，再进入一二级评分、HR复审和绩效委员会审批；审批通过后员工可上传申诉表，HR受理裁定并再次提交绩效委员会复核。</span></div>
+            <div><b>流程规则</b><span>月度绩效目标下发并由员工确认后，员工逐项填报结果，再进入一二级评分、HR复审和绩效委员会审批；审批通过后由员工确认绩效成绩并决定是否申诉，不申诉则扫码签名归档，申诉则在线填写《绩效申诉表》，并流转给HR、用人部门负责人和绩效管理委员会继续填写对应内容。</span></div>
           </div>
           <div className="action-row">
             <button className="primary-btn" onClick={onClose} type="button">知道了</button>
@@ -1511,12 +1996,14 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
     ...current,
     categories: current.categories.map((item) => item.id === categoryId ? { ...item, [key]: value } : item),
   }));
-  const templateMetrics = draft.categories?.filter((item) => item.origin === "template") ?? [];
-  const templateDimensions = templateMetrics.reduce((items, metric) => {
+  const templateMetrics = draft.categories?.filter((item) => item.origin === "template" && item.type !== "adjustment") ?? [];
+  const adjustmentMetrics = draft.categories?.filter((item) => item.type === "adjustment" || item.origin === "adjustment") ?? [];
+  const editableTemplateMetrics = [...templateMetrics, ...adjustmentMetrics];
+  const templateDimensions = editableTemplateMetrics.reduce((items, metric) => {
     const dimensionId = metric.dimensionId || metric.id;
     const existing = items.find((item) => item.id === dimensionId);
     if (existing) existing.metrics.push(metric);
-    else items.push({ id: dimensionId, name: metric.dimensionName || metric.name, metrics: [metric] });
+    else items.push({ id: dimensionId, name: metric.dimensionName || metric.name, metrics: [metric], isAdjustment: metric.type === "adjustment" || metric.origin === "adjustment" });
     return items;
   }, []);
   const updateDimensionName = (dimensionId, value) => setDraft((current) => ({
@@ -1542,24 +2029,27 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
     categories: current.categories.map((item) => item.id === categoryId ? { ...item, standards: (item.standards ?? []).filter((standard) => standard.id !== standardId) } : item),
   }));
   const addTemplateTarget = (dimensionId = templateDimensions[0]?.id) => setDraft((current) => {
-    const nextIndex = current.categories.filter((item) => item.origin === "template").length + 1;
     const dimensionMetric = current.categories.find((item) => (item.dimensionId || item.id) === dimensionId);
+    const isAdjustment = dimensionMetric?.type === "adjustment" || dimensionMetric?.origin === "adjustment";
+    const nextIndex = current.categories.filter((item) => isAdjustment ? item.type === "adjustment" : item.origin === "template").length + 1;
     const nextId = `template-custom-${Date.now()}`;
     return {
       ...current,
       categories: [...current.categories, {
         id: nextId,
         dimensionId: dimensionId || `dimension-${Date.now()}`,
-        dimensionName: dimensionMetric?.dimensionName || "新增绩效维度",
-        name: "新增绩效目标",
+        dimensionName: dimensionMetric?.dimensionName || (isAdjustment ? "加减分项（总评分区间 -10分至10分）" : "新增绩效维度"),
+        name: isAdjustment ? `新增加减分类别${nextIndex}` : "新增绩效目标",
         weight: 0,
-        requirement: "请填写目标要求和衡量标准。",
+        minScore: isAdjustment ? -3 : undefined,
+        maxScore: isAdjustment ? 3 : undefined,
+        requirement: isAdjustment ? "请填写该类别的加分、减分条件及分值边界。" : "请填写目标要求和衡量标准。",
         historyReference: "",
-        source: "任务记录 / 绩效填报",
-        standards: createMetricStandards(nextId),
-        origin: "template",
+        source: isAdjustment ? "被考核人填写的完成情况 / 上级和协作方评价" : "任务记录 / 绩效填报",
+        standards: isAdjustment ? [] : createMetricStandards(nextId),
+        origin: isAdjustment ? "adjustment" : "template",
         mandatory: true,
-        type: "weighted",
+        type: isAdjustment ? "adjustment" : "weighted",
       }],
     };
   });
@@ -1573,6 +2063,10 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
   }));
   const removeDimension = (dimensionId) => {
     const dimension = templateDimensions.find((item) => item.id === dimensionId);
+    if (dimension?.isAdjustment) {
+      showTemplateFeedback("加减分项是必备特殊维度，不能删除");
+      return;
+    }
     if (!window.confirm(`确定删除“${dimension?.name ?? "当前"}”维度及其全部指标吗？`)) return;
     setDraft((current) => ({
       ...current,
@@ -1596,11 +2090,11 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
   const weightedCategories = draft.categories?.filter((item) => item.type !== "adjustment") ?? [];
   const totalWeight = weightedCategories.reduce((sum, item) => sum + Number(item.weight || 0), 0);
   const templateWeight = templateMetrics.reduce((sum, item) => sum + Number(item.weight || 0), 0);
-  const canSave = totalWeight === 100 && templateMetrics.length > 0;
+  const canSave = totalWeight === 100 && templateMetrics.length > 0 && adjustmentMetrics.length > 0;
   const importPreset = () => {
     const existingIds = new Set(draft.categories.map((item) => item.id));
     const additions = clonePerformanceCategories(defaultPerformanceCategories)
-      .filter((item) => item.origin === "template" && !existingIds.has(item.id));
+      .filter((item) => ["template", "adjustment"].includes(item.origin) && !existingIds.has(item.id));
     if (!additions.length) {
       showTemplateFeedback("通用必选指标已在当前模板中");
       return;
@@ -1660,7 +2154,7 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
           <section className="hr-template-builder" aria-label="三层绩效模板结构">
             <div className="hr-template-builder__toolbar">
               <div><strong>三层绩效模板结构</strong><p>第一层：维度&nbsp;&nbsp;|&nbsp;&nbsp;第二层：指标&nbsp;&nbsp;|&nbsp;&nbsp;第三层：评定档位与描述</p></div>
-              <div className="hr-template-toolbar-actions"><span>{templateDimensions.length} 个维度 · {templateMetrics.length} 项指标</span><button className="hr-template-primary-button" onClick={addDimension} type="button"><b>+ 新增考核维度</b><small>一级目录</small></button></div>
+              <div className="hr-template-toolbar-actions"><span>{templateDimensions.length} 个维度 · {editableTemplateMetrics.length} 项指标/类别</span><button className="hr-template-primary-button" onClick={addDimension} type="button"><b>+ 新增考核维度</b><small>一级目录</small></button></div>
             </div>
             <div className={`hr-template-weight ${canSave ? "is-valid" : "is-warning"} ${totalWeight > 100 ? "is-overweight" : ""}`}>
               <div><span>权重总计（含个人月度目标）</span><b>{totalWeight}%</b><small>模板指标 {templateWeight}%</small></div>
@@ -1669,15 +2163,21 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
             </div>
             <div className="hr-template-dimensions">
               {templateDimensions.map((dimension, dimensionIndex) => {
-                const dimensionWeight = dimension.metrics.reduce((sum, metric) => sum + Number(metric.weight || 0), 0);
+                const dimensionWeight = dimension.metrics.filter((metric) => metric.type !== "adjustment").reduce((sum, metric) => sum + Number(metric.weight || 0), 0);
                 const collapsed = collapsedDimensions.has(dimension.id);
                 return <article className="hr-template-dimension" key={dimension.id}>
-                  <header className="hr-template-dimension__header"><span className="hr-template-dimension__drag" aria-hidden="true">⠿</span><span>part{dimensionIndex + 1}</span><input aria-label={`维度名称：${dimension.name}`} value={dimension.name} onChange={(event) => updateDimensionName(dimension.id, event.target.value)} /><b>总权重 {dimensionWeight}%</b><button onClick={() => addTemplateTarget(dimension.id)} type="button">+ 新增指标</button><button aria-label={`${collapsed ? "展开" : "收起"}${dimension.name}`} onClick={() => toggleDimension(dimension.id)} type="button">{collapsed ? "展开" : "收起"}</button><button aria-label={`删除维度：${dimension.name}`} disabled={templateDimensions.length <= 1} onClick={() => removeDimension(dimension.id)} type="button">删除维度</button></header>
+                  <header className={`hr-template-dimension__header ${dimension.isAdjustment ? "is-adjustment" : ""}`}><span className="hr-template-dimension__drag" aria-hidden="true">⠿</span><span>part{dimensionIndex + 1}</span><input aria-label={`维度名称：${dimension.name}`} value={dimension.name} onChange={(event) => updateDimensionName(dimension.id, event.target.value)} /><b>{dimension.isAdjustment ? "无权重 · 总评分 -10～+10" : `总权重 ${dimensionWeight}%`}</b><button onClick={() => addTemplateTarget(dimension.id)} type="button">{dimension.isAdjustment ? "+ 新增加减分类别" : "+ 新增指标"}</button><button aria-label={`${collapsed ? "展开" : "收起"}${dimension.name}`} onClick={() => toggleDimension(dimension.id)} type="button">{collapsed ? "展开" : "收起"}</button><button aria-label={`删除维度：${dimension.name}`} disabled={dimension.isAdjustment || templateDimensions.length <= 1} onClick={() => removeDimension(dimension.id)} type="button">删除维度</button></header>
                   {!collapsed ? <div className="hr-template-dimension__body">
                     {dimension.metrics.length ? dimension.metrics.map((metric, metricIndex) => <section className="hr-template-metric" key={metric.id}>
-                      <div className="hr-template-metric__head"><span>指标 {metricIndex + 1}</span><input aria-label={`模板目标名称：${metric.name}`} value={metric.name} onChange={(event) => updateCategory(metric.id, "name", event.target.value)} /><label><span>权重</span><input aria-label={`模板目标权重：${metric.name}`} min="0" max="100" type="number" value={metric.weight} onChange={(event) => updateCategory(metric.id, "weight", Number(event.target.value))} /><b>%</b></label><button aria-label={`删除指标：${metric.name}`} disabled={templateMetrics.length <= 1} onClick={() => removeTemplateTarget(metric.id)} type="button">删除指标</button></div>
-                      <div className="hr-template-standards-head"><div><strong>绩效描述与评定档位标准</strong><span>为当前指标配置不同得分区间及其完成标准</span></div><button onClick={() => addStandard(metric.id)} type="button">+ 添加档位</button></div>
-                      <div className="hr-template-standards">{(metric.standards ?? []).map((standard, standardIndex) => <div className="hr-template-standard" key={standard.id}><span className="hr-template-standard__index">{standardIndex + 1}</span><label><span>档位名称</span><input aria-label={`${metric.name}档位名称`} value={standard.label} onChange={(event) => updateStandard(metric.id, standard.id, "label", event.target.value)} /></label><label><span>分数范围</span><input aria-label={`${metric.name}${standard.label}分数范围`} value={standard.scoreRange} onChange={(event) => updateStandard(metric.id, standard.id, "scoreRange", event.target.value)} /></label><label className="hr-template-standard__description"><span>绩效描述</span><textarea aria-label={`${metric.name}${standard.label}绩效描述`} rows={2} value={standard.description} onChange={(event) => updateStandard(metric.id, standard.id, "description", event.target.value)} /></label><button aria-label={`删除${metric.name}${standard.label}绩效描述`} disabled={(metric.standards?.length ?? 0) <= 1} onClick={() => removeStandard(metric.id, standard.id)} type="button"><X size={15} /></button></div>)}</div>
+                      <div className="hr-template-metric__head"><span>{dimension.isAdjustment ? "类别" : "指标"} {metricIndex + 1}</span><input aria-label={`模板目标名称：${metric.name}`} value={metric.name} onChange={(event) => updateCategory(metric.id, "name", event.target.value)} />{dimension.isAdjustment ? <b className="hr-template-adjustment-badge">独立计分</b> : <label><span>权重</span><input aria-label={`模板目标权重：${metric.name}`} min="0" max="100" type="number" value={metric.weight} onChange={(event) => updateCategory(metric.id, "weight", Number(event.target.value))} /><b>%</b></label>}<button aria-label={`删除指标：${metric.name}`} disabled={dimension.isAdjustment ? adjustmentMetrics.length <= 1 : templateMetrics.length <= 1} onClick={() => removeTemplateTarget(metric.id)} type="button">删除指标</button></div>
+                      {dimension.isAdjustment ? <div className="hr-template-adjustment-fields">
+                        <label className="hr-template-adjustment-fields__criteria"><span>评定标准</span><textarea aria-label={`${metric.name}评定标准`} rows={3} value={metric.requirement ?? ""} onChange={(event) => updateCategory(metric.id, "requirement", event.target.value)} /></label>
+                        <label><span>数据来源</span><textarea aria-label={`${metric.name}数据来源`} rows={3} value={metric.source ?? ""} onChange={(event) => updateCategory(metric.id, "source", event.target.value)} /></label>
+                        <div className="hr-template-adjustment-range"><span>类别评分范围</span><label>最低分<input aria-label={`${metric.name}最低分`} max="0" min="-10" type="number" value={metric.minScore ?? -3} onChange={(event) => updateCategory(metric.id, "minScore", Number(event.target.value))} /></label><label>最高分<input aria-label={`${metric.name}最高分`} max="10" min="0" type="number" value={metric.maxScore ?? 3} onChange={(event) => updateCategory(metric.id, "maxScore", Number(event.target.value))} /></label></div>
+                      </div> : <>
+                        <div className="hr-template-standards-head"><div><strong>绩效描述与评定档位标准</strong><span>为当前指标配置不同得分区间及其完成标准</span></div><button onClick={() => addStandard(metric.id)} type="button">+ 添加档位</button></div>
+                        <div className="hr-template-standards">{(metric.standards ?? []).map((standard, standardIndex) => <div className="hr-template-standard" key={standard.id}><span className="hr-template-standard__index">{standardIndex + 1}</span><label><span>档位名称</span><input aria-label={`${metric.name}档位名称`} value={standard.label} onChange={(event) => updateStandard(metric.id, standard.id, "label", event.target.value)} /></label><label><span>分数范围</span><input aria-label={`${metric.name}${standard.label}分数范围`} value={standard.scoreRange} onChange={(event) => updateStandard(metric.id, standard.id, "scoreRange", event.target.value)} /></label><label className="hr-template-standard__description"><span>绩效描述</span><textarea aria-label={`${metric.name}${standard.label}绩效描述`} rows={2} value={standard.description} onChange={(event) => updateStandard(metric.id, standard.id, "description", event.target.value)} /></label><button aria-label={`删除${metric.name}${standard.label}绩效描述`} disabled={(metric.standards?.length ?? 0) <= 1} onClick={() => removeStandard(metric.id, standard.id)} type="button"><X size={15} /></button></div>)}</div>
+                      </>}
                     </section>) : <div className="hr-template-empty"><strong>当前维度还没有指标</strong><span>添加指标后即可配置绩效档位与描述。</span><button onClick={() => addTemplateTarget(dimension.id)} type="button">立即添加指标</button></div>}
                   </div> : null}
                 </article>;
@@ -1688,7 +2188,7 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
         </div>
         <div className="target-template-modal__footer"><span><WarningCircle size={17} weight="fill" />保存后仅更新当前模板，不会覆盖已下发的历史绩效目标。</span><div className="action-row"><button className="hr-template-preview-button" onClick={() => setPreviewOpen(true)} type="button">效果预览</button><button className="primary-btn" disabled={!canSave} onClick={saveTemplate} type="button">保存当前模板</button></div></div>
         {templateFeedback ? <div className="hr-template-feedback" role="status"><CheckCircle size={18} weight="fill" /><span>{templateFeedback}</span><button aria-label="关闭提示" onClick={() => setTemplateFeedback("")} type="button"><X size={15} /></button></div> : null}
-        {previewOpen ? <div className="hr-template-suboverlay" onClick={() => setPreviewOpen(false)} role="presentation"><section className="hr-template-preview" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="员工视角绩效考核表预览"><header><div><strong>员工视角 - 绩效考核表预览</strong><span>{draft.department} · {draft.role} · 100 分制</span></div><button aria-label="关闭效果预览" className="icon-btn" onClick={() => setPreviewOpen(false)} type="button"><X size={19} /></button></header><div className="hr-template-preview__body"><div className="hr-template-preview__summary"><b>{draft.name || `${draft.department}${draft.role}绩效模板`}</b><span>{templateDimensions.length} 个维度 · {templateMetrics.length} 项指标 · 模板权重 {templateWeight}%</span></div><table><thead><tr><th>考核维度</th><th>指标名称</th><th>评定标准与档位要求</th><th>权重</th></tr></thead><tbody>{templateDimensions.flatMap((dimension) => dimension.metrics.map((metric, metricIndex) => <tr key={metric.id}>{metricIndex === 0 ? <td rowSpan={dimension.metrics.length}>{dimension.name}</td> : null}<td>{metric.name}</td><td>{(metric.standards ?? []).map((standard) => <p key={standard.id}><b>{standard.label}（{standard.scoreRange}）</b>：{standard.description}</p>)}</td><td>{metric.weight}%</td></tr>))}</tbody></table></div></section></div> : null}
+        {previewOpen ? <div className="hr-template-suboverlay" onClick={() => setPreviewOpen(false)} role="presentation"><section className="hr-template-preview" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="员工视角绩效考核表预览"><header><div><strong>员工视角 - 绩效考核表预览</strong><span>{draft.department} · {draft.role} · 100 分制</span></div><button aria-label="关闭效果预览" className="icon-btn" onClick={() => setPreviewOpen(false)} type="button"><X size={19} /></button></header><div className="hr-template-preview__body"><div className="hr-template-preview__summary"><b>{draft.name || `${draft.department}${draft.role}绩效模板`}</b><span>{templateDimensions.length} 个维度 · {editableTemplateMetrics.length} 项指标/类别 · 模板权重 {templateWeight}%</span></div><table><thead><tr><th>考核维度</th><th>指标名称</th><th>评定标准与档位要求</th><th>权重/计分方式</th></tr></thead><tbody>{templateDimensions.flatMap((dimension) => dimension.metrics.map((metric, metricIndex) => <tr key={metric.id}>{metricIndex === 0 ? <td rowSpan={dimension.metrics.length}>{dimension.name}</td> : null}<td>{metric.name}</td><td>{dimension.isAdjustment ? <p>{metric.requirement}<br /><b>数据来源：</b>{metric.source}</p> : (metric.standards ?? []).map((standard) => <p key={standard.id}><b>{standard.label}（{standard.scoreRange}）</b>：{standard.description}</p>)}</td><td>{dimension.isAdjustment ? `无权重 · ${metric.minScore ?? -3}～${metric.maxScore ?? 3}分` : `${metric.weight}%`}</td></tr>))}</tbody></table></div></section></div> : null}
         {helpOpen ? <div className="hr-template-suboverlay" onClick={() => setHelpOpen(false)} role="presentation"><section className="hr-template-help" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="绩效模板使用帮助"><header><strong>三级绩效模板使用帮助</strong><button aria-label="关闭使用帮助" className="icon-btn" onClick={() => setHelpOpen(false)} type="button"><X size={19} /></button></header><div><p><b>第一层 · 维度：</b>用于划分考核方向，并汇总其下全部指标权重。</p><p><b>第二层 · 指标：</b>每个维度可配置多个指标名称与独立权重。</p><p><b>第三层 · 评定档位：</b>为每个指标维护档位、得分范围和对应的完成标准。</p></div><button className="primary-btn" onClick={() => setHelpOpen(false)} type="button">知道了</button></section></div> : null}
       </div>
     </div>
@@ -2225,7 +2725,17 @@ function IssuePerformancePage({
     const stamp = Date.now();
     addCategory({ dimensionId: `custom-dimension-${stamp}`, dimensionName: "新增绩效维度", name: "新增绩效指标" });
   };
-  const addIssueMetric = (dimension) => addCategory({ dimensionId: dimension.id, dimensionName: dimension.name, name: "新增绩效指标", origin: dimension.origin === "adjustment" ? "personal" : dimension.origin, type: dimension.origin === "adjustment" ? "weighted" : undefined });
+  const addIssueMetric = (dimension) => addCategory({
+    dimensionId: dimension.id,
+    dimensionName: dimension.name,
+    name: dimension.origin === "adjustment" ? "新增加减分类别" : "新增绩效指标",
+    origin: dimension.origin,
+    type: dimension.origin === "adjustment" ? "adjustment" : undefined,
+    minScore: dimension.origin === "adjustment" ? -3 : undefined,
+    maxScore: dimension.origin === "adjustment" ? 3 : undefined,
+    requirement: dimension.origin === "adjustment" ? "请填写该类别的加分、减分条件及分值边界。" : undefined,
+    source: dimension.origin === "adjustment" ? "被考核人填写的完成情况 / 上级和协作方评价" : undefined,
+  });
   const addIssueStandard = (category) => {
     const stamp = Date.now();
     updateCategory(category.id, "standards", [...(category.standards ?? []), { id: `${category.id}-standard-${stamp}`, label: "新档位", scoreRange: "待设置", description: "请输入该档位的绩效评定标准。" }]);
@@ -2270,11 +2780,15 @@ function IssuePerformancePage({
                 const dimensionWeight = dimension.metrics.filter((metric) => metric.type !== "adjustment").reduce((sum, metric) => sum + Number(metric.weight || 0), 0);
                 const isTemplate = dimension.origin === "template";
                 return <article className="issue-launch-template-dimension" key={`${dimension.origin}-${dimension.id}`}>
-                  <header><span>Part {dimensionIndex + 1}</span><input aria-label={`绩效维度名称：${dimension.name}`} onChange={(event) => updateIssueDimensionName(dimension, event.target.value)} value={dimension.name} /><b>{dimension.origin === "adjustment" ? "独立计分" : `总权重 ${dimensionWeight}%`}</b><small>{isTemplate ? "引用 HR 模板 · 本次可编辑" : dimension.origin === "personal" ? "Leader 本月配置" : "不参与权重校验"}</small><button onClick={() => addIssueMetric(dimension)} type="button">+ 新增指标</button><button className="is-danger" disabled={issueDimensions.length <= 1} onClick={() => removeCategory(dimension.metrics.map((metric) => metric.id))} type="button">删除维度</button></header>
+                  <header className={dimension.origin === "adjustment" ? "is-adjustment" : ""}><span>Part {dimensionIndex + 1}</span><input aria-label={`绩效维度名称：${dimension.name}`} onChange={(event) => updateIssueDimensionName(dimension, event.target.value)} value={dimension.name} /><b>{dimension.origin === "adjustment" ? "无权重 · 总评分 -10～+10" : `总权重 ${dimensionWeight}%`}</b><small>{isTemplate ? "引用 HR 模板 · 本次可编辑" : dimension.origin === "personal" ? "Leader 本月配置" : "不参与权重校验"}</small><button onClick={() => addIssueMetric(dimension)} type="button">{dimension.origin === "adjustment" ? "+ 新增加减分类别" : "+ 新增指标"}</button><button className="is-danger" disabled={dimension.origin === "adjustment" || issueDimensions.length <= 1} onClick={() => removeCategory(dimension.metrics.map((metric) => metric.id))} type="button">删除维度</button></header>
                   <div className="issue-launch-template-dimension__body">
                     {dimension.metrics.map((category, metricIndex) => <section className="issue-launch-template-metric" key={category.id}>
-                      <div className="issue-launch-template-metric__head"><span>指标 {metricIndex + 1}</span><input aria-label={`绩效指标名称：${category.name}`} onChange={(event) => updateCategory(category.id, "name", event.target.value)} value={category.name} />{category.type === "adjustment" ? <b className="issue-launch-independent">独立计分</b> : <label><span>权重</span><div className="issue-launch-stepper"><button onClick={() => adjustWeight(category.id, -5)} type="button">-</button><input aria-label={`绩效指标权重：${category.name}`} max="100" min="0" onChange={(event) => updateCategory(category.id, "weight", Number(event.target.value))} type="number" value={category.weight} /><button onClick={() => adjustWeight(category.id, 5)} type="button">+</button></div></label>}<button className="table-link table-link--danger" disabled={categoryTemplates.length <= 1} onClick={() => removeCategory(category.id)} type="button">删除指标</button></div>
-                      <div className="issue-launch-template-standards"><div><div><strong>绩效描述与评定档位标准</strong><span>已引用 HR 模板，可按本次目标修改</span></div><button onClick={() => addIssueStandard(category)} type="button">+ 新增档位</button></div>{(category.standards ?? []).map((standard, standardIndex) => <div className="issue-launch-template-standard" key={standard.id}><i>{standardIndex + 1}</i><input aria-label={`${category.name}档位名称`} onChange={(event) => updateIssueStandard(category, standard.id, "label", event.target.value)} value={standard.label} /><input aria-label={`${category.name}${standard.label}分数范围`} onChange={(event) => updateIssueStandard(category, standard.id, "scoreRange", event.target.value)} value={standard.scoreRange} /><textarea aria-label={`${category.name}${standard.label}绩效描述`} onChange={(event) => updateIssueStandard(category, standard.id, "description", event.target.value)} rows={2} value={standard.description} /><button aria-label={`删除${category.name}${standard.label}档位`} onClick={() => removeIssueStandard(category, standard.id)} type="button"><X size={14} /></button></div>)}</div>
+                      <div className="issue-launch-template-metric__head"><span>{category.type === "adjustment" ? "类别" : "指标"} {metricIndex + 1}</span><input aria-label={`绩效指标名称：${category.name}`} onChange={(event) => updateCategory(category.id, "name", event.target.value)} value={category.name} />{category.type === "adjustment" ? <b className="issue-launch-independent">独立计分</b> : <label><span>权重</span><div className="issue-launch-stepper"><button onClick={() => adjustWeight(category.id, -5)} type="button">-</button><input aria-label={`绩效指标权重：${category.name}`} max="100" min="0" onChange={(event) => updateCategory(category.id, "weight", Number(event.target.value))} type="number" value={category.weight} /><button onClick={() => adjustWeight(category.id, 5)} type="button">+</button></div></label>}<button className="table-link table-link--danger" disabled={category.type === "adjustment" ? dimension.metrics.length <= 1 : categoryTemplates.length <= 1} onClick={() => removeCategory(category.id)} type="button">删除指标</button></div>
+                      {category.type === "adjustment" ? <div className="issue-launch-adjustment-fields">
+                        <label><span>评定标准</span><textarea aria-label={`${category.name}下发评定标准`} onChange={(event) => updateCategory(category.id, "requirement", event.target.value)} rows={3} value={category.requirement ?? ""} /></label>
+                        <label><span>数据来源</span><textarea aria-label={`${category.name}下发数据来源`} onChange={(event) => updateCategory(category.id, "source", event.target.value)} rows={3} value={category.source ?? ""} /></label>
+                        <div><span>评分范围</span><label>最低分<input aria-label={`${category.name}下发最低分`} max="0" min="-10" onChange={(event) => updateCategory(category.id, "minScore", Number(event.target.value))} type="number" value={category.minScore ?? -3} /></label><label>最高分<input aria-label={`${category.name}下发最高分`} max="10" min="0" onChange={(event) => updateCategory(category.id, "maxScore", Number(event.target.value))} type="number" value={category.maxScore ?? 3} /></label></div>
+                      </div> : <div className="issue-launch-template-standards"><div><div><strong>绩效描述与评定档位标准</strong><span>已引用 HR 模板，可按本次目标修改</span></div><button onClick={() => addIssueStandard(category)} type="button">+ 新增档位</button></div>{(category.standards ?? []).map((standard, standardIndex) => <div className="issue-launch-template-standard" key={standard.id}><i>{standardIndex + 1}</i><input aria-label={`${category.name}档位名称`} onChange={(event) => updateIssueStandard(category, standard.id, "label", event.target.value)} value={standard.label} /><input aria-label={`${category.name}${standard.label}分数范围`} onChange={(event) => updateIssueStandard(category, standard.id, "scoreRange", event.target.value)} value={standard.scoreRange} /><textarea aria-label={`${category.name}${standard.label}绩效描述`} onChange={(event) => updateIssueStandard(category, standard.id, "description", event.target.value)} rows={2} value={standard.description} /><button aria-label={`删除${category.name}${standard.label}档位`} onClick={() => removeIssueStandard(category, standard.id)} type="button"><X size={14} /></button></div>)}</div>}
                     </section>)}
                   </div>
                 </article>;
@@ -2290,7 +2804,8 @@ function IssuePerformancePage({
   );
 }
 
-function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
+export function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
+  const [previewInterviewFile, setPreviewInterviewFile] = useState(null);
   useEffect(() => {
     if (!review?.id) return;
     const scrollContainer = document.querySelector(".app-main");
@@ -2337,6 +2852,10 @@ function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
         </div>
       </section>
 
+      {review.appealStatus !== "无申诉" || review.appealContent || review.appealNote ? (
+        <PerformanceAppealForm mode="readonly" review={review} />
+      ) : null}
+
       <div className="performance-detail-layout">
         <main className="performance-detail-main">
           <section className="performance-detail-section" aria-labelledby="performance-metric-heading">
@@ -2361,12 +2880,29 @@ function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
                     </div>
                     <div className="template-metric-row__scores">
                       <span>{requiresSecondReview(review) ? "两级评分" : "一级评分"}</span>
+                      {row.type === "adjustment" ? <small>一级 {Number(row.firstScore || 0)} · 二级 {requiresSecondReview(review) ? Number(row.secondScore || 0) : "无需"}</small> : null}
                       <div><small>综合</small><strong>{Number(calcRowComposite(row, review).toFixed(1))}</strong></div>
                       <div><small>计入</small><strong>{calcRowScore(row, review)}</strong></div>
                     </div>
                     <div className="template-metric-row__result">
                       <span>员工完成情况</span>
                       <p>{row.selfText || "暂无员工结果录入"}</p>
+                    </div>
+                    <div className="template-metric-row__leader-reviews">
+                      <article aria-label={`${row.label} 一级领导评价`}>
+                        <header>
+                          <div><span>一级领导</span><strong>{review.directLeader || "未配置"}</strong></div>
+                          <b>{row.firstScore === "" || row.firstScore === null || row.firstScore === undefined ? "--" : row.firstScore}<small>{row.firstScore === "" || row.firstScore === null || row.firstScore === undefined ? "" : "分"}</small></b>
+                        </header>
+                        <p>{row.firstComment || "暂无一级领导评语"}</p>
+                      </article>
+                      <article aria-label={`${row.label} 二级领导评价`} className={!requiresSecondReview(review) ? "is-not-required" : ""}>
+                        <header>
+                          <div><span>二级领导</span><strong>{requiresSecondReview(review) ? review.indirectLeader || "未配置" : "无需二级复评"}</strong></div>
+                          <b>{requiresSecondReview(review) ? row.secondScore === "" || row.secondScore === null || row.secondScore === undefined ? "--" : row.secondScore : "无需"}<small>{requiresSecondReview(review) && row.secondScore !== "" && row.secondScore !== null && row.secondScore !== undefined ? "分" : ""}</small></b>
+                        </header>
+                        <p>{requiresSecondReview(review) ? row.secondComment || "暂无二级领导评语" : "该岗位仅需一级领导评分，无二级领导评语。"}</p>
+                      </article>
                     </div>
                   </article>
                 )
@@ -2388,6 +2924,41 @@ function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
               {review.secondReviewConclusion ? <div><dt>二级审核</dt><dd>{review.secondReviewConclusion}</dd></div> : null}
             </dl>
           </section>
+
+          <AdjustmentEvidencePanel
+            files={review.adjustmentEvidenceFiles ?? []}
+            required={validateAdjustmentEvidence(review.rows, review.adjustmentEvidenceFiles, ["firstScore", "secondScore"]).required}
+          />
+
+          {review.scoreConfirmation ? <section className="performance-detail-section score-confirmation-archive" aria-label="绩效成绩确认记录">
+            <header className="performance-detail-section__header">
+              <div><span className="performance-detail-section__icon"><CheckCircle size={18} weight="bold" /></span><div><h2>成绩确认与申诉决定</h2><p>员工最终确认记录</p></div></div>
+            </header>
+            <dl>
+              <div><dt>确认决定</dt><dd>{review.scoreConfirmation.decisionLabel}</dd></div>
+              <div><dt>确认成绩</dt><dd>{review.scoreConfirmation.confirmedScore}分 · {review.scoreConfirmation.confirmedGrade}</dd></div>
+              <div><dt>确认人</dt><dd>{review.scoreConfirmation.signer || review.scoreConfirmation.decidedBy || review.employee}</dd></div>
+              <div><dt>确认时间</dt><dd>{review.scoreConfirmation.signedAt || review.scoreConfirmation.decidedAt || "--"}</dd></div>
+              <div><dt>确认方式</dt><dd>{review.scoreConfirmation.signatureMethod || "--"}</dd></div>
+              <div><dt>签名编号</dt><dd>{review.scoreConfirmation.signatureId || review.scoreConfirmation.signatureStatus || "--"}</dd></div>
+            </dl>
+          </section> : null}
+
+          {review.interviewFormFile ? <section className="appeal-review-file performance-interview-archive" aria-label="已归档的绩效反馈与面谈记录">
+            <div className="appeal-review-file__summary">
+              <FileDoc size={28} weight="duotone" />
+              <div><strong>{review.interviewFormFile.name}</strong><span>反馈与面谈附件 · 归档于 {review.interviewArchivedAt || review.interviewFormFile.uploadedAt || review.lastActionAt}</span></div>
+              <div className="performance-attachment-actions">
+                <button className="secondary-btn" onClick={() => setPreviewInterviewFile(review.interviewFormFile)} type="button"><Eye size={16} />预览附件</button>
+                <a className="secondary-btn" download={review.interviewFormFile.name} href={review.interviewFormFile.dataUrl}><DownloadSimple size={16} />下载附件</a>
+              </div>
+            </div>
+            <dl>
+              <div><dt>归档状态</dt><dd>{review.feedbackStatus || "已归档"}</dd></div>
+              <div><dt>附件格式</dt><dd>{review.interviewFormFile.name.split(".").pop()?.toUpperCase() || "--"}</dd></div>
+              <div><dt>附件大小</dt><dd>{Math.max(1, Math.round(Number(review.interviewFormFile.size || 0) / 1024))} KB</dd></div>
+            </dl>
+          </section> : null}
 
           <section className="performance-version-panel">
             <div className="performance-version-panel__header"><div><strong>绩效目标版本</strong><small>当前生效 V{review.activeTargetVersion ?? 1}</small></div><span>{review.targetVersions?.length || 1} 个版本</span></div>
@@ -2421,6 +2992,7 @@ function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
           ))}
         </div>
       </section>
+      {previewInterviewFile ? <InterviewAttachmentPreview file={previewInterviewFile} onClose={() => setPreviewInterviewFile(null)} /> : null}
     </div>
   );
 }
@@ -2470,6 +3042,7 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
     && review.employee === access.viewerName
     && [REVIEW_STATUS.feedback, REVIEW_STATUS.archived].includes(review.status)
     && review.appealStatus === "无申诉"
+    && !review.scoreConfirmation
   );
   const scopedReviews = useMemo(() => reviews.filter(canViewReview), [reviews, access.viewerName, access.viewMode]);
   const issueCandidates = useMemo(() => scopedReviews.filter(canIssueReview), [scopedReviews, access.viewerName, access.issueMode]);
@@ -2628,9 +3201,9 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
   };
 
   const openAppealEvidence = (review) => {
-    const action = { type: "provide_appeal_evidence", label: "提供原评分依据", nextStatus: review.status };
+    const action = { type: "provide_appeal_evidence", label: "填写用人部门负责人意见", nextStatus: review.status };
     if (!canOperateWorkflow(review, action)) {
-      setActionFeedback("无权限：仅原评分直属Leader可以提供评分依据。");
+      setActionFeedback("无权限：仅该员工的用人部门负责人可以填写此项意见。");
       return;
     }
     setWorkflowDialog({ reviewId: review.id, action, note: "" });
@@ -2705,7 +3278,21 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
     const stamp = Date.now();
     setLeaderTemplateDrafts((current) => ({
       ...current,
-      [activeRoleTemplate.id]: [...categoryTemplates, { id: `custom-${stamp}`, dimensionId: options.dimensionId ?? "personal", dimensionName: options.dimensionName ?? "个人月度重点", name: options.name ?? `个人月度目标${nextIndex}`, weight: 0, requirement: "", standards: createMetricStandards(`personal-${stamp}`), origin: options.origin ?? "personal", mandatory: false, type: options.type ?? "weighted" }],
+      [activeRoleTemplate.id]: [...categoryTemplates, {
+        id: `custom-${stamp}`,
+        dimensionId: options.dimensionId ?? "personal",
+        dimensionName: options.dimensionName ?? "个人月度重点",
+        name: options.name ?? `个人月度目标${nextIndex}`,
+        weight: 0,
+        minScore: options.minScore,
+        maxScore: options.maxScore,
+        requirement: options.requirement ?? "",
+        source: options.source ?? "任务记录 / 绩效填报",
+        standards: options.type === "adjustment" ? [] : createMetricStandards(`personal-${stamp}`),
+        origin: options.origin ?? "personal",
+        mandatory: false,
+        type: options.type ?? "weighted",
+      }],
     }));
   };
   const removeCategory = (categoryId) => {
@@ -2820,6 +3407,31 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
             onSaveAppeal(reviewId, appealDraft);
             setAppealReviewId(null);
           }}
+          onConfirm={(reviewId, signatureRecord) => {
+            const current = reviews.find((item) => item.id === reviewId);
+            if (!current) return;
+            onSave({
+              ...current,
+              appealStatus: "已确认不申诉",
+              scoreConfirmation: signatureRecord,
+              resultVersions: current.resultVersions?.length ? current.resultVersions : [{ version: 1, score: calcScore(current), grade: getGrade(calcScore(current)), status: "已生效", operator: "绩效委员会", actedAt: current.lastActionAt }],
+              version: Number(current.version ?? 1) + 1,
+              operationLogs: [
+                ...(current.operationLogs ?? []),
+                {
+                  id: `${current.id}-log-${(current.operationLogs?.length ?? 0) + 1}`,
+                  action: "确认绩效成绩并扫码签名",
+                  operator: signatureRecord.signer,
+                  actedAt: signatureRecord.signedAt,
+                  note: `员工确认绩效成绩${signatureRecord.confirmedScore}分（${signatureRecord.confirmedGrade}），决定不发起申诉；电子签名编号${signatureRecord.signatureId}。`,
+                  fromStatus: current.status,
+                  toStatus: current.status,
+                },
+              ],
+            });
+            setAppealReviewId(null);
+            setActionFeedback("绩效成绩已确认，扫码签名记录已归档。");
+          }}
         />
       </div>
     );
@@ -2833,7 +3445,7 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
           <div>
             <span className="platform-eyebrow">绩效管理</span>
             <h1>绩效中心</h1>
-            <p>统一管理目标下发、结果填报、多级复审、绩效申诉与归档，并保留完整版本和操作记录。</p>
+            <p>统一管理目标下发、结果填报、多级复审、成绩确认、绩效申诉与归档，并保留完整版本、签名凭证和操作记录。</p>
           </div>
         </div>
         <div className="platform-header__side">
@@ -3010,14 +3622,14 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
                       {action.label}
                     </button>)}
                     {showsLeaderSupport ? <button className="performance-row-action performance-row-action--support" disabled={!canChangeTarget} onClick={() => { if (canChangeTarget) openTargetChange(item); }} type="button">变更目标</button> : null}
-                    {showsLeaderSupport ? <button className="performance-row-action performance-row-action--support" disabled={!canProvideAppealEvidence} onClick={() => { if (canProvideAppealEvidence) openAppealEvidence(item); }} type="button">提供评分依据</button> : null}
+                    {showsLeaderSupport ? <button className="performance-row-action performance-row-action--support" disabled={!canProvideAppealEvidence} onClick={() => { if (canProvideAppealEvidence) openAppealEvidence(item); }} type="button">填写部门负责人意见</button> : null}
                     {showsEmployeeAppeal ? <button
                       className="performance-row-action performance-row-action--appeal"
                       disabled={!canAppeal}
                       onClick={() => { if (canAppeal) setAppealReviewId(item.id); }}
                       type="button"
                     >
-                      发起申诉
+                      成绩确认与申诉
                     </button> : null}
                     <button
                       className="performance-row-action performance-row-action--detail"
@@ -3380,14 +3992,18 @@ function AppContent() {
       const nextLogIndex = (item.operationLogs?.length ?? 0) + 1;
       const assignment = payload.categoriesByReview?.[item.id] ?? { categories: payload.categories };
       const assignedCategories = clonePerformanceCategories(assignment.categories);
+      const issuedRows = materializeTargetRows(assignedCategories);
       return {
         ...item,
         cycle: payload.cycle,
         status: REVIEW_STATUS.employeeConfirm,
         owner: item.employee,
         assignedCategories,
+        rows: issuedRows,
         departmentTemplateId: assignment.templateId ?? null,
         departmentTemplateName: assignment.templateName ?? `${item.department}·${item.role}绩效模板`,
+        roleTemplateId: assignment.templateId ?? item.roleTemplateId,
+        roleTemplateName: assignment.templateName ?? `${item.department}·${item.role}绩效模板`,
         activeTargetVersion: null,
         pendingTargetVersion: 1,
         targetVersions: [{ version: 1, status: "待员工确认", targets: assignedCategories, operator: payload.operator, actedAt: "2026-07-08 10:00", changeReason: `首次下发，引用${assignment.templateName ?? `${item.department}·${item.role}模板`}` }],
@@ -3423,7 +4039,8 @@ function AppContent() {
   };
 
   const saveAppeal = (reviewId, draft) => {
-    if (!draft.file) return;
+    if (!draft.appealContent?.trim() || !draft.appealEvidenceList?.trim()) return;
+    const appealDate = getActionTimestamp();
     setReviews((current) => current.map((item) => (
       item.id === reviewId && activeRole === "employee" && item.employee === roleAccess.employee.viewerName
         ? {
@@ -3431,9 +4048,21 @@ function AppContent() {
             appealStatus: "待HR受理",
             status: REVIEW_STATUS.appealSubmitted,
             owner: "HR-唐宁",
-            appealDate: getActionTimestamp(),
-            appealFormFile: draft.file,
-            appealNote: draft.note.trim(),
+            appealDate,
+            appealContent: draft.appealContent.trim(),
+            appealEvidenceList: draft.appealEvidenceList.trim(),
+            appealReceptionist: "HR-唐宁",
+            appealNote: draft.appealContent.trim(),
+            scoreConfirmation: {
+              decision: "appeal",
+              decisionLabel: "对绩效成绩有异议，发起申诉",
+              decidedBy: item.employee,
+              decidedAt: getActionTimestamp(),
+              confirmedScore: calcScore(item),
+              confirmedGrade: `${getGrade(calcScore(item))}-${getLevelLabel(calcScore(item))}`,
+              signatureMethod: "在线申诉表确认",
+              signatureStatus: "已随在线申诉表归档",
+            },
             resultVersions: item.resultVersions?.length ? item.resultVersions : [{ version: 1, score: calcScore(item), grade: getGrade(calcScore(item)), status: "已生效", operator: "绩效委员会", actedAt: item.lastActionAt }],
             version: Number(item.version ?? 1) + 1,
             operationLogs: [
@@ -3443,7 +4072,7 @@ function AppContent() {
                 action: "发起绩效申诉",
                 operator: roleAccess[activeRole]?.viewerName ?? item.employee,
                 actedAt: getActionTimestamp(),
-                note: draft.note.trim() || `员工已上传并提交绩效申诉表：${draft.file?.name || "绩效申诉表"}。`,
+                note: `员工已在线填写并提交绩效申诉表，证据清单：${draft.appealEvidenceList.trim()}`,
                 fromStatus: item.status,
                 toStatus: REVIEW_STATUS.appealSubmitted,
               },
