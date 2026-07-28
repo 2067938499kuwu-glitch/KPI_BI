@@ -241,6 +241,7 @@ export function applyScriptEpisodeUpload(record, {
     name: file.name,
     size: file.size,
     type: file.type,
+    file: file.file ?? file,
     uploadedAt,
     uploadedBy,
     version: batchVersion,

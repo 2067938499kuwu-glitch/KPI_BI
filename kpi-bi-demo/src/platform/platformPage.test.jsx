@@ -1102,7 +1102,7 @@ describe("KPI_BI 一体化管理平台", () => {
     ).not.toBeNull();
   });
 
-  test("剧本库仅接收 DOCX 并在确认前按集拆分预览", async () => {
+  test("剧本库仅接收 DOCX，拆分预览确认后进入审核并在通过后生成正式版本", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "剧本库" }));
     const scriptRow = screen
@@ -1122,15 +1122,99 @@ describe("KPI_BI 一体化管理平台", () => {
 
     expect(await within(uploadDrawer).findByText("拆分预览")).toBeInTheDocument();
     expect(within(uploadDrawer).getByText("识别 5 集 · 规则识别 · 0 处异常")).toBeInTheDocument();
-    const confirm = within(uploadDrawer).getByRole("button", { name: "确认并立即生效" });
+    const confirm = within(uploadDrawer).getByRole("button", { name: "确认并提交审核" });
     expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
-    expect(within(uploadDrawer).getByText(/拆分内容已立即生效/)).toBeInTheDocument();
+    expect(within(uploadDrawer).getByText(/剧本已提交审核/)).toBeInTheDocument();
 
     fireEvent.click(within(uploadDrawer).getByRole("button", { name: "完成" }));
-    fireEvent.click(within(scriptRow).getByRole("button", { name: "版本" }));
+    const pendingRow = screen
+      .getByText("《无声档案》")
+      .closest(".platform-script-table__row");
+    expect(pendingRow).toHaveTextContent("待审核");
+    expect(within(pendingRow).getByRole("button", { name: "审核" })).toBeEnabled();
+
+    fireEvent.click(within(pendingRow).getByRole("button", { name: "审核" }));
+    const reviewDrawer = screen.getByRole("dialog", { name: "剧本审核" });
+    expect(within(reviewDrawer).getByText("无声档案-第8至12集.docx")).toBeInTheDocument();
+    fireEvent.click(within(reviewDrawer).getByRole("button", { name: "审核通过" }));
+
+    const approvedRow = screen
+      .getByText("《无声档案》")
+      .closest(".platform-script-table__row");
+    expect(approvedRow).toHaveTextContent("审核通过");
+    fireEvent.click(within(approvedRow).getByRole("button", { name: "版本" }));
     const history = screen.getByRole("dialog", { name: "剧本版本记录" });
     expect(within(history).getByText("无声档案-第8至12集.docx")).toBeInTheDocument();
+  });
+
+  test("剧本审核支持填写批注后驳回并反馈到剧本台账", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "剧本库" }));
+    const scriptRow = screen
+      .getByText("《无声档案》")
+      .closest(".platform-script-table__row");
+    fireEvent.click(within(scriptRow).getByRole("button", { name: "更新" }));
+    const uploadDrawer = screen.getByRole("dialog", { name: "上传与管理剧本" });
+    fireEvent.change(within(uploadDrawer).getByLabelText("上传剧本文件"), {
+      target: {
+        files: [new File([
+          "第12集：证词修订\n补充证据链与人物反应。",
+        ], "无声档案-第12集-审核稿.docx", {
+          type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        })],
+      },
+    });
+    expect(await within(uploadDrawer).findByText("拆分预览")).toBeInTheDocument();
+    fireEvent.click(within(uploadDrawer).getByRole("button", { name: "确认并提交审核" }));
+    fireEvent.click(within(uploadDrawer).getByRole("button", { name: "完成" }));
+
+    const pendingRow = screen
+      .getByText("《无声档案》")
+      .closest(".platform-script-table__row");
+    fireEvent.click(within(pendingRow).getByRole("button", { name: "审核" }));
+    const reviewDrawer = screen.getByRole("dialog", { name: "剧本审核" });
+    fireEvent.click(within(reviewDrawer).getByRole("button", { name: "驳回并批注" }));
+    fireEvent.change(within(reviewDrawer).getByLabelText("剧本驳回批注"), {
+      target: { value: "第12集人物动机不足，请补充证词出现前的铺垫。" },
+    });
+    fireEvent.click(within(reviewDrawer).getByRole("button", { name: "确认驳回" }));
+
+    const rejectedRow = screen
+      .getByText("《无声档案》")
+      .closest(".platform-script-table__row");
+    expect(rejectedRow).toHaveTextContent("已驳回");
+  });
+
+  test("审核通过的剧本可申请下载并由 Leader 审批", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /员工个人工作台/ }));
+    fireEvent.click(screen.getByRole("button", { name: "剧本库" }));
+
+    let scriptRow = screen
+      .getByText("《无声档案》")
+      .closest(".platform-script-table__row");
+    fireEvent.click(within(scriptRow).getByRole("button", { name: "申请下载" }));
+    const requestDrawer = screen.getByRole("dialog", { name: "申请下载剧本" });
+    fireEvent.change(within(requestDrawer).getByLabelText("剧本下载用途"), {
+      target: { value: "用于内部制片评审和分镜准备。" },
+    });
+    fireEvent.click(within(requestDrawer).getByRole("button", { name: "提交下载申请" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Leader团队负责人/ }));
+    scriptRow = screen
+      .getByText("《无声档案》")
+      .closest(".platform-script-table__row");
+    fireEvent.click(within(scriptRow).getByRole("button", { name: "审批下载" }));
+    const approvalDrawer = screen.getByRole("dialog", { name: "下载申请审批" });
+    expect(within(approvalDrawer).getByText("用于内部制片评审和分镜准备。")).toBeInTheDocument();
+    fireEvent.click(within(approvalDrawer).getByRole("button", { name: "审批通过" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /员工个人工作台/ }));
+    scriptRow = screen
+      .getByText("《无声档案》")
+      .closest(".platform-script-table__row");
+    expect(within(scriptRow).getByRole("button", { name: "下载" })).toBeEnabled();
   });
 
   test("项目立项表单替换剧本后同步生成剧本库新版本", () => {

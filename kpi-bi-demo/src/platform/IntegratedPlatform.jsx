@@ -1126,12 +1126,31 @@ function hydrateStoredDemoData(stored = {}) {
   const scriptLibrary = [
     ...storedScriptLibrary.map((record) => {
       const seedRecord = base.scriptLibrary.find((item) => item.id === record.id);
-      return { ...seedRecord, ...record };
+      const merged = { ...seedRecord, ...record };
+      return {
+        ...merged,
+        reviewStatus:
+          merged.reviewStatus ??
+          (merged.status === "已退回"
+            ? "已驳回"
+            : merged.uploads?.length
+              ? "已通过"
+              : "未提交"),
+        reviewHistory: merged.reviewHistory ?? [],
+        downloadRequests: merged.downloadRequests ?? [],
+      };
     }),
-    ...base.scriptLibrary.filter(
-      (seedRecord) =>
-        !storedScriptLibrary.some((record) => record.id === seedRecord.id),
-    ),
+    ...base.scriptLibrary
+      .filter(
+        (seedRecord) =>
+          !storedScriptLibrary.some((record) => record.id === seedRecord.id),
+      )
+      .map((seedRecord) => ({
+        ...seedRecord,
+        reviewStatus: seedRecord.uploads?.length ? "已通过" : "未提交",
+        reviewHistory: seedRecord.reviewHistory ?? [],
+        downloadRequests: seedRecord.downloadRequests ?? [],
+      })),
   ];
   return {
     ...base,
@@ -8372,10 +8391,16 @@ function isScriptRecordComplete(record, episodeCount) {
 
 function scriptLibraryStatus(topic, record) {
   if (topic.projectId || record?.projectId) return "已立项";
-  if (record?.status === "已退回") return "已退回";
-  return isScriptRecordComplete(record, topic.estimatedEpisodes)
-    ? "待立项"
-    : "待上传";
+  if (record?.pendingReview) return "待审核";
+  if (record?.reviewStatus === "已驳回" || record?.status === "已退回") return "已驳回";
+  if (
+    isScriptRecordComplete(record, topic.estimatedEpisodes) &&
+    (record?.reviewStatus === "已通过" || (record?.uploads?.length && !record?.reviewStatus))
+  ) {
+    return "审核通过";
+  }
+  if (record?.uploads?.length || record?.episodes?.length) return "待补齐";
+  return "待上传";
 }
 
 function scriptCoverageLabel(record, episodeCount) {
@@ -8558,8 +8583,15 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
   const [previewStrategy, setPreviewStrategy] = useState("");
   const [previewIgnoredPrefix, setPreviewIgnoredPrefix] = useState("");
   const [baselineCardVersions, setBaselineCardVersions] = useState({});
-  const [returning, setReturning] = useState(false);
-  const [returnReason, setReturnReason] = useState("");
+  const [reviewTopicId, setReviewTopicId] = useState(null);
+  const [reviewMode, setReviewMode] = useState("approve");
+  const [reviewComment, setReviewComment] = useState("");
+  const [downloadTopicId, setDownloadTopicId] = useState(null);
+  const [downloadPurpose, setDownloadPurpose] = useState("");
+  const [downloadApprovalTopicId, setDownloadApprovalTopicId] = useState(null);
+  const [downloadApprovalRequestId, setDownloadApprovalRequestId] = useState(null);
+  const [downloadApprovalComment, setDownloadApprovalComment] = useState("");
+  const [downloadFeedback, setDownloadFeedback] = useState("");
   const viewerName = {
     employee: "张小北",
     leader: "江晚",
@@ -8567,12 +8599,21 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
     ceo: "CEO",
   }[activeRole];
   const canInitiate = ["leader", "ceo"].includes(activeRole);
+  const canReviewScript = ["leader", "ceo"].includes(activeRole);
+  const canApproveDownload = ["leader", "ceo"].includes(activeRole);
   const canUploadTopic = (topic) =>
     ["leader", "ceo"].includes(activeRole) || topic.submitter === viewerName;
 
   const approvedTopics = topics.filter((topic) => topic.status === "已评估");
   const recordForTopic = (topicId) =>
     scriptLibrary.find((record) => record.topicId === topicId);
+  const isApprovedScript = (topic, record) =>
+    Boolean(
+      record &&
+      !record.pendingReview &&
+      isScriptRecordComplete(record, topic.estimatedEpisodes) &&
+      (record.reviewStatus === "已通过" || (record.uploads?.length && !record.reviewStatus)),
+    );
   const selectedTopic = approvedTopics.find(
     (topic) => topic.id === selectedTopicId,
   );
@@ -8583,6 +8624,19 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
     (topic) => topic.id === historyTopicId,
   );
   const historyRecord = historyTopic ? recordForTopic(historyTopic.id) : null;
+  const reviewTopic = approvedTopics.find((topic) => topic.id === reviewTopicId);
+  const reviewRecord = reviewTopic ? recordForTopic(reviewTopic.id) : null;
+  const downloadTopic = approvedTopics.find((topic) => topic.id === downloadTopicId);
+  const downloadRecord = downloadTopic ? recordForTopic(downloadTopic.id) : null;
+  const downloadApprovalTopic = approvedTopics.find(
+    (topic) => topic.id === downloadApprovalTopicId,
+  );
+  const downloadApprovalRecord = downloadApprovalTopic
+    ? recordForTopic(downloadApprovalTopic.id)
+    : null;
+  const downloadApprovalRequest = downloadApprovalRecord?.downloadRequests?.find(
+    (request) => request.id === downloadApprovalRequestId,
+  );
   const projectCodeFor = (topic, record) => {
     const projectId = topic.projectId || record?.projectId;
     return projects.find((project) => project.id === projectId)?.projectCode ?? projectId;
@@ -8607,13 +8661,20 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
     return matchesQuery && matchesStatus;
   });
   const completeCount = rows.filter(({ topic, record }) =>
-    isScriptRecordComplete(record, topic.estimatedEpisodes),
+    isApprovedScript(topic, record),
   ).length;
+  const pendingDownloadCount = rows.reduce(
+    (total, { record }) =>
+      total +
+      (record?.downloadRequests ?? []).filter((request) => request.status === "待审批").length,
+    0,
+  );
   const statusTabs = [
     { id: "all", label: "全部", count: rows.length },
     { id: "待上传", label: "待上传", count: rows.filter((row) => row.status === "待上传").length },
-    { id: "待立项", label: "待立项", count: rows.filter((row) => row.status === "待立项").length },
-    { id: "已退回", label: "已退回", count: rows.filter((row) => row.status === "已退回").length },
+    { id: "待审核", label: "待审核", count: rows.filter((row) => row.status === "待审核").length },
+    { id: "已驳回", label: "已驳回", count: rows.filter((row) => row.status === "已驳回").length },
+    { id: "审核通过", label: "审核通过", count: rows.filter((row) => row.status === "审核通过").length },
     { id: "已立项", label: "已立项", count: rows.filter((row) => row.status === "已立项").length },
   ];
 
@@ -8626,8 +8687,6 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
     setPreviewStrategy("");
     setPreviewIgnoredPrefix("");
     setBaselineCardVersions({});
-    setReturning(false);
-    setReturnReason("");
   };
   const openUploader = (topic) => {
     setSelectedTopicId(topic.id);
@@ -8638,8 +8697,6 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
     setPreviewStrategy("");
     setPreviewIgnoredPrefix("");
     setBaselineCardVersions({});
-    setReturning(false);
-    setReturnReason("");
   };
   const selectUploadFile = async (file) => {
     if (!file) return;
@@ -8713,24 +8770,38 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
     }).format(new Date()).replaceAll("/", "-");
     setUploadStage("saving");
     setScriptLibrary((records) => {
+      const recordId =
+        existing?.id ?? `SCRIPT-LIB-${selectedTopic.id.replace("TOPIC-", "")}`;
+      const pendingReview = {
+        id: `${recordId}-REVIEW-${Date.now()}`,
+        submittedAt: uploadedAt,
+        submittedBy: viewerName,
+        status: "待审核",
+        file: {
+          name: uploadFile.name,
+          size: uploadFile.size,
+          type: uploadFile.type,
+          file: uploadFile,
+        },
+        episodes: previewEpisodes.map((episode) => ({ ...episode })),
+        baselineCardVersions: { ...baselineCardVersions },
+      };
       if (!existing) {
-        const id = `SCRIPT-LIB-${selectedTopic.id.replace("TOPIC-", "")}`;
-        const nextRecord = applyScriptEpisodeUpload({
-          id,
+        const nextRecord = {
+          id: recordId,
           topicId: selectedTopic.id,
-          status: "待立项",
+          status: "待审核",
           projectId: null,
           returnedReason: "",
           uploads: [],
           episodes: [],
           cardVersions: [],
-        }, {
-          episodeTotal: selectedTopic.estimatedEpisodes,
-          episodes: previewEpisodes,
-          file: uploadFile,
-          uploadedAt,
-          uploadedBy: viewerName,
-        });
+          reviewStatus: "待审核",
+          reviewHistory: [],
+          downloadRequests: [],
+          pendingReview,
+          updatedAt: uploadedAt,
+        };
         return [
           ...records,
           nextRecord,
@@ -8738,17 +8809,15 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
       }
       return records.map((record) =>
         record.topicId === selectedTopic.id
-          ? applyScriptEpisodeUpload({
+          ? {
               ...record,
-              status: "待立项",
+              status: "待审核",
+              reviewStatus: "待审核",
               returnedReason: "",
-            }, {
-              episodeTotal: selectedTopic.estimatedEpisodes,
-              episodes: previewEpisodes,
-              file: uploadFile,
               uploadedAt,
-              uploadedBy: viewerName,
-            })
+              updatedAt: uploadedAt,
+              pendingReview,
+            }
           : record,
       );
     });
@@ -8756,24 +8825,218 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
     setUploadError("");
     setUploadStage("success");
   };
-  const returnScript = () => {
-    if (!selectedTopic || !returnReason.trim()) return;
-    const existing = recordForTopic(selectedTopic.id);
-    if (!existing) return;
+  const actionTimestamp = () =>
+    new Intl.DateTimeFormat("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date()).replaceAll("/", "-");
+  const openScriptReview = (topic) => {
+    setReviewTopicId(topic.id);
+    setReviewMode("approve");
+    setReviewComment("");
+  };
+  const approveScriptReview = () => {
+    const pending = reviewRecord?.pendingReview;
+    if (!reviewTopic || !pending) return;
+    if (hasScriptCardConflict(reviewRecord, pending.baselineCardVersions)) {
+      setReviewComment("当前正式剧本已在提交后发生变化，请驳回并由提交人重新生成预览。");
+      setReviewMode("reject");
+      return;
+    }
+    const reviewedAt = actionTimestamp();
+    setScriptLibrary((records) =>
+      records.map((record) => {
+        if (record.topicId !== reviewTopic.id || !record.pendingReview) return record;
+        const submission = record.pendingReview;
+        const applied = applyScriptEpisodeUpload(
+          {
+            ...record,
+            pendingReview: null,
+          },
+          {
+            episodeTotal: reviewTopic.estimatedEpisodes,
+            episodes: submission.episodes,
+            file: submission.file,
+            uploadedAt: submission.submittedAt,
+            uploadedBy: submission.submittedBy,
+          },
+        );
+        return {
+          ...applied,
+          status: "审核通过",
+          reviewStatus: "已通过",
+          returnedReason: "",
+          pendingReview: null,
+          lastReviewComment: reviewComment.trim(),
+          reviewHistory: [
+            ...(record.reviewHistory ?? []),
+            {
+              id: `${submission.id}-RESULT`,
+              submissionId: submission.id,
+              decision: "通过",
+              comment: reviewComment.trim(),
+              reviewedAt,
+              reviewedBy: viewerName,
+              submittedAt: submission.submittedAt,
+              submittedBy: submission.submittedBy,
+              fileName: submission.file.name,
+            },
+          ],
+        };
+      }),
+    );
+    setReviewTopicId(null);
+    setReviewComment("");
+  };
+  const rejectScriptReview = () => {
+    const pending = reviewRecord?.pendingReview;
+    if (!reviewTopic || !pending || !reviewComment.trim()) return;
+    const reviewedAt = actionTimestamp();
     setScriptLibrary((records) =>
       records.map((record) =>
-        record.topicId === selectedTopic.id
+        record.topicId === reviewTopic.id && record.pendingReview
           ? {
               ...record,
-              status: "已退回",
-              returnedReason: returnReason.trim(),
-              updatedAt: "2026-07-21 16:35",
+              status: "已驳回",
+              reviewStatus: "已驳回",
+              returnedReason: reviewComment.trim(),
+              lastRejectedSubmission: {
+                ...record.pendingReview,
+                rejectedAt: reviewedAt,
+                rejectedBy: viewerName,
+                comment: reviewComment.trim(),
+              },
+              pendingReview: null,
+              updatedAt: reviewedAt,
+              reviewHistory: [
+                ...(record.reviewHistory ?? []),
+                {
+                  id: `${record.pendingReview.id}-RESULT`,
+                  submissionId: record.pendingReview.id,
+                  decision: "驳回",
+                  comment: reviewComment.trim(),
+                  reviewedAt,
+                  reviewedBy: viewerName,
+                  submittedAt: record.pendingReview.submittedAt,
+                  submittedBy: record.pendingReview.submittedBy,
+                  fileName: record.pendingReview.file.name,
+                },
+              ],
             }
           : record,
       ),
     );
-    setReturning(false);
-    setReturnReason("");
+    setReviewTopicId(null);
+    setReviewComment("");
+  };
+  const openDownloadRequest = (topic) => {
+    if (!isApprovedScript(topic, recordForTopic(topic.id))) return;
+    setDownloadTopicId(topic.id);
+    setDownloadPurpose("");
+  };
+  const submitDownloadRequest = () => {
+    if (!downloadTopic || !downloadRecord || !downloadPurpose.trim()) return;
+    const requestedAt = actionTimestamp();
+    setScriptLibrary((records) =>
+      records.map((record) =>
+        record.topicId === downloadTopic.id
+          ? {
+              ...record,
+              downloadRequests: [
+                ...(record.downloadRequests ?? []),
+                {
+                  id: `${record.id}-DOWNLOAD-${Date.now()}`,
+                  applicant: viewerName,
+                  purpose: downloadPurpose.trim(),
+                  status: "待审批",
+                  requestedAt,
+                  approver: "",
+                  approvalComment: "",
+                  decidedAt: "",
+                },
+              ],
+            }
+          : record,
+      ),
+    );
+    setDownloadTopicId(null);
+    setDownloadPurpose("");
+    setDownloadFeedback(`“${downloadTopic.name}”下载申请已提交，等待审批。`);
+  };
+  const openDownloadApproval = (topic, request) => {
+    setDownloadApprovalTopicId(topic.id);
+    setDownloadApprovalRequestId(request.id);
+    setDownloadApprovalComment("");
+  };
+  const decideDownloadRequest = (decision) => {
+    if (
+      !downloadApprovalTopic ||
+      !downloadApprovalRequest ||
+      (decision === "已驳回" && !downloadApprovalComment.trim())
+    ) {
+      return;
+    }
+    const decidedAt = actionTimestamp();
+    setScriptLibrary((records) =>
+      records.map((record) =>
+        record.topicId === downloadApprovalTopic.id
+          ? {
+              ...record,
+              downloadRequests: (record.downloadRequests ?? []).map((request) =>
+                request.id === downloadApprovalRequest.id
+                  ? {
+                      ...request,
+                      status: decision,
+                      approver: viewerName,
+                      approvalComment: downloadApprovalComment.trim(),
+                      decidedAt,
+                    }
+                  : request,
+              ),
+            }
+          : record,
+      ),
+    );
+    setDownloadApprovalTopicId(null);
+    setDownloadApprovalRequestId(null);
+    setDownloadApprovalComment("");
+    setDownloadFeedback(
+      `“${downloadApprovalTopic.name}”的下载申请已${decision === "已通过" ? "通过" : "驳回"}。`,
+    );
+  };
+  const downloadApprovedScript = (topic, record) => {
+    const approvedRequest = [...(record?.downloadRequests ?? [])]
+      .reverse()
+      .find((request) => request.applicant === viewerName && request.status === "已通过");
+    if (!approvedRequest) return;
+    const latest = latestScriptUpload(record);
+    const storedFile =
+      typeof Blob !== "undefined" && latest?.file instanceof Blob
+        ? latest.file
+        : null;
+    const fallbackText = (record?.episodes ?? [])
+      .map(
+        (episode) =>
+          `第${episode.episodeNo}集：${episode.title}\n${episode.content}`,
+      )
+      .join("\n\n");
+    const blob = storedFile ?? new Blob([fallbackText], { type: "text/plain;charset=utf-8" });
+    const fileName = storedFile
+      ? latest.name
+      : `${topic.name.replace(/[《》]/g, "")}-审核通过版.txt`;
+    if (typeof URL.createObjectURL === "function") {
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(href);
+    }
+    setDownloadFeedback(`“${topic.name}”已通过审批，下载文件 ${fileName} 已生成。`);
   };
   const initiateProject = (topic) => {
     beginProjectInitiation(topic.id);
@@ -8793,7 +9056,7 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
     { label: "状态", width: "88px" },
     { label: "关联项目", width: "minmax(170px, 1fr)" },
     { label: "更新时间", width: "135px" },
-    { label: "操作", width: "188px" },
+    { label: "操作", width: "248px" },
   ];
   const tableGrid = tableColumns.map((column) => column.width).join(" ");
 
@@ -8802,21 +9065,26 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
       <PlatformHeader
         eyebrow="内容与项目"
         title="剧本库"
-        description="承接评估通过的选题，将 DOCX 自动拆分为单集，并按每 10 集的“一卡”逻辑范围保留只读历史版本。"
+        description="承接评估通过的选题，完成 DOCX 拆集预览、剧本审核与下载申请审批，全程保留版本和处理意见。"
       />
       <PlatformMetrics
         items={[
           { label: "入库选题", value: rows.length, unit: "个", meta: "评估通过后自动进入", tone: "blue" },
-          { label: "剧本已完整", value: completeCount, unit: "个", meta: "整部或分集齐全", tone: "green" },
+          { label: "审核通过", value: completeCount, unit: "个", meta: "可立项、可申请下载", tone: "green" },
           { label: "待上传", value: rows.filter((row) => row.status === "待上传").length, unit: "个", meta: "等待提交人或编剧", tone: "amber" },
-          { label: "待立项", value: rows.filter((row) => row.status === "待立项").length, unit: "个", meta: "可跳转项目管理", tone: "purple" },
-          { label: "已退回", value: rows.filter((row) => row.status === "已退回").length, unit: "个", meta: "保留原因与版本", tone: "red" },
-          { label: "已立项", value: rows.filter((row) => row.status === "已立项").length, unit: "个", meta: "永久保留关联", tone: "cyan" },
+          { label: "待审核", value: rows.filter((row) => row.status === "待审核").length, unit: "个", meta: "等待 Leader / CEO", tone: "purple" },
+          { label: "下载待审批", value: pendingDownloadCount, unit: "个", meta: "审核通过版本", tone: "cyan" },
+          { label: "已驳回", value: rows.filter((row) => row.status === "已驳回").length, unit: "个", meta: "批注已反馈提交人", tone: "red" },
         ]}
       />
+      {downloadFeedback ? (
+        <div className="platform-access-feedback" role="status">
+          {downloadFeedback}
+        </div>
+      ) : null}
       <PlatformCard
         title="选题剧本台账"
-        description={`共 ${visibleRows.length} 条结果 · 按集更新，确认后立即生效`}
+        description={`共 ${visibleRows.length} 条结果 · 上传确认后进入审核，通过后才写入正式版本`}
       >
         <PlatformFilter
           actions={
@@ -8855,11 +9123,20 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
         </div>
         <DataTable
           columns={tableColumns}
-          minWidth={1420}
+          minWidth={1510}
           className="platform-script-table platform-table--single-line"
         >
-          {visibleRows.length ? visibleRows.map(({ topic, record, status, latest }) => (
-            <div
+          {visibleRows.length ? visibleRows.map(({ topic, record, status, latest }) => {
+            const ownDownloadRequests = (record?.downloadRequests ?? []).filter(
+              (request) => request.applicant === viewerName,
+            );
+            const latestOwnDownloadRequest = ownDownloadRequests.at(-1);
+            const pendingApprovalRequest = (record?.downloadRequests ?? []).find(
+              (request) => request.status === "待审批" && request.applicant !== viewerName,
+            );
+            const canUseApprovedScript = isApprovedScript(topic, record);
+            return (
+              <div
               className="platform-table__row platform-script-table__row"
               key={topic.id}
               style={{ gridTemplateColumns: tableGrid }}
@@ -8878,8 +9155,16 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
                 <small>{(record?.uploads ?? []).length} 次上传</small>
               </div>
               <div className="platform-table-inline-cell">
-                <span>{latest ? `V${String(latest.version).padStart(2, "0")} · ${latest.name}` : "—"}</span>
-                <small>{latest ? (
+                <span>
+                  {record?.pendingReview
+                    ? `待审 · ${record.pendingReview.file.name}`
+                    : latest
+                      ? `V${String(latest.version).padStart(2, "0")} · ${latest.name}`
+                      : "—"}
+                </span>
+                <small>{record?.pendingReview ? (
+                  `${record.pendingReview.episodes.length} 集 · ${record.pendingReview.submittedBy} 已提交`
+                ) : latest ? (
                   latest.scope === "full"
                     ? "历史整部文件"
                     : latest.scope === "episode"
@@ -8887,7 +9172,7 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
                       : `${latest.episodeNos?.length ?? 0} 集拆分确认`
                 ) : "等待上传"}</small>
               </div>
-              <PlatformBadge tone={status === "待立项" ? "primary" : status === "已立项" ? "success" : status === "已退回" ? "warning" : "neutral"}>
+              <PlatformBadge tone={status === "待审核" ? "primary" : ["审核通过", "已立项"].includes(status) ? "success" : status === "已驳回" ? "warning" : "neutral"}>
                 {status}
               </PlatformBadge>
               <div className="platform-table-inline-cell">
@@ -8902,9 +9187,20 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
               </div>
               <span>{record?.updatedAt ?? topic.updatedAt}</span>
               <div className="platform-script-table__actions">
-                <button className="platform-topic-row-action is-quiet" disabled={!canUploadTopic(topic)} onClick={() => openUploader(topic)} type="button">
-                  {record?.uploads?.length ? "更新" : "上传"}
-                </button>
+                {record?.pendingReview ? (
+                  <button
+                    className="platform-topic-row-action"
+                    disabled={!canReviewScript}
+                    onClick={() => openScriptReview(topic)}
+                    type="button"
+                  >
+                    {canReviewScript ? "审核" : "审核中"}
+                  </button>
+                ) : (
+                  <button className="platform-topic-row-action is-quiet" disabled={!canUploadTopic(topic)} onClick={() => openUploader(topic)} type="button">
+                    {record?.uploads?.length ? "更新" : "上传"}
+                  </button>
+                )}
                 {canUploadTopic(topic) ? (
                   <button className="platform-topic-row-action is-quiet" onClick={() => setHistoryTopicId(topic.id)} type="button">
                     版本
@@ -8912,15 +9208,46 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
                 ) : null}
                 <button
                   className="platform-topic-row-action"
-                  disabled={status !== "待立项" || !canInitiate}
+                  disabled={status !== "审核通过" || !canInitiate}
                   onClick={() => initiateProject(topic)}
                   type="button"
                 >
                   立项
                 </button>
+                {canApproveDownload && pendingApprovalRequest ? (
+                  <button
+                    className="platform-topic-row-action"
+                    onClick={() => openDownloadApproval(topic, pendingApprovalRequest)}
+                    type="button"
+                  >
+                    审批下载
+                  </button>
+                ) : latestOwnDownloadRequest?.status === "已通过" ? (
+                  <button
+                    className="platform-topic-row-action"
+                    onClick={() => downloadApprovedScript(topic, record)}
+                    type="button"
+                  >
+                    下载
+                  </button>
+                ) : latestOwnDownloadRequest?.status === "待审批" ? (
+                  <button className="platform-topic-row-action is-quiet" disabled type="button">
+                    申请审批中
+                  </button>
+                ) : (
+                  <button
+                    className="platform-topic-row-action is-quiet"
+                    disabled={!canUseApprovedScript}
+                    onClick={() => openDownloadRequest(topic)}
+                    type="button"
+                  >
+                    {latestOwnDownloadRequest?.status === "已驳回" ? "重新申请" : "申请下载"}
+                  </button>
+                )}
               </div>
-            </div>
-          )) : (
+              </div>
+            );
+          }) : (
             <PlatformEmpty
               title="暂无匹配剧本"
               description="评估通过的选题会自动进入剧本库。"
@@ -8935,19 +9262,14 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
           subtitle={`${selectedTopic.name} · ${selectedTopic.id} · ${selectedTopic.estimatedEpisodes} 集`}
           onClose={closeUploader}
           footer={
-            returning ? (
-              <>
-                <button className="ghost-chip" onClick={() => setReturning(false)} type="button">取消退回</button>
-                <button className="platform-danger-btn" disabled={!returnReason.trim()} onClick={returnScript} type="button">确认退回修改</button>
-              </>
-            ) : uploadStage === "preview" ? (
+            uploadStage === "preview" ? (
               <>
                 <button className="ghost-chip" onClick={() => {
                   setUploadFile(null);
                   setPreviewEpisodes([]);
                   setUploadStage("idle");
                 }} type="button">取消本次上传</button>
-                <button className="primary-btn" disabled={Boolean(previewIssues.length)} onClick={saveUpload} type="button">确认并立即生效</button>
+                <button className="primary-btn" disabled={Boolean(previewIssues.length)} onClick={saveUpload} type="button">确认并提交审核</button>
               </>
             ) : uploadStage === "saving" ? (
               <button className="primary-btn" disabled type="button">正在保存…</button>
@@ -8960,13 +9282,10 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
               </>
             ) : (
               <>
-                {selectedComplete && !selectedTopic.projectId && canInitiate ? (
-                  <button className="ghost-chip" onClick={() => setReturning(true)} type="button">退回修改</button>
-                ) : null}
                 <button className="ghost-chip" onClick={closeUploader} type="button">关闭</button>
                 <button
                   className="primary-btn"
-                  disabled={!canInitiate || !selectedComplete || Boolean(selectedTopic.projectId) || selectedRecord?.status === "已退回"}
+                  disabled={!canInitiate || !selectedComplete || Boolean(selectedTopic.projectId) || scriptLibraryStatus(selectedTopic, selectedRecord) !== "审核通过"}
                   onClick={() => initiateProject(selectedTopic)}
                   type="button"
                 >
@@ -8981,14 +9300,18 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
             <span><FileText size={24} weight="duotone" /></span>
             <div>
               <PlatformBadge tone={selectedComplete ? "success" : "warning"}>
-                {selectedComplete ? "剧本已完整" : "剧本待补齐"}
+                {selectedRecord?.pendingReview
+                  ? "剧本待审核"
+                  : selectedComplete
+                    ? "正式剧本已完整"
+                    : "剧本待补齐"}
               </PlatformBadge>
               <h3>{selectedTopic.name}</h3>
               <p>{selectedTopic.genre} · {selectedTopic.estimatedEpisodes} 集 · 上传人 {selectedTopic.submitter}</p>
             </div>
           </div>
           <PlatformNotice>
-            仅支持 DOCX。系统先按“第 X 集”标题拆分，无法确定时使用 AI 辅助；预览确认前不会写入正式剧本。
+            仅支持 DOCX。系统先按“第 X 集”标题拆分，无法确定时使用 AI 辅助；确认后先进入审核，审核通过才写入正式剧本。
           </PlatformNotice>
           <section className="platform-script-upload-panel">
             <div className="platform-project-form__heading">
@@ -9051,18 +9374,10 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
             </section>
           ) : null}
           {uploadStage === "success" ? (
-            <PlatformNotice tone="success">拆分内容已立即生效；每个受影响的“一卡”范围均已生成一条只读历史版本。</PlatformNotice>
+            <PlatformNotice tone="success">剧本已提交审核；审核通过后才会覆盖匹配集数，并为受影响的每个“一卡”范围生成只读历史版本。</PlatformNotice>
           ) : null}
           {selectedRecord?.returnedReason ? (
             <PlatformNotice tone="warning">最近退回原因：{selectedRecord.returnedReason}</PlatformNotice>
-          ) : null}
-          {returning ? (
-            <section className="platform-decision-box">
-              <label>
-                <span>退回原因 <b>*</b></span>
-                <textarea aria-label="剧本退回原因" onChange={(event) => setReturnReason(event.target.value)} placeholder="请填写需要修改的具体内容" rows={4} value={returnReason} />
-              </label>
-            </section>
           ) : null}
           <section className="platform-script-current">
             <div className="platform-section-heading">
@@ -9075,7 +9390,172 @@ export function ScriptLibraryPage({ activeRole = "ceo", goPage }) {
               <div><span>最新文件</span><strong>{latestScriptUpload(selectedRecord)?.name ?? "尚未上传"}</strong></div>
               <div><span>更新时间</span><strong>{selectedRecord?.updatedAt ?? "—"}</strong></div>
             </div>
+            {(selectedRecord?.reviewHistory ?? []).length ? (
+              <div className="platform-script-review-history">
+                <div className="platform-section-heading">
+                  <div><h3>审核记录</h3><p>保留每次提交的结论、处理人和批注意见。</p></div>
+                </div>
+                {[...(selectedRecord.reviewHistory ?? [])].reverse().map((item) => (
+                  <article key={item.id}>
+                    <PlatformBadge tone={item.decision === "通过" ? "success" : "warning"}>
+                      {item.decision}
+                    </PlatformBadge>
+                    <div>
+                      <strong>{item.fileName}</strong>
+                      <span>{item.reviewedAt} · {item.reviewedBy}</span>
+                      <p>{item.comment || "审核通过，未填写补充意见。"}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </section>
+        </PlatformDrawer>
+      ) : null}
+      {reviewTopic && reviewRecord?.pendingReview ? (
+        <PlatformDrawer
+          wide
+          title="剧本审核"
+          subtitle={`${reviewTopic.name} · ${reviewRecord.pendingReview.file.name}`}
+          onClose={() => setReviewTopicId(null)}
+          footer={
+            <>
+              <button className="ghost-chip" onClick={() => setReviewTopicId(null)} type="button">
+                取消
+              </button>
+              <button
+                className="platform-danger-btn"
+                disabled={reviewMode === "reject" && !reviewComment.trim()}
+                onClick={() => {
+                  if (reviewMode !== "reject") {
+                    setReviewMode("reject");
+                    return;
+                  }
+                  rejectScriptReview();
+                }}
+                type="button"
+              >
+                {reviewMode === "reject" ? "确认驳回" : "驳回并批注"}
+              </button>
+              <button className="primary-btn" onClick={approveScriptReview} type="button">
+                审核通过
+              </button>
+            </>
+          }
+        >
+          <div className="platform-detail-hero platform-script-hero">
+            <span><ShieldCheck size={24} weight="duotone" /></span>
+            <div>
+              <PlatformBadge tone="primary">待审核</PlatformBadge>
+              <h3>{reviewTopic.name}</h3>
+              <p>
+                {reviewRecord.pendingReview.submittedBy} 提交于 {reviewRecord.pendingReview.submittedAt}
+              </p>
+            </div>
+          </div>
+          <section className="platform-script-review-summary">
+            <div><span>文件</span><strong>{reviewRecord.pendingReview.file.name}</strong></div>
+            <div><span>文件大小</span><strong>{formatContractSize(reviewRecord.pendingReview.file.size)}</strong></div>
+            <div><span>本次识别</span><strong>{reviewRecord.pendingReview.episodes.length} 集</strong></div>
+            <div><span>影响范围</span><strong>{getAffectedScriptCards(reviewRecord.pendingReview.episodes).length} 个“一卡”范围</strong></div>
+          </section>
+          <section className="platform-script-preview platform-script-review-preview">
+            <div className="platform-section-heading">
+              <div>
+                <h3>提交内容</h3>
+                <p>审核通过后仅覆盖本次列出的集数，其余正式剧本保持不变。</p>
+              </div>
+              <PlatformBadge tone="neutral">只读预览</PlatformBadge>
+            </div>
+            <div className="platform-script-preview-list">
+              {reviewRecord.pendingReview.episodes.map((episode) => (
+                <article key={`${reviewRecord.pendingReview.id}-${episode.episodeNo}`}>
+                  <div className="platform-script-review-episode-title">
+                    <strong>第 {episode.episodeNo} 集 · {episode.title}</strong>
+                    <PlatformBadge tone="neutral">{episode.detectedBy}</PlatformBadge>
+                  </div>
+                  <p>{episode.content}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section className={`platform-script-review-comment ${reviewMode === "reject" ? "is-required" : ""}`}>
+            <label>
+              <span>{reviewMode === "reject" ? "驳回批注 *" : "审核意见（选填）"}</span>
+              <textarea
+                aria-label={reviewMode === "reject" ? "剧本驳回批注" : "剧本审核意见"}
+                onChange={(event) => setReviewComment(event.target.value)}
+                placeholder={reviewMode === "reject" ? "请明确指出需要修改的集数、位置和建议" : "可填写审核通过说明"}
+                rows={4}
+                value={reviewComment}
+              />
+            </label>
+            {reviewMode === "reject" ? <small>驳回批注会同步给提交人，并保留在审核记录中。</small> : null}
+          </section>
+        </PlatformDrawer>
+      ) : null}
+      {downloadTopic && downloadRecord ? (
+        <PlatformDrawer
+          title="申请下载剧本"
+          subtitle={`${downloadTopic.name} · 当前正式审核通过版本`}
+          onClose={() => setDownloadTopicId(null)}
+          footer={
+            <>
+              <button className="ghost-chip" onClick={() => setDownloadTopicId(null)} type="button">取消</button>
+              <button className="primary-btn" disabled={!downloadPurpose.trim()} onClick={submitDownloadRequest} type="button">提交下载申请</button>
+            </>
+          }
+        >
+          <PlatformNotice>
+            下载申请只对应当前审核通过版本；后续剧本更新不会自动扩大本次授权范围。
+          </PlatformNotice>
+          <section className="platform-script-download-card">
+            <div><span>剧本</span><strong>{downloadTopic.name}</strong></div>
+            <div><span>当前文件</span><strong>{latestScriptUpload(downloadRecord)?.name ?? "结构化剧本"}</strong></div>
+            <div><span>申请人</span><strong>{viewerName}</strong></div>
+            <div><span>审批人</span><strong>Leader / CEO</strong></div>
+          </section>
+          <label className="platform-script-download-purpose">
+            <span>下载用途 <b>*</b></span>
+            <textarea
+              aria-label="剧本下载用途"
+              onChange={(event) => setDownloadPurpose(event.target.value)}
+              placeholder="请说明使用场景、接收对象及必要性"
+              rows={5}
+              value={downloadPurpose}
+            />
+          </label>
+        </PlatformDrawer>
+      ) : null}
+      {downloadApprovalTopic && downloadApprovalRequest ? (
+        <PlatformDrawer
+          title="下载申请审批"
+          subtitle={`${downloadApprovalTopic.name} · ${downloadApprovalRequest.applicant}`}
+          onClose={() => setDownloadApprovalTopicId(null)}
+          footer={
+            <>
+              <button className="ghost-chip" onClick={() => setDownloadApprovalTopicId(null)} type="button">取消</button>
+              <button className="platform-danger-btn" disabled={!downloadApprovalComment.trim()} onClick={() => decideDownloadRequest("已驳回")} type="button">驳回申请</button>
+              <button className="primary-btn" onClick={() => decideDownloadRequest("已通过")} type="button">审批通过</button>
+            </>
+          }
+        >
+          <section className="platform-script-download-card">
+            <div><span>申请人</span><strong>{downloadApprovalRequest.applicant}</strong></div>
+            <div><span>申请时间</span><strong>{downloadApprovalRequest.requestedAt}</strong></div>
+            <div className="is-wide"><span>下载用途</span><strong>{downloadApprovalRequest.purpose}</strong></div>
+            <div><span>正式版本</span><strong>{latestScriptUpload(downloadApprovalRecord)?.name ?? "结构化剧本"}</strong></div>
+          </section>
+          <label className="platform-script-download-purpose">
+            <span>审批意见{downloadApprovalComment.trim() ? "" : "（驳回时必填）"}</span>
+            <textarea
+              aria-label="下载审批意见"
+              onChange={(event) => setDownloadApprovalComment(event.target.value)}
+              placeholder="通过可选填，驳回请说明原因"
+              rows={5}
+              value={downloadApprovalComment}
+            />
+          </label>
         </PlatformDrawer>
       ) : null}
       {historyTopic ? (

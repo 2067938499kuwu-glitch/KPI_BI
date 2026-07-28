@@ -21870,8 +21870,167 @@ button.platform-metric:hover {
 
 .platform-script-table__actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
+}
+
+.platform-script-review-summary,
+.platform-script-download-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.platform-script-review-summary > div,
+.platform-script-download-card > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid #e1e7f0;
+  border-radius: 11px;
+  background: #f9fbfe;
+}
+
+.platform-script-review-summary span,
+.platform-script-download-card span {
+  color: #8490a4;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.platform-script-review-summary strong,
+.platform-script-download-card strong {
+  overflow: hidden;
+  color: #334158;
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.platform-script-download-card .is-wide {
+  grid-column: 1 / -1;
+}
+
+.platform-script-review-preview {
+  background: #f9fbfe;
+}
+
+.platform-script-review-episode-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.platform-script-review-preview article > p {
+  margin: 0;
+  color: #617086;
+  font-size: 10px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.platform-script-review-comment,
+.platform-script-download-purpose {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 15px;
+  border: 1px solid #e1e7f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.platform-script-review-comment.is-required {
+  border-color: #efc7be;
+  background: #fff9f7;
+}
+
+.platform-script-review-comment label,
+.platform-script-download-purpose {
+  color: #5f6d82;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.platform-script-review-comment label {
+  display: grid;
+  gap: 7px;
+}
+
+.platform-script-review-comment textarea,
+.platform-script-download-purpose textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: 10px 11px;
+  border: 1px solid #dce3ed;
+  border-radius: 9px;
+  background: #fff;
+  color: #344158;
+  font: inherit;
+  line-height: 1.65;
+  outline: 0;
+  resize: vertical;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.platform-script-review-comment textarea:focus,
+.platform-script-download-purpose textarea:focus {
+  border-color: #777de6;
+  box-shadow: 0 0 0 3px rgba(98, 104, 223, 0.1);
+}
+
+.platform-script-review-comment small {
+  color: #a2584c;
+  font-size: 9px;
+}
+
+.platform-script-review-history {
+  display: grid;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #e7ebf2;
+}
+
+.platform-script-review-history article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #e3e8f1;
+  border-radius: 10px;
+  background: #fafbfd;
+}
+
+.platform-script-review-history article > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.platform-script-review-history strong,
+.platform-script-review-history span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platform-script-review-history strong {
+  color: #344158;
+  font-size: 10px;
+}
+
+.platform-script-review-history span,
+.platform-script-review-history p {
+  color: #7f8ca1;
+  font-size: 9px;
+}
+
+.platform-script-review-history p {
+  margin: 2px 0 0;
+  line-height: 1.6;
 }
 
 .platform-script-history {
@@ -22313,6 +22472,15 @@ button.platform-metric:hover {
 
   .platform-script-preview-row {
     grid-template-columns: 88px minmax(0, 1fr) 36px;
+  }
+
+  .platform-script-review-summary,
+  .platform-script-download-card {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-script-download-card .is-wide {
+    grid-column: auto;
   }
 
   .platform-script-preview-row .platform-badge {

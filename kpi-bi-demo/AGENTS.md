@@ -124,7 +124,7 @@ The topic library is limited to topic creation, editing, evaluation, and read-on
 
 The topic status domain contains exactly `待评估`、`已评估`、`未通过`. Evaluating a topic successfully changes it to `已评估` and makes it immediately available in the script library. Creating or deleting a linked project must never change that topic status; project linkage remains separate read-only downstream information.
 
-Do not add a separate script-review approval node. A complete upload may proceed to initiation; an initiator may return it with a required reason. Internal projects may append script versions directly with notifications, while external-project script changes require initiator confirmation before supplier notification.
+All direct uploads in the script library must enter a separate review node before becoming effective. Leader or CEO reviewers may approve or reject; rejection requires a written annotation that is retained with the review history. Only the current approved complete script may proceed to project initiation or a download application. Download requires a separate application and Leader or CEO approval before the applicant receives the file. Internal-project and external-project synchronization rules remain unchanged outside this direct script-library upload flow.
 
 Keep every project-management ledger cell on one visual line. Pair related values horizontally, truncate overflow with ellipsis, and retain horizontal scrolling below the readable desktop width instead of stacking secondary information beneath the primary value.
 
