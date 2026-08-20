@@ -15,7 +15,7 @@ export const ROLE_TEMPLATE_IDS = {
 };
 
 const internalSource = "日报周报 / 项目统筹表 / 提交记录 / 评审记录 / 表格导入";
-const proofSource = "员工填报 / 附件证明 / 负责人评价 / HR核验";
+const proofSource = "员工填报 / 附件证明 / 负责人评价 / BP核验";
 
 function createPerformanceStandards(standard) {
   return [
@@ -167,7 +167,7 @@ export const roleTemplates = [
     name: "内容运营中心总监",
     businessLines: ["内容运营中心", "中心总监"],
     dimensions: [
-      { name: "组织结果维度（40%）", items: [metric("directorResult", "中心任务达成", 0.4, "中心月度看板 / 项目统筹表 / HR汇总", "统计内容经营中心整体任务达成、关键项目推进和结果稳定性。")] },
+      { name: "组织结果维度（40%）", items: [metric("directorResult", "中心任务达成", 0.4, "中心月度看板 / 项目统筹表 / BP汇总", "统计内容经营中心整体任务达成、关键项目推进和结果稳定性。")] },
       { name: "流程质量维度（30%）", items: [metric("directorProcess", "流程完整与异常控制", 0.3, "流程记录 / 异常台账 / 复盘材料", "评估绩效流程完整性、异常控制和跨中心协同质量。")] },
       { name: "管理沉淀维度（30%）", items: [metric("directorManagement", "组织方法沉淀", 0.3, "制度文档 / 会议纪要 / 上级评价", "评估岗位模板、SOP、复盘机制和团队带教沉淀。")] },
     ],

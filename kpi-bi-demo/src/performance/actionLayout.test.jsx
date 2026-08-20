@@ -17,13 +17,15 @@ describe("performance action column", () => {
     const ceoRow = findStandardZhangRow();
     const ceoButtons = within(within(ceoRow).getByLabelText("张小北绩效操作")).getAllByRole("button");
     expect(ceoButtons.map((button) => button.textContent.trim())).toEqual([
-      "绩效委员会审批",
+      "下发月度绩效目标",
+      "一级评分与评语",
+      "绩效委员会审核",
       "绩效委员会复核申诉",
       "详情",
     ]);
     expect(ceoButtons[0]).toBeDisabled();
     expect(ceoButtons[1]).toBeDisabled();
-    expect(ceoButtons[2]).toBeEnabled();
+    expect(ceoButtons.at(-1)).toBeEnabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Leader团队负责人" }));
     const leaderRow = findStandardZhangRow();
@@ -36,20 +38,25 @@ describe("performance action column", () => {
       "反馈与面谈记录",
       "变更目标",
       "填写部门负责人意见",
+      "修改协助评分",
       "详情",
     ]);
     expect(leaderButtons[0]).toHaveClass("performance-row-action--workflow");
     expect(leaderButtons[0]).toBeEnabled();
-    leaderButtons.slice(1, -1).forEach((button) => expect(button).toBeDisabled());
+    leaderButtons.slice(1, -2).forEach((button) => expect(button).toBeDisabled());
+    expect(leaderButtons.at(-2)).toHaveTextContent("修改协助评分");
+    expect(leaderButtons.at(-2)).toBeEnabled();
     expect(leaderButtons.at(-1)).toHaveClass("performance-row-action--detail");
 
-    fireEvent.click(screen.getByRole("button", { name: "HR组织视图" }));
+    fireEvent.click(screen.getByRole("button", { name: "BP组织视图" }));
     const hrRow = findStandardZhangRow();
     const hrButtons = within(within(hrRow).getByLabelText("张小北绩效操作")).getAllByRole("button");
     expect(hrButtons.map((button) => button.textContent.trim())).toEqual([
-      "HR复审并提交绩效委员会",
+      "协助评分与评语",
+      "BP评分与评语",
       "受理绩效申诉",
       "填写处理记录并提交绩效委员会",
+      "修改协助评分",
       "详情",
     ]);
 

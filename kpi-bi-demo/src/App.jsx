@@ -38,6 +38,8 @@ import {
   getNextReviewStatus,
   getOpenAppealCount,
   getReviewTemplate,
+  getRowReviewWeights,
+  getSubjectType,
   calcRowComposite,
   getStatusCount,
   getWorkflowAction,
@@ -49,6 +51,9 @@ import {
   rejectTargetVersion,
   resolveAppealResult,
   requiresSecondReview,
+  SUBJECT_TYPE,
+  supportsAssistance,
+  updateAssistanceConfiguration,
   validateAdjustmentEvidence,
   validateAdjustmentTotal,
   validateTargetWeights,
@@ -93,6 +98,30 @@ import { ProjectSubjectPage } from "./resources/ProjectSubjectPage";
 
 const CURRENT_MONTH = "2026-07";
 
+const assistReviewerOptions = [
+  { value: "磊姐", label: "磊姐 · 组织协同负责人" },
+  ...dashboardPeople.map((person) => ({
+    value: person.name,
+    label: `${person.name} · ${person.department} / ${person.role}`,
+  })),
+].filter((option, index, options) => options.findIndex((item) => item.value === option.value) === index);
+
+function AssistReviewerSelect({ value, onChange, disabled = false, ariaLabel, excludedNames = [] }) {
+  const excluded = new Set(excludedNames.filter(Boolean));
+  const options = assistReviewerOptions.filter((option) => !excluded.has(option.value));
+  const preservedOption = value && !options.some((option) => option.value === value)
+    ? { value, label: `${value} · 当前已选人员` }
+    : null;
+
+  return (
+    <select aria-label={ariaLabel} disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value ?? ""}>
+      <option value="">请选择协助评分人</option>
+      {preservedOption ? <option value={preservedOption.value}>{preservedOption.label}</option> : null}
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+  );
+}
+
 function createMetricStandards(metricId, descriptions = {}) {
   return [
     { id: `${metricId}-excellent`, label: "优秀", scoreRange: "80分（含）-100分", description: descriptions.excellent ?? "完成度达到岗位基准的130%以上，结果显著超出预期，证明材料完整。" },
@@ -121,6 +150,191 @@ const defaultPerformanceCategories = [
   { id: "adjustment-collaboration", dimensionId: "adjustment", dimensionName: "加减分项（总评分区间 -10分至10分）", name: "团队协作", weight: 0, minScore: -3, maxScore: 3, requirement: "主动分享经验、输出可复用方法、帮助他人解决难题的，加分，最高不超过3分；协作意愿低或协作质量低造成跨部门摩擦的，减分，最低不低于-3分。", source: "被考核人填写的完成情况 / 上级和协作方评价", standards: [], origin: "adjustment", mandatory: true, type: "adjustment" },
 ];
 
+function createRuleStandards(metricId, rows) {
+  return rows.map((row, index) => ({ id: `${metricId}-rule-${index + 1}`, ...row }));
+}
+
+const recruitmentPerformanceCategories = [
+  {
+    id: "recruitment-arrival",
+    dimensionId: "department-work",
+    dimensionName: "部门工作",
+    name: "招聘计划",
+    weight: 40,
+    assessmentCycle: "月度",
+    calculationRule: "已完成目标 ÷ 当月招聘目标 × 指标权重 × 100。",
+    expectedOutput: "本月招聘到岗且留存 2 人。",
+    requirement: "按照当月招聘到岗并留存人数核算目标完成度。",
+    source: "招聘台账 / 到岗记录 / SSC在职状态",
+    reviewWeights: { first: 40, assistance: 20, bp: 40 },
+    standards: createRuleStandards("recruitment-arrival", [
+      { label: "达成", scoreRange: "100分", description: "当月招聘到岗且留存达到 2 人。" },
+      { label: "按完成度", scoreRange: "0-100分", description: "未完全达成时，按实际到岗留存人数与目标人数比例核算。" },
+    ]),
+    origin: "template",
+    mandatory: true,
+    type: "weighted",
+  },
+  {
+    id: "recruitment-interview",
+    dimensionId: "department-work",
+    dimensionName: "部门工作",
+    name: "邀约到面人数",
+    weight: 25,
+    assessmentCycle: "月度",
+    calculationRule: "达成目标得满分；每少 1 人扣减本项标准分 5%；完成情况为 0 时不得分。",
+    expectedOutput: "当月邀约到面不少于 30 人。",
+    requirement: "以实际邀约到面人数为主要核验口径。",
+    source: "招聘漏斗 / 面试安排记录",
+    reviewWeights: { first: 40, assistance: 20, bp: 40 },
+    standards: createRuleStandards("recruitment-interview", [
+      { label: "达标", scoreRange: "100分", description: "当月邀约到面达到 30 人及以上。" },
+      { label: "未达标", scoreRange: "按规则扣减", description: "每缺少 1 人扣减本项标准分 5%。" },
+      { label: "未完成", scoreRange: "0分", description: "当月邀约到面人数为 0。" },
+    ]),
+    origin: "template",
+    mandatory: true,
+    type: "weighted",
+  },
+  {
+    id: "recruitment-resume",
+    dimensionId: "department-work",
+    dimensionName: "部门工作",
+    name: "有效简历数",
+    weight: 25,
+    assessmentCycle: "月度",
+    calculationRule: "达到 50 份得满分；每少 1 份扣减本项标准分 5%；当月有效简历入库量为 0 时不得分。",
+    expectedOutput: "月度完成有效简历入库不少于 50 份。",
+    requirement: "以当月有效简历入库记录为核验依据。",
+    source: "候选人简历库 / 招聘台账",
+    reviewWeights: { first: 40, assistance: 20, bp: 40 },
+    standards: createRuleStandards("recruitment-resume", [
+      { label: "达标", scoreRange: "100分", description: "当月有效简历入库达到 50 份及以上。" },
+      { label: "未达标", scoreRange: "按规则扣减", description: "每缺少 1 份扣减本项标准分 5%。" },
+      { label: "未完成", scoreRange: "0分", description: "当月有效简历入库量为 0。" },
+    ]),
+    origin: "template",
+    mandatory: true,
+    type: "weighted",
+  },
+  {
+    id: "recruitment-daily-support",
+    dimensionId: "department-work",
+    dimensionName: "部门工作",
+    name: "协助上级领导处理其他日常工作",
+    weight: 10,
+    assessmentCycle: "月度",
+    calculationRule: "积极响应并按时保质完成得满分；出现拖延或质量不达标，每次扣减本项 20%-50%；拒不执行或多次推诿不得分。",
+    expectedOutput: "服从工作安排，按要求、按时、保质完成上级临时布置的工作任务。",
+    requirement: "按任务响应、交付时效、成果质量和配合度综合评价。",
+    source: "临时任务记录 / 上级评价 / 交付成果",
+    reviewWeights: { first: 50, assistance: 0, bp: 50 },
+    standards: createRuleStandards("recruitment-daily-support", [
+      { label: "达成", scoreRange: "100分", description: "积极响应，所有临时任务均按时保质完成。" },
+      { label: "部分达成", scoreRange: "50-80分", description: "存在拖延或完成质量不达标，按发生次数和影响程度扣减。" },
+      { label: "未达成", scoreRange: "0分", description: "拒不执行或多次推诿。" },
+    ]),
+    origin: "template",
+    mandatory: true,
+    type: "weighted",
+  },
+  {
+    id: "recruitment-adjustment-discipline",
+    dimensionId: "recruitment-adjustment",
+    dimensionName: "独立加减分项（总评分区间 -10分至10分）",
+    name: "纪律与工作服从",
+    weight: 0,
+    minScore: -10,
+    maxScore: 3,
+    assessmentCycle: "月度",
+    requirement: "主动维护团队纪律可加分；违反制度、不服从管理可减分；发生泄密、内容违规等重大违纪可扣 10 分。",
+    expectedOutput: "违纪整改记录、团队纪律维护记录。",
+    source: "考勤记录 / 违纪整改记录 / 上级评价",
+    standards: [],
+    origin: "adjustment",
+    mandatory: true,
+    type: "adjustment",
+  },
+  {
+    id: "recruitment-adjustment-delivery",
+    dimensionId: "recruitment-adjustment",
+    dimensionName: "独立加减分项（总评分区间 -10分至10分）",
+    name: "工作担当与成果交付",
+    weight: 0,
+    minScore: -3,
+    maxScore: 3,
+    assessmentCycle: "月度",
+    requirement: "主动承接额外工作并保质交付可加分；消极敷衍、拖延或推诿责任可减分。",
+    expectedOutput: "额外任务交付物、问题闭环记录。",
+    source: "任务记录 / 交付成果 / 上级评价",
+    standards: [],
+    origin: "adjustment",
+    mandatory: true,
+    type: "adjustment",
+  },
+  {
+    id: "recruitment-adjustment-collaboration",
+    dimensionId: "recruitment-adjustment",
+    dimensionName: "独立加减分项（总评分区间 -10分至10分）",
+    name: "共享协作与经验沉淀",
+    weight: 0,
+    minScore: -3,
+    maxScore: 3,
+    assessmentCycle: "月度",
+    requirement: "分享实操经验、输出可复用方法并协助解决业务难题可加分；协作不力或造成跨部门摩擦可减分。",
+    expectedOutput: "标准化流程、实操教程、帮扶记录或跨部门协作成品。",
+    source: "知识沉淀 / 协作成果 / 跨部门反馈",
+    standards: [],
+    origin: "adjustment",
+    mandatory: true,
+    type: "adjustment",
+  },
+  {
+    id: "recruitment-adjustment-attendance",
+    dimensionId: "recruitment-adjustment",
+    dimensionName: "独立加减分项（总评分区间 -10分至10分）",
+    name: "月度出勤",
+    weight: 0,
+    minScore: -10,
+    maxScore: 0,
+    assessmentCycle: "月度",
+    requirement: "出勤率低于 95% 扣 3 分；低于 80% 扣 5 分；无故旷工或无正当理由拒绝合理工作安排，单次扣 8-10 分。",
+    expectedOutput: "月度出勤报表及异常说明。",
+    source: "考勤报表 / 异常审批记录",
+    standards: [],
+    origin: "adjustment",
+    mandatory: true,
+    type: "adjustment",
+  },
+];
+
+const referencePerformanceCategories = [
+  ...recruitmentPerformanceCategories.slice(0, 4).map((item, index) => ({
+    ...item,
+    id: `reference-performance-${index + 1}`,
+    name: index === 3 ? "协助上级领导处理其它日常工作" : item.name,
+    dimensionId: "reference-work-content",
+    dimensionName: "工作内容分解",
+  })),
+  {
+    id: "reference-performance-adjustment",
+    dimensionId: "reference-adjustment",
+    dimensionName: "加减分项",
+    name: "纪律与工作服从、跨部门协作、额外交办任务、工作成果交付、经验沉淀输出",
+    weight: 0,
+    minScore: -10,
+    maxScore: 10,
+    assessmentCycle: "月度",
+    requirement: "按纪律与工作服从、跨部门协作、额外交办任务、工作成果交付、经验沉淀输出进行加减分。",
+    expectedOutput: "提交可核验的加减分事实与佐证。",
+    source: "任务记录 / 交付成果 / 协作反馈",
+    standards: [],
+    origin: "adjustment",
+    mandatory: true,
+    type: "adjustment",
+  },
+];
+
 const performanceMetricHistoryReferences = {
   "result-volume": "近三个月岗位任务完成率：92%、96%、94%。",
   "result-delivery": "近三个月核心交付达成率：88%、91%、95%。",
@@ -143,6 +357,14 @@ const performanceMetricSources = {
 function clonePerformanceCategories(categories = defaultPerformanceCategories) {
   return (categories ?? []).map((item) => ({
     ...item,
+    assessmentCycle: item.assessmentCycle ?? "月度",
+    calculationRule: item.calculationRule ?? item.requirement ?? "按月度目标完成情况和评分标准综合核算。",
+    expectedOutput: item.expectedOutput ?? item.requirement ?? "按本指标目标要求提交可核验成果。",
+    reviewWeights: item.type === "adjustment" ? undefined : {
+      first: item.reviewWeights?.first ?? 50,
+      assistance: item.reviewWeights?.assistance ?? item.reviewWeights?.assist ?? 0,
+      bp: item.reviewWeights?.bp ?? 50,
+    },
     historyReference: item.historyReference ?? performanceMetricHistoryReferences[item.id] ?? "",
     source: item.source ?? performanceMetricSources[item.id] ?? "任务记录 / 绩效填报",
     standards: (item.standards ?? []).map((standard) => ({ ...standard })),
@@ -157,33 +379,45 @@ const departmentPerformanceTemplatesSeed = [
   { id: "template-growth-middle", department: "运营增长中心", role: "中级投流师", name: "运营增长中心·中级投流师月度绩效模板", categories: clonePerformanceCategories(defaultPerformanceCategories.map((item) => item.dimensionId === "result" ? { ...item, dimensionName: "投放结果" } : item.dimensionId === "quality" ? { ...item, dimensionName: "素材与账户质量" } : item.dimensionId === "efficiency" ? { ...item, dimensionName: "投放响应效率" } : item)) },
   { id: "template-business-middle", department: "商务部", role: "中级商务", name: "商务部·中级商务月度绩效模板", categories: clonePerformanceCategories(defaultPerformanceCategories.map((item) => item.dimensionId === "result" ? { ...item, dimensionName: "商务结果" } : item.dimensionId === "quality" ? { ...item, dimensionName: "客户与合同质量" } : item.dimensionId === "efficiency" ? { ...item, dimensionName: "商机推进效率" } : item)) },
   { id: "template-content-director", department: "内容运营中心", role: "内容运营中心总监", name: "内容运营中心·总监月度绩效模板", categories: clonePerformanceCategories(defaultPerformanceCategories.map((item) => item.dimensionId === "result" ? { ...item, dimensionName: "经营结果" } : item.dimensionId === "quality" ? { ...item, dimensionName: "内容质量" } : item.dimensionId === "efficiency" ? { ...item, dimensionName: "组织协同效率" } : item)) },
-];
+  { id: "template-recruitment-hrbp", department: "人力资源部", role: "HRBP", name: "人力资源部·招聘岗位月度绩效模板", version: "V1.0", status: "已启用", assessmentCycle: "月度", assistScoreEnabled: true, defaultAssistReviewer: "磊姐", categories: clonePerformanceCategories(recruitmentPerformanceCategories) },
+].map((template) => ({ ...template, version: template.version ?? "V1.0", status: template.status ?? "已启用", assessmentCycle: template.assessmentCycle ?? "月度", assistScoreEnabled: template.assistScoreEnabled ?? false, defaultAssistReviewer: template.defaultAssistReviewer ?? "" }));
 
 const roleAccess = {
   employee: { viewerName: "张小北", roleName: "员工", viewMode: "self", issueMode: "none" },
   leader: { viewerName: "江晚", roleName: "Leader", viewMode: "subtree", issueMode: "direct" },
-  hr: { viewerName: "HR-唐宁", roleName: "HR", viewMode: "all", issueMode: "none" },
-  ceo: { viewerName: "CEO", roleName: "老板 / 总经理", viewMode: "all", issueMode: "none" },
+  hr: { viewerName: "BP-唐宁", roleName: "BP", viewMode: "all", issueMode: "none" },
+  ceo: { viewerName: "CEO", roleName: "老板 / 总经理", viewMode: "all", issueMode: "all" },
 };
 
 const performanceRowWorkflowStatuses = {
   employee: [REVIEW_STATUS.employeeConfirm, REVIEW_STATUS.executing, REVIEW_STATUS.resultEntry],
   leaderDirect: [REVIEW_STATUS.targetIssue, REVIEW_STATUS.targetDispute, REVIEW_STATUS.firstReview, REVIEW_STATUS.feedback],
   leaderIndirect: [REVIEW_STATUS.secondReview],
-  hr: [REVIEW_STATUS.hrReview, REVIEW_STATUS.appealSubmitted, REVIEW_STATUS.appealInvestigation],
-  ceo: [REVIEW_STATUS.committeeApproval, REVIEW_STATUS.appealInProgress],
+  hr: [REVIEW_STATUS.secondReview, REVIEW_STATUS.hrReview, REVIEW_STATUS.appealSubmitted, REVIEW_STATUS.appealInvestigation],
+  ceo: [REVIEW_STATUS.targetIssue, REVIEW_STATUS.firstReview, REVIEW_STATUS.committeeApproval, REVIEW_STATUS.appealInProgress],
 };
+
+function replaceLegacyHrLabel(value) {
+  return value == null ? value : String(value).replaceAll("HR", "BP");
+}
 
 function migratePerformanceAppealReview(review) {
   const statusMap = {
     "待CEO审批": REVIEW_STATUS.committeeApproval,
+    "待二级领导复评": REVIEW_STATUS.secondReview,
+    "待HR复审": REVIEW_STATUS.hrReview,
+    "待绩效委员会审批": REVIEW_STATUS.committeeApproval,
     "申诉已提交": REVIEW_STATUS.appealSubmitted,
+    "待HR受理": REVIEW_STATUS.appealSubmitted,
+    "待HR调查": REVIEW_STATUS.appealSubmitted,
     "HR调查中": REVIEW_STATUS.appealInvestigation,
     "待CEO裁决": REVIEW_STATUS.appealInProgress,
   };
   const appealStatusMap = {
-    "待HR调查": "待HR受理",
-    "HR调查中": "HR已受理",
+    "待HR调查": "待BP受理",
+    "待HR受理": "待BP受理",
+    "HR调查中": "BP已受理",
+    "HR已受理": "BP已受理",
     "待CEO裁决": "待绩效委员会复核",
   };
   const seedReview = reviewsSeed.find((item) => item.id === review.id);
@@ -195,25 +429,60 @@ function migratePerformanceAppealReview(review) {
     : review.assignedCategories?.length && review.pendingTargetVersion && !review.activeTargetVersion
       ? materializeTargetRows(review.assignedCategories)
       : review.rows;
+  const subjectType = getSubjectType(review);
+  const assistanceEnabled = subjectType !== SUBJECT_TYPE.bp && (review.assistScoreEnabled ?? review.requiresSecondReview ?? false);
+  const firstReviewer = review.firstReviewer ?? (subjectType === SUBJECT_TYPE.employee ? review.directLeader : "CEO");
+  const bossReviewer = review.bossReviewer ?? "CEO";
+  const bpReviewer = subjectType === SUBJECT_TYPE.bp ? "" : (review.bpReviewer ?? "BP-唐宁");
+  const configuredAssistReviewer = review.assistReviewer
+    ?? (subjectType === SUBJECT_TYPE.departmentLeader ? review.directLeader : review.indirectLeader)
+    ?? "";
+  const assistReviewer = subjectType === SUBJECT_TYPE.departmentLeader
+    && [firstReviewer, bossReviewer, bpReviewer].includes(configuredAssistReviewer)
+    ? (review.directLeader && ![firstReviewer, bossReviewer, bpReviewer].includes(review.directLeader) ? review.directLeader : "")
+    : configuredAssistReviewer;
+  const normalizedRows = (issuedRows ?? []).map((row) => ({
+    ...row,
+    assistScore: row.assistScore ?? row.secondScore ?? "",
+    assistComment: row.assistComment ?? row.secondComment ?? "",
+    bpScore: row.bpScore ?? row.secondScore ?? "",
+    bpComment: row.bpComment ?? row.secondComment ?? "",
+    adjustmentScore: row.adjustmentScore ?? row.firstScore ?? "",
+  }));
   return {
     ...review,
-    rows: issuedRows,
-    status: statusMap[review.status] ?? review.status,
-    appealStatus: appealStatusMap[review.appealStatus] ?? review.appealStatus,
+    rows: normalizedRows,
+    subjectType,
+    firstReviewer,
+    bossReviewer,
+    bpReviewer,
+    assistScoreEnabled: assistanceEnabled,
+    requiresSecondReview: assistanceEnabled,
+    assistReviewer: assistanceEnabled ? assistReviewer : "",
+    originalIssuer: review.originalIssuer ?? review.directLeader ?? "BP-唐宁",
+    status: statusMap[review.status] ?? replaceLegacyHrLabel(review.status),
+    appealStatus: appealStatusMap[review.appealStatus] ?? replaceLegacyHrLabel(review.appealStatus),
+    committeeStatus: review.committeeStatus === "已审批" ? "审核通过" : review.committeeStatus,
     appealFormFile: review.appealFormFile ?? seedReview?.appealFormFile,
     appealDate: review.appealDate ?? seedReview?.appealDate,
     appealContent: review.appealContent ?? seedReview?.appealContent ?? review.appealNote ?? seedReview?.appealNote ?? "",
     appealEvidenceList: review.appealEvidenceList ?? seedReview?.appealEvidenceList ?? review.evidence ?? seedReview?.evidence ?? "",
-    appealReceptionist: review.appealReceptionist ?? seedReview?.appealReceptionist ?? "HR-唐宁",
-    appealAcceptanceComment: review.appealAcceptanceComment ?? seedReview?.appealAcceptanceComment,
-    appealInvestigationResult: review.appealInvestigationResult ?? seedReview?.appealInvestigationResult ?? review.appealInvestigation ?? "",
-    appealProposedSolution: review.appealProposedSolution ?? seedReview?.appealProposedSolution ?? "",
-    appealCoordinationResult: review.appealCoordinationResult ?? seedReview?.appealCoordinationResult ?? "",
-    appealManagementCenterOpinion: review.appealManagementCenterOpinion ?? seedReview?.appealManagementCenterOpinion ?? review.hrAppealDecisionReason ?? "",
+    appealReceptionist: replaceLegacyHrLabel(review.appealReceptionist ?? seedReview?.appealReceptionist ?? "BP-唐宁"),
+    appealAcceptanceComment: replaceLegacyHrLabel(review.appealAcceptanceComment ?? seedReview?.appealAcceptanceComment),
+    appealInvestigationResult: replaceLegacyHrLabel(review.appealInvestigationResult ?? seedReview?.appealInvestigationResult ?? review.appealInvestigation ?? ""),
+    appealProposedSolution: replaceLegacyHrLabel(review.appealProposedSolution ?? seedReview?.appealProposedSolution ?? ""),
+    appealCoordinationResult: replaceLegacyHrLabel(review.appealCoordinationResult ?? seedReview?.appealCoordinationResult ?? ""),
+    appealManagementCenterOpinion: replaceLegacyHrLabel(review.appealManagementCenterOpinion ?? seedReview?.appealManagementCenterOpinion ?? review.hrAppealDecisionReason ?? ""),
     appealCommitteeOpinion: review.appealCommitteeOpinion ?? seedReview?.appealCommitteeOpinion ?? review.appealResolution ?? "",
     hrAppealDecision: review.hrAppealDecision ?? seedReview?.hrAppealDecision,
-    hrAppealDecisionReason: review.hrAppealDecisionReason ?? seedReview?.hrAppealDecisionReason,
+    hrAppealDecisionReason: replaceLegacyHrLabel(review.hrAppealDecisionReason ?? seedReview?.hrAppealDecisionReason),
     hrRecommendedScore: review.hrRecommendedScore ?? seedReview?.hrRecommendedScore,
+    operationLogs: (review.operationLogs ?? seedReview?.operationLogs ?? []).map((log) => ({
+      ...log,
+      action: replaceLegacyHrLabel(log.action),
+      operator: replaceLegacyHrLabel(log.operator),
+      note: replaceLegacyHrLabel(log.note),
+    })),
   };
 }
 
@@ -254,9 +523,9 @@ const processNodes = [
   "员工确认绩效目标",
   "员工填报完成结果",
   "一级领导评分及评论",
-  "二级领导复评及评论",
-  "HR复审",
-  "绩效委员会审批",
+  "协助评分及评论（按配置）",
+  "BP评分及评论",
+  "绩效委员会审核",
   "反馈与面谈",
   "绩效申诉",
 ];
@@ -326,7 +595,7 @@ const sidebarGroups = [
 const roles = [
   { id: "employee", label: "员工", badge: "个人工作台" },
   { id: "leader", label: "Leader", badge: "团队负责人" },
-  { id: "hr", label: "HR", badge: "组织视图" },
+  { id: "hr", label: "BP", badge: "组织视图" },
   { id: "ceo", label: "CEO", badge: "经营驾驶舱" },
 ];
 
@@ -596,10 +865,10 @@ function getWorkflowSubmitPayload(review, action, draft) {
   let nextStatus = action.nextStatus;
   let note = "";
 
-  if (["enter_result", "first_score", "second_review", "reissue_target", "change_target"].includes(action.type)) {
+  if (["enter_result", "first_score", "second_review", "hr_review", "reissue_target", "change_target"].includes(action.type)) {
     updates.rows = draft.rows;
   }
-  if (["first_score", "second_review"].includes(action.type)) {
+  if (["first_score", "second_review", "hr_review"].includes(action.type)) {
     updates.adjustmentEvidenceFiles = draft.adjustmentEvidenceFiles;
   }
 
@@ -656,6 +925,10 @@ function getWorkflowSubmitPayload(review, action, draft) {
       updates.resultReturnReason = draft.returnReason.trim();
       note = `证明材料不足，退回员工补充：${draft.returnReason.trim()}`;
     } else {
+      const scoreField = "firstScore";
+      const commentField = "firstComment";
+      const incomplete = draft.rows.some((row) => row.type === "metric" && getRowReviewWeights(row, review).first > 0 && ((row[scoreField] === "" || row[scoreField] === null || row[scoreField] === undefined) || !Number.isFinite(Number(row[scoreField])) || !String(row[commentField] || "").trim()));
+      if (incomplete) return { validationError: "请完成全部一级评分并填写逐项评语" };
       const adjustmentValidation = validateAdjustmentTotal(draft.rows, "firstScore");
       if (!adjustmentValidation.valid) return { validationError: adjustmentValidation.reason };
       const missingReason = draft.rows.some((row) => row.type === "adjustment" && Number(row.firstScore || 0) !== 0 && !String(row.firstComment || "").trim());
@@ -667,35 +940,33 @@ function getWorkflowSubmitPayload(review, action, draft) {
   }
 
   if (action.type === "second_review") {
-    if (!draft.secondReviewComment.trim()) return { validationError: "请填写二级结果审核意见" };
+    if (!draft.secondReviewComment.trim()) return { validationError: "请填写协助评分汇总意见" };
     updates.secondReviewComment = draft.secondReviewComment.trim();
     if (draft.secondDecision === "return") {
       nextStatus = REVIEW_STATUS.resultEntry;
       updates.resultStatus = "已退回补充";
       updates.secondReviewConclusion = "退回员工补充";
-      note = `二级结果审核退回员工补充：${draft.secondReviewComment.trim()}`;
+      note = `协助评分退回员工补充：${draft.secondReviewComment.trim()}`;
     } else {
-      const adjustmentValidation = validateAdjustmentTotal(draft.rows, "secondScore");
-      if (!adjustmentValidation.valid) return { validationError: adjustmentValidation.reason };
-      const missingReason = draft.rows.some((row) => row.type === "adjustment" && Number(row.secondScore || 0) !== 0 && !String(row.secondComment || "").trim());
-      if (missingReason) return { validationError: "请为每条非零加减分填写二级评分原因" };
-      const evidenceValidation = validateAdjustmentEvidence(draft.rows, draft.adjustmentEvidenceFiles, ["firstScore", "secondScore"]);
-      if (!evidenceValidation.valid) return { validationError: evidenceValidation.reason };
-      updates.secondReviewConclusion = "结果完整，复评通过";
-      note = `二级结果审核通过：${draft.secondReviewComment.trim()}`;
+      const incomplete = draft.rows.some((row) => row.type === "metric" && getRowReviewWeights(row, review).assistance > 0 && ((row.assistScore === "" || row.assistScore === null || row.assistScore === undefined) || !Number.isFinite(Number(row.assistScore)) || !String(row.assistComment || "").trim()));
+      if (incomplete) return { validationError: "请完成全部协助评分并填写逐项评语" };
+      updates.secondReviewConclusion = "协助评分已完成";
+      note = `协助评分完成：${draft.secondReviewComment.trim()}`;
     }
   }
 
   if (action.type === "hr_review") {
     updates.hrReviewComment = draft.hrReviewComment;
     if (draft.hrDecision === "return") {
-      if (!draft.hrReviewComment.trim()) return { validationError: "请填写HR退回原因" };
+      if (!draft.hrReviewComment.trim()) return { validationError: "请填写BP退回原因" };
       nextStatus = REVIEW_STATUS.firstReview;
       updates.hrReviewStatus = "已退回";
-      note ||= `HR退回评分补充：${draft.hrReviewComment || "请补齐评分依据与佐证材料。"}`;
+      note ||= `BP退回评分补充：${draft.hrReviewComment || "请补齐评分依据与佐证材料。"}`;
     } else {
-      updates.hrReviewStatus = "已复审";
-      note ||= `HR复审通过：${draft.hrReviewComment || "材料完整，提交绩效委员会审批。"}`;
+      const incomplete = draft.rows.some((row) => row.type === "metric" && getRowReviewWeights(row, review).bp > 0 && ((row.bpScore === "" || row.bpScore === null || row.bpScore === undefined) || !Number.isFinite(Number(row.bpScore)) || !String(row.bpComment || "").trim()));
+      if (incomplete) return { validationError: "请完成全部BP评分并填写逐项评语" };
+      updates.hrReviewStatus = "BP评分已完成";
+      note ||= `BP评分完成：${draft.hrReviewComment || "评分与评语已完成，提交绩效委员会审核。"}`;
     }
   }
 
@@ -705,11 +976,11 @@ function getWorkflowSubmitPayload(review, action, draft) {
       if (!draft.committeeComment.trim()) return { validationError: "请填写绩效委员会退回原因" };
       nextStatus = REVIEW_STATUS.firstReview;
       updates.committeeStatus = "已退回";
-      note ||= `绩效委员会退回Leader重新评分：${draft.committeeComment}`;
+      note ||= `绩效委员会退回重新评分：${draft.committeeComment}`;
     } else {
-      updates.committeeStatus = "已审批";
+      updates.committeeStatus = "审核通过";
       updates.resultVersions = review.resultVersions?.length ? review.resultVersions : [{ version: 1, score: calcScore({ ...review, rows: draft.rows }), grade: getGrade(calcScore({ ...review, rows: draft.rows })), status: "已生效", operator: "绩效委员会", actedAt: getActionTimestamp() }];
-      note ||= `绩效委员会审批通过：${draft.committeeComment || "同意绩效结果进入面谈反馈及申诉期。"}`;
+      note ||= `绩效委员会审核通过：${draft.committeeComment || "同意绩效结果进入面谈反馈及申诉期。"}`;
     }
   }
 
@@ -722,21 +993,21 @@ function getWorkflowSubmitPayload(review, action, draft) {
   }
 
   if (action.type === "accept_appeal") {
-    if (!draft.appealAcceptanceComment.trim()) return { validationError: draft.appealAcceptanceDecision === "reject" ? "请填写HR不受理原因" : "请填写HR受理意见" };
+    if (!draft.appealAcceptanceComment.trim()) return { validationError: draft.appealAcceptanceDecision === "reject" ? "请填写BP不受理原因" : "请填写BP受理意见" };
     updates.appealAcceptanceComment = draft.appealAcceptanceComment.trim();
-    updates.appealReceptionist = review.appealReceptionist || "HR-唐宁";
+    updates.appealReceptionist = review.appealReceptionist || "BP-唐宁";
     if (draft.appealAcceptanceDecision === "reject") {
-      updates.appealStatus = "HR不予受理";
+      updates.appealStatus = "BP不予受理";
       updates.appealAcceptanceDecision = "reject";
       updates.owner = review.employee;
       nextStatus = REVIEW_STATUS.archived;
-      note = `HR不予受理绩效申诉：${draft.appealAcceptanceComment.trim()}`;
+      note = `BP不予受理绩效申诉：${draft.appealAcceptanceComment.trim()}`;
     } else {
-      updates.appealStatus = "HR已受理";
+      updates.appealStatus = "BP已受理";
       updates.appealAcceptanceDecision = "accept";
-      updates.owner = "HR-唐宁";
+      updates.owner = "BP-唐宁";
       nextStatus = REVIEW_STATUS.appealInvestigation;
-      note = `HR受理绩效申诉：${draft.appealAcceptanceComment.trim()}`;
+      note = `BP受理绩效申诉：${draft.appealAcceptanceComment.trim()}`;
     }
   }
 
@@ -746,7 +1017,7 @@ function getWorkflowSubmitPayload(review, action, draft) {
     if (!draft.appealProposedSolution.trim()) return { validationError: "请填写建议解决方案" };
     if (!draft.appealCoordinationResult.trim()) return { validationError: "请填写协调结果" };
     if (!draft.appealAdjudicationReason.trim()) return { validationError: "请填写综合管理中心意见" };
-    if (!["rejected", "partial", "approved"].includes(draft.appealAdjudication)) return { validationError: "请选择HR申诉裁定结论" };
+    if (!["rejected", "partial", "approved"].includes(draft.appealAdjudication)) return { validationError: "请选择BP申诉裁定结论" };
     if (draft.appealAdjudication !== "rejected" && (!Number.isFinite(Number(draft.appealRecommendedScore)) || Number(draft.appealRecommendedScore) < 0 || Number(draft.appealRecommendedScore) > 100)) return { validationError: "建议修正分数需在0至100之间" };
     const decisionLabel = draft.appealAdjudication === "rejected" ? "申诉不成立" : draft.appealAdjudication === "partial" ? "申诉部分成立" : "申诉成立";
     updates.hrAppealDecision = draft.appealAdjudication;
@@ -760,7 +1031,7 @@ function getWorkflowSubmitPayload(review, action, draft) {
     updates.appealStatus = "待绩效委员会复核";
     updates.owner = "CEO";
     nextStatus = REVIEW_STATUS.appealInProgress;
-    note = `HR完成申诉裁定并提交绩效委员会：${decisionLabel}；${draft.appealAdjudicationReason.trim()}`;
+    note = `BP完成申诉裁定并提交绩效委员会：${decisionLabel}；${draft.appealAdjudicationReason.trim()}`;
   }
 
   if (action.type === "provide_appeal_evidence") {
@@ -853,7 +1124,7 @@ function AppealFormField({
 function PerformanceAppealForm({ review, mode = "readonly", draft = {}, onChange = () => {} }) {
   const stageLabels = {
     employee: "申诉人填写",
-    accept: "HR受理",
+    accept: "BP受理",
     leader: "用人部门负责人填写",
     adjudicate: "综合管理中心填写",
     resolve: "绩效管理委员会填写",
@@ -867,7 +1138,7 @@ function PerformanceAppealForm({ review, mode = "readonly", draft = {}, onChange
   };
   const appealContent = getDraftOrReview("appealContent", ["appealContent", "appealNote"]);
   const appealEvidenceList = getDraftOrReview("appealEvidenceList", ["appealEvidenceList", "evidence"]);
-  const acceptanceDecision = getDraftOrReview("appealAcceptanceDecision", "appealAcceptanceDecision", review.appealStatus === "HR不予受理" ? "reject" : "accept");
+  const acceptanceDecision = getDraftOrReview("appealAcceptanceDecision", "appealAcceptanceDecision", ["HR不予受理", "BP不予受理"].includes(review.appealStatus) ? "reject" : "accept");
   const acceptanceComment = getDraftOrReview("appealAcceptanceComment", "appealAcceptanceComment");
   const investigationResult = getDraftOrReview("appealInvestigationResult", ["appealInvestigationResult", "appealInvestigation"]);
   const proposedSolution = getDraftOrReview("appealProposedSolution", "appealProposedSolution");
@@ -875,7 +1146,7 @@ function PerformanceAppealForm({ review, mode = "readonly", draft = {}, onChange
   const departmentLeaderOpinion = getDraftOrReview("leaderAppealEvidence", "leaderAppealEvidence");
   const managementOpinion = getDraftOrReview("appealAdjudicationReason", ["appealManagementCenterOpinion", "hrAppealDecisionReason"]);
   const committeeOpinion = getDraftOrReview("appealResolution", ["appealCommitteeOpinion", "appealResolution"]);
-  const receptionist = review.appealReceptionist || "HR-唐宁";
+  const receptionist = review.appealReceptionist || "BP-唐宁";
   const appealDate = review.appealDate || (mode === "employee" ? "提交后自动生成" : "--");
 
   return (
@@ -920,7 +1191,7 @@ function PerformanceAppealForm({ review, mode = "readonly", draft = {}, onChange
       </div>
 
       <div className={`performance-appeal-form__acceptance ${mode === "accept" ? "is-active" : ""}`}>
-        <div className="performance-appeal-form__section-label"><span>是否受理</span><small>{mode === "accept" ? "当前节点填写" : acceptanceComment ? "已填写" : "待HR填写"}</small></div>
+        <div className="performance-appeal-form__section-label"><span>是否受理</span><small>{mode === "accept" ? "当前节点填写" : acceptanceComment ? "已填写" : "待BP填写"}</small></div>
         <div className="performance-appeal-form__acceptance-body">
           {mode === "accept" ? (
             <div className="performance-appeal-form__decision">
@@ -929,7 +1200,7 @@ function PerformanceAppealForm({ review, mode = "readonly", draft = {}, onChange
             </div>
           ) : <strong>{review.appealAcceptanceDecision || acceptanceComment ? acceptanceDecision === "reject" ? "不受理" : "受理" : "—"}</strong>}
           {mode === "accept"
-            ? <textarea aria-label={acceptanceDecision === "reject" ? "HR不受理原因" : "HR受理意见"} onChange={(event) => onChange("appealAcceptanceComment", event.target.value)} placeholder={acceptanceDecision === "reject" ? "必填；说明不符合受理条件的具体原因" : "必填；说明受理范围和下一步核验事项"} rows={3} value={acceptanceComment} />
+            ? <textarea aria-label={acceptanceDecision === "reject" ? "BP不受理原因" : "BP受理意见"} onChange={(event) => onChange("appealAcceptanceComment", event.target.value)} placeholder={acceptanceDecision === "reject" ? "必填；说明不符合受理条件的具体原因" : "必填；说明受理范围和下一步核验事项"} rows={3} value={acceptanceComment} />
             : <p>{acceptanceComment || "—"}</p>}
         </div>
       </div>
@@ -963,7 +1234,7 @@ function PerformanceAppealForm({ review, mode = "readonly", draft = {}, onChange
           rows={5}
           value={managementOpinion}
         />
-        {mode === "adjudicate" ? <div className="performance-appeal-form__result-controls"><label><span>裁定结论</span><select aria-label="HR裁定结论" onChange={(event) => onChange("appealAdjudication", event.target.value)} value={draft.appealAdjudication}><option value="rejected">申诉不成立，维持原结果</option><option value="partial">申诉部分成立</option><option value="approved">申诉成立</option></select></label>{draft.appealAdjudication !== "rejected" ? <label><span>建议修正分数</span><input aria-label="建议修正分数" max="100" min="0" onChange={(event) => onChange("appealRecommendedScore", Number(event.target.value))} type="number" value={draft.appealRecommendedScore} /></label> : null}</div> : null}
+        {mode === "adjudicate" ? <div className="performance-appeal-form__result-controls"><label><span>裁定结论</span><select aria-label="BP裁定结论" onChange={(event) => onChange("appealAdjudication", event.target.value)} value={draft.appealAdjudication}><option value="rejected">申诉不成立，维持原结果</option><option value="partial">申诉部分成立</option><option value="approved">申诉成立</option></select></label>{draft.appealAdjudication !== "rejected" ? <label><span>建议修正分数</span><input aria-label="建议修正分数" max="100" min="0" onChange={(event) => onChange("appealRecommendedScore", Number(event.target.value))} type="number" value={draft.appealRecommendedScore} /></label> : null}</div> : null}
       </div>
 
       <div className={`performance-appeal-form__opinion ${mode === "resolve" ? "is-active" : ""}`}>
@@ -1008,7 +1279,7 @@ export function AppealPage({ review, onBack, onSave, onConfirm }) {
           ? <button className="primary-btn" onClick={() => setSignatureOpen(true)} type="button">确认成绩并扫码签名</button>
           : <button className="primary-btn" disabled={!appealComplete} onClick={() => onSave(review.id, draft)} type="button">提交绩效申诉</button>}
       </div>
-      <div className="appeal-page__notice">请核对当前生效的绩效成绩并选择是否申诉。不申诉需扫码完成电子签名；选择申诉后直接填写在线《绩效申诉表》，无需下载或上传附件，提交后将按节点流转给HR、用人部门负责人和绩效管理委员会继续填写。</div>
+      <div className="appeal-page__notice">请核对当前生效的绩效成绩并选择是否申诉。不申诉需扫码完成电子签名；选择申诉后直接填写在线《绩效申诉表》，无需下载或上传附件，提交后将按节点流转给BP、用人部门负责人和绩效管理委员会继续填写。</div>
       <section className="score-confirmation-decision" aria-label="绩效成绩确认决定">
         <button className={decision === "confirm" ? "is-active" : ""} onClick={() => setDecision("confirm")} type="button"><CheckCircle size={22} weight="duotone" /><span><strong>确认成绩，不申诉</strong><small>核对成绩后通过二维码扫码签名并归档确认记录</small></span></button>
         <button className={decision === "appeal" ? "is-active" : ""} onClick={() => setDecision("appeal")} type="button"><WarningCircle size={22} weight="duotone" /><span><strong>对成绩有异议，发起申诉</strong><small>在线填写申诉内容与证据清单，提交后进入正式处理流程</small></span></button>
@@ -1053,8 +1324,12 @@ function getReviewMetricRows(review, categories = []) {
     label: category.name,
     section: category.dimensionName || category.name,
     standard: category.requirement,
+    assessmentCycle: category.assessmentCycle ?? "月度",
+    calculationRule: category.calculationRule ?? category.requirement,
+    expectedOutput: category.expectedOutput ?? category.requirement,
+    reviewWeights: category.reviewWeights ? { ...category.reviewWeights } : undefined,
     standards: (category.standards ?? []).map((standard) => ({ ...standard })),
-    source: "月度绩效目标 / 任务记录 / 佐证材料",
+    source: category.source ?? "月度绩效目标 / 任务记录 / 佐证材料",
     weight: Number(category.weight || 0) / 100,
     type: category.type === "adjustment" || category.origin === "adjustment" ? "adjustment" : "metric",
     selfText: "",
@@ -1291,10 +1566,11 @@ function exportPerformanceDetailExcel(review, hongguoUploads = []) {
     buildExcelWorksheet("基本信息", ["字段", "内容"], [
       ["姓名", review.employee], ["部门", review.department], ["岗位", review.role], ["考核周期", review.cycle],
       ["岗位模板", getReviewTemplate(review).name], ["流程状态", review.status], ["目标版本", `V${review.activeTargetVersion ?? 1}`],
-      ["申诉状态", review.appealStatus], ["基础绩效分", calcBaseScore(review)], ["加减分", calcAdjustmentScore(review)],
+      ["申诉状态", replaceLegacyHrLabel(review.appealStatus)], ["基础绩效分", calcBaseScore(review)], ["加减分", calcAdjustmentScore(review)],
       ["加减分佐证材料数量", review.adjustmentEvidenceFiles?.length ?? 0],
       ["最终绩效分", calcScore(review)], ["绩效等级", getGrade(calcScore(review))], ["直属Leader", review.directLeader],
-      ["二级Leader", review.indirectLeader], ["二级结果审核结论", review.secondReviewConclusion || "--"], ["二级结果审核意见", review.secondReviewComment || "--"],
+      ["协助评分人", requiresSecondReview(review) ? review.assistReviewer || review.indirectLeader : "未开启"], ["协助评分结论", review.secondReviewConclusion || "--"], ["协助评分汇总意见", review.secondReviewComment || "--"],
+      ["BP评分人", getSubjectType(review) === SUBJECT_TYPE.bp ? "不适用" : review.bpReviewer || "BP-唐宁"], ["BP评分汇总意见", review.hrReviewComment || "--"],
       ["成绩确认决定", review.scoreConfirmation?.decisionLabel || "--"], ["成绩确认人", review.scoreConfirmation?.signer || review.scoreConfirmation?.decidedBy || "--"],
       ["成绩确认时间", review.scoreConfirmation?.signedAt || review.scoreConfirmation?.decidedAt || "--"], ["电子签名编号", review.scoreConfirmation?.signatureId || review.scoreConfirmation?.signatureStatus || "--"],
       ["最后操作时间", review.lastActionAt], ["导出时间", getActionTimestamp()],
@@ -1305,7 +1581,7 @@ function exportPerformanceDetailExcel(review, hongguoUploads = []) {
       ["职位", review.role],
       ["申诉内容", review.appealContent || review.appealNote || "--"],
       ["申诉证据清单", review.appealEvidenceList || review.evidence || "--"],
-      ["接待人", review.appealReceptionist || "HR-唐宁"],
+      ["接待人", review.appealReceptionist || "BP-唐宁"],
       ["申诉日期", review.appealDate || "--"],
       ["是否受理", review.appealAcceptanceDecision === "reject" ? "不受理" : review.appealAcceptanceComment ? "受理" : "--"],
       ["受理说明", review.appealAcceptanceComment || "--"],
@@ -1316,13 +1592,13 @@ function exportPerformanceDetailExcel(review, hongguoUploads = []) {
       ["综合管理中心意见", review.appealManagementCenterOpinion || review.hrAppealDecisionReason || "--"],
       ["绩效管理委员会意见", review.appealCommitteeOpinion || review.appealResolution || "--"],
     ]),
-    buildExcelWorksheet("评分明细", ["分组", "指标", "类型", "权重", "评定标准", "数据来源", "完成结果", "完成说明", "证明材料", "一级评分", "一级评语", "二级评分", "二级评语", "综合得分", "计入结果"], metricRows.map((row) => [
+    buildExcelWorksheet("评分明细", ["分组", "指标", "类型", "权重", "评定标准", "数据来源", "完成结果", "完成说明", "证明材料", "一级评分", "一级评语", "协助评分", "协助评分评语", "BP评分", "BP评语", "综合得分", "计入结果"], metricRows.map((row) => [
       row.section, row.label, row.type === "adjustment" ? "加减分" : "绩效目标", row.type === "adjustment" ? "--" : `${Number(row.weight || 0) * 100}%`, getScoreBands(row).join("\n"),
-      row.source, row.selfText, row.completionNote, row.evidence, row.firstScore, row.firstComment, row.secondScore, row.secondComment,
+      row.source, row.selfText, row.completionNote, row.evidence, row.firstScore, row.firstComment, row.assistScore ?? row.secondScore, row.assistComment ?? row.secondComment, row.bpScore, row.bpComment,
       Number(calcRowComposite(row, review).toFixed(2)), calcRowScore(row, review),
     ])),
     buildExcelWorksheet("加减分佐证材料", ["文件名称", "文件大小", "文件类型", "上传人", "上传时间", "上传阶段"], (review.adjustmentEvidenceFiles?.length ? review.adjustmentEvidenceFiles : [{ name: "--", size: "--", type: "未上传", uploader: "--", uploadedAt: "--", sourceStage: "--" }]).map((file) => [
-      file.name, typeof file.size === "number" ? formatPerformanceFileSize(file.size) : file.size, file.type, file.uploader, file.uploadedAt, file.sourceStage === "first_score" ? "一级评分" : file.sourceStage === "second_review" ? "二级复评" : file.sourceStage,
+      file.name, typeof file.size === "number" ? formatPerformanceFileSize(file.size) : file.size, file.type, file.uploader, file.uploadedAt, file.sourceStage === "first_score" ? "一级评分" : file.sourceStage === "second_review" ? "协助评分" : file.sourceStage,
     ])),
     buildExcelWorksheet("目标版本", ["版本", "状态", "变更原因", "操作人", "操作时间", "目标数量", "目标摘要"], targetVersions.map((version) => [
       `V${version.version}`, version.status, version.changeReason || "首次下发", version.operator || review.directLeader, version.actedAt || review.lastActionAt,
@@ -1521,27 +1797,44 @@ function OkrSheetPreview({ review, categories, actionType = "readonly", rows: co
       }, [])
     : rows;
   const needsSecondReview = requiresSecondReview(review);
+  const subjectType = getSubjectType(review);
+  const needsBpReview = Boolean(review) && subjectType !== SUBJECT_TYPE.bp;
   const title = review ? `${review.roleTemplateName} 绩效目标评分表` : "月度绩效目标下发模板";
   const totalScore = review ? calcScore({ ...review, rows }) : null;
   const totalGrade = totalScore === null ? "--" : `${getGrade(totalScore)}-${getLevelLabel(totalScore)}`;
   const employeePlaceholder = actionType === "enter_result" || actionType === "finish_execution" ? "员工填写完成情况、核心数据、未完成原因与佐证说明" : "员工确认后填写本月完成情况";
   const firstPlaceholder = actionType === "first_score" ? "一级评分" : "待一级上级评分";
-  const secondPlaceholder = needsSecondReview ? (actionType === "second_review" ? "二级评分" : "待二级上级评分") : "无需二级评分";
+  const secondPlaceholder = needsSecondReview ? (actionType === "second_review" ? "协助评分" : "待协助评分") : "未开启协助评分";
+  const bpPlaceholder = needsBpReview ? (actionType === "hr_review" ? "BP评分" : "待BP评分") : "BP绩效无需BP评分";
   const canEditResult = actionType === "enter_result";
   const canEditFirst = actionType === "first_score";
   const canEditSecond = actionType === "second_review" && needsSecondReview;
+  const canEditBp = actionType === "hr_review" && needsBpReview;
   const actionGuide = canEditResult
     ? "当前可填写：完成情况、完成说明、证明材料与关联业务记录"
     : canEditFirst
       ? "当前可填写：一级评分、一级评语与加减分依据"
       : canEditSecond
-        ? "当前可填写：二级评分、二级评语与加减分共用佐证材料"
+        ? "当前可填写：协助评分与逐项评语"
+        : canEditBp
+          ? "当前可填写：BP评分与逐项评语；加减分沿用一级评分直接计入"
         : "当前为只读查看，所有绩效信息均完整保留";
+  const employeeEntryMode = actionType === "enter_result";
+  const stageItems = [
+    { key: "enter_result", label: "员工填报" },
+    { key: "first_score", label: "部门评分" },
+    { key: "second_review", label: "协助评分", optional: !needsSecondReview },
+    { key: "hr_review", label: "BP评分", optional: !needsBpReview },
+    { key: "complete", label: "汇总完成" },
+  ];
+  const stageIndex = stageItems.findIndex((item) => item.key === actionType);
+  const activeStageIndex = stageIndex >= 0 ? stageIndex : stageItems.length - 1;
   useEffect(() => {
     const targetScrollLeft = {
       enter_result: 622,
       first_score: 622,
       second_review: 852,
+      hr_review: 1050,
     }[actionType] ?? 0;
     if (sheetScrollRef.current) sheetScrollRef.current.scrollLeft = targetScrollLeft;
   }, [actionType, review?.id]);
@@ -1567,6 +1860,9 @@ function OkrSheetPreview({ review, categories, actionType = "readonly", rows: co
         <span>{actionGuide}</span>
         <small>共 {displayRows.length} 项指标 · 可横向滚动查看全部字段</small>
       </div>
+      <div className="okr-stage-strip" aria-label="绩效处理阶段">
+        {stageItems.map((stage, index) => <div className={`${index < activeStageIndex ? "is-done" : ""} ${index === activeStageIndex ? "is-active" : ""} ${stage.optional ? "is-optional" : ""}`} key={stage.key}><i>{index < activeStageIndex ? "✓" : index + 1}</i><span>{stage.label}</span>{stage.optional ? <small>跳过</small> : null}</div>)}
+      </div>
       <div className="okr-sheet-scroll" ref={sheetScrollRef}>
         <table className="okr-sheet-table" aria-label={title}>
           <colgroup>
@@ -1575,11 +1871,15 @@ function OkrSheetPreview({ review, categories, actionType = "readonly", rows: co
             <col className="okr-col-source" />
             <col className="okr-col-weight" />
             <col className="okr-col-result" />
-            <col className="okr-col-score" />
-            <col className="okr-col-comment" />
-            <col className="okr-col-score" />
-            <col className="okr-col-comment" />
-            <col className="okr-col-composite" />
+            {!employeeEntryMode ? <>
+              <col className="okr-col-score" />
+              <col className="okr-col-comment" />
+              <col className="okr-col-score" />
+              <col className="okr-col-comment" />
+              <col className="okr-col-score" />
+              <col className="okr-col-comment" />
+              <col className="okr-col-composite" />
+            </> : null}
           </colgroup>
           <thead>
             <tr>
@@ -1588,21 +1888,29 @@ function OkrSheetPreview({ review, categories, actionType = "readonly", rows: co
               <th scope="col">数据来源</th>
               <th scope="col">权重</th>
               <th scope="col">完成情况（被考核人自填）</th>
-              <th scope="col">第一级上级评分</th>
-              <th scope="col">一级评语</th>
-              <th scope="col">第二级上级评分</th>
-              <th scope="col">二级评语</th>
-              <th scope="col">单项综合得分</th>
+              {!employeeEntryMode ? <>
+                <th scope="col">{subjectType === SUBJECT_TYPE.employee ? "部门领导评分" : "老板评分"}</th>
+                <th scope="col">一级评语</th>
+                <th scope="col">协助评分</th>
+                <th scope="col">协助评分评语</th>
+                <th scope="col">BP评分</th>
+                <th scope="col">BP评语</th>
+                <th scope="col">单项综合得分</th>
+              </> : null}
             </tr>
           </thead>
           <tbody>
             {displayRows.map((row) => {
               const rowComposite = review ? calcRowComposite(row, review) : "";
+              const rowWeights = getRowReviewWeights(row, review);
+              const firstApplicable = row.type === "adjustment" || rowWeights.first > 0;
+              const assistanceApplicable = row.type !== "adjustment" && needsSecondReview && rowWeights.assistance > 0;
+              const bpApplicable = row.type !== "adjustment" && needsBpReview && rowWeights.bp > 0;
               return (
                 <tr key={row.key ?? row.id ?? row.label}>
-                  <td><strong>{row.label}</strong><small>{row.section}</small></td>
-                  <td><div className="okr-score-bands">{getScoreBands(row).map((band) => <p key={band}>{band}</p>)}</div></td>
-                  <td>{row.source || "月度绩效目标 / 工作平台记录 / 负责人评价"}</td>
+                  <td><strong>{row.label}</strong><small>{row.section}</small><div className="okr-metric-tags"><span>{row.assessmentCycle ?? "月度"}</span>{row.type === "adjustment" ? <b>独立计分</b> : <b>{Math.round(rowWeights.first * 100)} / {Math.round(rowWeights.assistance * 100)} / {Math.round(rowWeights.bp * 100)}</b>}</div></td>
+                  <td><div className="okr-rule-copy"><span>计算规则</span><p>{row.calculationRule || row.standard || row.requirement || "按评定档位综合评分"}</p></div><div className="okr-score-bands">{getScoreBands(row).map((band) => <p key={band}>{band}</p>)}</div></td>
+                  <td><div className="okr-output-copy"><span>目标成果</span><p>{row.expectedOutput || "按本指标目标要求提交可核验成果"}</p><small>数据来源：{row.source || "月度绩效目标 / 工作平台记录 / 负责人评价"}</small></div></td>
                   <td>{row.type === "adjustment" ? "无权重·独立计分" : `${Math.round((row.weight ?? 0) * 100)}%`}</td>
                   <td className="okr-sheet-table__completion">
                     <span className="okr-inline-label">员工填写</span>
@@ -1613,11 +1921,15 @@ function OkrSheetPreview({ review, categories, actionType = "readonly", rows: co
                       <input aria-label={`${row.label} 关联业务记录`} value={row.reference ?? ""} onChange={(event) => updateRow(row.key, { reference: event.target.value })} placeholder="引用项目、任务或周报" />
                     </> : null}
                   </td>
-                  <td><input aria-label={`${row.label} 一级评分`} disabled={!canEditFirst} min={row.type === "adjustment" ? row.minScore ?? -10 : 0} max={row.type === "adjustment" ? row.maxScore ?? 10 : 100} value={row.firstScore ?? ""} onChange={(event) => updateRow(row.key, { firstScore: normalizeScore(event.target.value) })} placeholder={firstPlaceholder} type="number" /></td>
-                  <td><textarea aria-label={`${row.label} 一级评语`} disabled={!canEditFirst} value={row.firstComment ?? ""} onChange={(event) => updateRow(row.key, { firstComment: event.target.value })} placeholder={row.type === "adjustment" ? "非零加减分原因（必填）" : "一级评语"} rows={4} /></td>
-                  <td><input aria-label={`${row.label} 二级评分`} value={needsSecondReview ? row.secondScore ?? "" : ""} disabled={!canEditSecond} min={row.type === "adjustment" ? row.minScore ?? -10 : 0} max={row.type === "adjustment" ? row.maxScore ?? 10 : 100} onChange={(event) => updateRow(row.key, { secondScore: normalizeScore(event.target.value) })} placeholder={secondPlaceholder} type="number" /></td>
-                  <td><textarea aria-label={`${row.label} 二级评语`} value={needsSecondReview ? row.secondComment ?? "" : ""} disabled={!canEditSecond} onChange={(event) => updateRow(row.key, { secondComment: event.target.value })} placeholder={needsSecondReview ? row.type === "adjustment" ? "非零加减分原因（必填）" : "二级评语" : "无需二级评语"} rows={4} /></td>
-                  <td><strong>{rowComposite === "" ? "--" : Number(rowComposite.toFixed(1))}</strong></td>
+                  {!employeeEntryMode ? <>
+                    <td><input aria-label={`${row.label} 一级评分`} disabled={!canEditFirst || !firstApplicable} min={row.type === "adjustment" ? row.minScore ?? -10 : 0} max={row.type === "adjustment" ? row.maxScore ?? 10 : 100} value={firstApplicable ? row.firstScore ?? "" : ""} onChange={(event) => updateRow(row.key, row.type === "adjustment" ? { firstScore: normalizeScore(event.target.value), adjustmentScore: normalizeScore(event.target.value) } : { firstScore: normalizeScore(event.target.value) })} placeholder={firstApplicable ? firstPlaceholder : "本项不参与"} type="number" /></td>
+                    <td><textarea aria-label={`${row.label} 一级评语`} disabled={!canEditFirst || !firstApplicable} value={firstApplicable ? row.firstComment ?? "" : ""} onChange={(event) => updateRow(row.key, { firstComment: event.target.value })} placeholder={row.type === "adjustment" ? "非零加减分原因（必填）" : firstApplicable ? "一级评语" : "本项不参与"} rows={4} /></td>
+                    <td><input aria-label={`${row.label} 协助评分`} value={assistanceApplicable ? row.assistScore ?? "" : ""} disabled={!canEditSecond || !assistanceApplicable} min="0" max="100" onChange={(event) => updateRow(row.key, { assistScore: normalizeScore(event.target.value), secondScore: normalizeScore(event.target.value) })} placeholder={row.type === "adjustment" ? "加减分直接计入" : assistanceApplicable ? secondPlaceholder : "本项不参与"} type="number" /></td>
+                    <td><textarea aria-label={`${row.label} 协助评分评语`} value={assistanceApplicable ? row.assistComment ?? "" : ""} disabled={!canEditSecond || !assistanceApplicable} onChange={(event) => updateRow(row.key, { assistComment: event.target.value, secondComment: event.target.value })} placeholder={row.type === "adjustment" ? "无需重复评分" : assistanceApplicable ? "协助评分评语" : "本项不参与协助评分"} rows={4} /></td>
+                    <td><input aria-label={`${row.label} BP评分`} value={bpApplicable ? row.bpScore ?? "" : ""} disabled={!canEditBp || !bpApplicable} min="0" max="100" onChange={(event) => updateRow(row.key, { bpScore: normalizeScore(event.target.value) })} placeholder={row.type === "adjustment" ? "加减分直接计入" : bpApplicable ? bpPlaceholder : "本项不参与"} type="number" /></td>
+                    <td><textarea aria-label={`${row.label} BP评语`} value={bpApplicable ? row.bpComment ?? "" : ""} disabled={!canEditBp || !bpApplicable} onChange={(event) => updateRow(row.key, { bpComment: event.target.value })} placeholder={row.type === "adjustment" ? "无需重复评分" : bpApplicable ? "BP评语" : "本项不参与BP评分"} rows={4} /></td>
+                    <td><strong>{rowComposite === "" ? "--" : Number(rowComposite.toFixed(1))}</strong></td>
+                  </> : null}
                 </tr>
               );
             })}
@@ -1833,7 +2145,7 @@ export function WorkflowActionPage({ review, action, onBack, onSubmit, hongguoUp
       adjustmentEvidenceFiles: (current.adjustmentEvidenceFiles ?? []).filter((file) => file.id !== fileId),
     }));
   };
-  const adjustmentEvidenceFields = action.type === "first_score" ? ["firstScore"] : ["firstScore", "secondScore"];
+  const adjustmentEvidenceFields = ["adjustmentScore", "firstScore"];
   const adjustmentEvidenceValidation = validateAdjustmentEvidence(draft.rows, draft.adjustmentEvidenceFiles, adjustmentEvidenceFields);
   const submit = () => {
     const payload = getWorkflowSubmitPayload(review, action, draft);
@@ -1881,13 +2193,13 @@ export function WorkflowActionPage({ review, action, onBack, onSubmit, hongguoUp
 
         {action.type === "second_review" ? <>
           <div className="form-grid">
-            <label><span>结果审核结论</span><select value={draft.secondDecision} onChange={(event) => updateDraft("secondDecision", event.target.value)}><option value="score">结果完整，复评通过</option><option value="return">证明材料不足，退回员工补充</option></select></label>
+            <label><span>协助评分结论</span><select value={draft.secondDecision} onChange={(event) => updateDraft("secondDecision", event.target.value)}><option value="score">协助评分完成</option><option value="return">证明材料不足，退回员工补充</option></select></label>
           </div>
-          <label className="form-block"><span>二级结果审核意见</span><textarea aria-label="二级结果审核意见" rows={4} value={draft.secondReviewComment} onChange={(event) => updateDraft("secondReviewComment", event.target.value)} placeholder={draft.secondDecision === "return" ? "说明需要补充的结果、数据或证明材料" : "填写结果核验情况、评分调整依据及需HR关注事项"} /></label>
+          <label className="form-block"><span>协助评分汇总意见</span><textarea aria-label="协助评分汇总意见" rows={4} value={draft.secondReviewComment} onChange={(event) => updateDraft("secondReviewComment", event.target.value)} placeholder={draft.secondDecision === "return" ? "说明需要补充的结果、数据或证明材料" : "概述协助评分依据与需要BP关注的事项"} /></label>
         </> : null}
 
-        {action.type === "hr_review" ? <><div className="form-grid"><label><span>处理结论</span><select value={draft.hrDecision} onChange={(event) => updateDraft("hrDecision", event.target.value)}><option value="submit">提交绩效委员会审批</option><option value="return">退回Leader重新评分</option></select></label></div><label className="form-block"><span>HR复审意见</span><textarea rows={5} value={draft.hrReviewComment} onChange={(event) => updateDraft("hrReviewComment", event.target.value)} placeholder="填写材料核验、加减分核对及需绩效委员会关注的问题" /></label></> : null}
-        {action.type === "committee_approve" ? <><div className="form-grid"><label><span>审批结论</span><select value={draft.committeeDecision} onChange={(event) => updateDraft("committeeDecision", event.target.value)}><option value="approve">审批通过</option><option value="return">退回Leader重新评分</option></select></label></div><label className="form-block"><span>绩效委员会审批意见</span><textarea rows={5} value={draft.committeeComment} onChange={(event) => updateDraft("committeeComment", event.target.value)} placeholder="填写审批意见；退回时说明需修正的内容" /></label></> : null}
+        {action.type === "hr_review" ? <><div className="form-grid"><label><span>BP评分结论</span><select value={draft.hrDecision} onChange={(event) => updateDraft("hrDecision", event.target.value)}><option value="submit">评分完成，提交绩效委员会审核</option><option value="return">退回重新评分</option></select></label></div><label className="form-block"><span>BP评分汇总意见</span><textarea rows={5} value={draft.hrReviewComment} onChange={(event) => updateDraft("hrReviewComment", event.target.value)} placeholder="填写BP评分依据及需绩效委员会关注的问题" /></label></> : null}
+        {action.type === "committee_approve" ? <><div className="form-grid"><label><span>审核结论</span><select value={draft.committeeDecision} onChange={(event) => updateDraft("committeeDecision", event.target.value)}><option value="approve">审核通过</option><option value="return">退回重新评分</option></select></label></div><label className="form-block"><span>绩效委员会审核意见</span><textarea rows={5} value={draft.committeeComment} onChange={(event) => updateDraft("committeeComment", event.target.value)} placeholder="仅填写审核意见；委员会不可修改评分和评语" /></label></> : null}
         {action.type === "interview_feedback" ? <>
           <section className="interview-archive-card" aria-label="绩效反馈与面谈附件归档">
             <div className="appeal-template-card"><FileDoc size={28} weight="duotone" /><div><strong>绩效反馈与面谈记录表</strong><span>已预填员工、周期、绩效结果及评分明细，下载后填写面谈内容并签字。</span></div><button className="secondary-btn" onClick={() => downloadInterviewFeedbackTemplate(review)} type="button"><DownloadSimple size={16} />下载面谈表</button></div>
@@ -1922,7 +2234,7 @@ export function WorkflowActionPage({ review, action, onBack, onSubmit, hongguoUp
       {["first_score", "second_review", "hr_review", "committee_approve"].includes(action.type) ? (
         <AdjustmentEvidencePanel
           actionType={action.type}
-          editable={["first_score", "second_review"].includes(action.type)}
+          editable={action.type === "first_score"}
           error={adjustmentUploadError}
           files={draft.adjustmentEvidenceFiles}
           onChange={handleAdjustmentEvidenceChange}
@@ -1955,10 +2267,10 @@ function RuleModal({ onClose }) {
         </div>
         <div className="modal__body">
           <div className="rule-list">
-            <div><b>查看范围</b><span>上级可查看直属下级与跨级下级；员工仅查看本人；HR 与老板可查看全公司。</span></div>
+            <div><b>查看范围</b><span>上级可查看权限内人员；员工仅查看本人；BP 与老板可查看全公司绩效。</span></div>
             <div><b>下发范围</b><span>下发人员只能选择自己权限范围内的下级人员，不能越权下发。</span></div>
             <div><b>绩效模板</b><span>模板采用“维度—指标名称—绩效描述”三层结构，支持维护多个指标和评分档位。</span></div>
-            <div><b>流程规则</b><span>月度绩效目标下发并由员工确认后，员工逐项填报结果，再进入一二级评分、HR复审和绩效委员会审批；审批通过后由员工确认绩效成绩并决定是否申诉，不申诉则扫码签名归档，申诉则在线填写《绩效申诉表》，并流转给HR、用人部门负责人和绩效管理委员会继续填写对应内容。</span></div>
+            <div><b>流程规则</b><span>员工填报结果后按人员类型进入动态评分链：普通员工由部门领导、可选协助评分人、BP评分；部门负责人由老板、可选协助评分人、BP评分；BP由老板评分。汇总后由绩效委员会仅做通过或退回审核。</span></div>
           </div>
           <div className="action-row">
             <button className="primary-btn" onClick={onClose} type="button">知道了</button>
@@ -1972,7 +2284,7 @@ function RuleModal({ onClose }) {
 function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose }) {
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id ?? "");
   const selectedTemplate = templates.find((item) => item.id === selectedTemplateId) ?? templates[0];
-  const [draft, setDraft] = useState(() => ({ ...selectedTemplate, categories: clonePerformanceCategories(selectedTemplate?.categories) }));
+  const [draft, setDraft] = useState(() => ({ ...selectedTemplate, categories: clonePerformanceCategories(referencePerformanceCategories) }));
   const [creatingDepartment, setCreatingDepartment] = useState(false);
   const [newDepartmentName, setNewDepartmentName] = useState("");
   const [departmentError, setDepartmentError] = useState("");
@@ -1988,13 +2300,31 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
 
   useEffect(() => {
     const next = templates.find((item) => item.id === selectedTemplateId) ?? templates[0];
-    setDraft({ ...next, categories: clonePerformanceCategories(next?.categories) });
+    setDraft({ ...next, categories: clonePerformanceCategories(referencePerformanceCategories) });
   }, [selectedTemplateId, templates]);
 
   const updateDraft = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
   const updateCategory = (categoryId, key, value) => setDraft((current) => ({
     ...current,
     categories: current.categories.map((item) => item.id === categoryId ? { ...item, [key]: value } : item),
+  }));
+  const updateReviewWeight = (categoryId, key, value) => setDraft((current) => ({
+    ...current,
+    categories: current.categories.map((item) => item.id === categoryId ? {
+      ...item,
+      reviewWeights: { first: 0, assistance: 0, bp: 0, ...item.reviewWeights, [key]: Number(value) },
+    } : item),
+  }));
+  const applyDefaultScoreChain = (enabled) => setDraft((current) => ({
+    ...current,
+    assistScoreEnabled: enabled,
+    defaultAssistReviewer: enabled ? current.defaultAssistReviewer : "",
+    categories: current.categories.map((item) => item.type === "adjustment" ? item : {
+      ...item,
+      reviewWeights: enabled
+        ? { first: 40, assistance: 20, bp: 40 }
+        : { first: 50, assistance: 0, bp: 50 },
+    }),
   }));
   const templateMetrics = draft.categories?.filter((item) => item.origin === "template" && item.type !== "adjustment") ?? [];
   const adjustmentMetrics = draft.categories?.filter((item) => item.type === "adjustment" || item.origin === "adjustment") ?? [];
@@ -2044,6 +2374,10 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
         minScore: isAdjustment ? -3 : undefined,
         maxScore: isAdjustment ? 3 : undefined,
         requirement: isAdjustment ? "请填写该类别的加分、减分条件及分值边界。" : "请填写目标要求和衡量标准。",
+        assessmentCycle: "月度",
+        calculationRule: isAdjustment ? "按加减分规则独立计入最终绩效分。" : "按目标完成情况与评定档位综合评分。",
+        expectedOutput: isAdjustment ? "提交可核验的加减分事实与佐证。" : "提交与本指标对应的可核验成果。",
+        reviewWeights: isAdjustment ? undefined : (current.assistScoreEnabled ? { first: 40, assistance: 20, bp: 40 } : { first: 50, assistance: 0, bp: 50 }),
         historyReference: "",
         source: isAdjustment ? "被考核人填写的完成情况 / 上级和协作方评价" : "任务记录 / 绩效填报",
         standards: isAdjustment ? [] : createMetricStandards(nextId),
@@ -2057,10 +2391,29 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
     const dimensionId = `dimension-${Date.now()}`;
     addTemplateTarget(dimensionId);
   };
-  const removeTemplateTarget = (categoryId) => setDraft((current) => ({
-    ...current,
-    categories: current.categories.filter((item) => item.id !== categoryId),
-  }));
+  const addReferenceContent = () => setDraft((current) => {
+    const source = current.categories.find((item) => item.origin === "template" && item.type !== "adjustment");
+    const nextId = `reference-custom-${Date.now()}`;
+    const nextMetric = {
+      ...source,
+      id: nextId,
+      name: "新增工作内容",
+      weight: 0,
+      standards: createMetricStandards(nextId),
+    };
+    const adjustmentIndex = current.categories.findIndex((item) => item.type === "adjustment" || item.origin === "adjustment");
+    const categories = [...current.categories];
+    categories.splice(adjustmentIndex < 0 ? categories.length : adjustmentIndex, 0, nextMetric);
+    return { ...current, categories };
+  });
+  const removeTemplateTarget = (categoryId) => setDraft((current) => {
+    const target = current.categories.find((item) => item.id === categoryId);
+    if (target?.type === "adjustment" || target?.origin === "adjustment") {
+      showTemplateFeedback("加减分项为固定项，不可删除");
+      return current;
+    }
+    return { ...current, categories: current.categories.filter((item) => item.id !== categoryId) };
+  });
   const removeDimension = (dimensionId) => {
     const dimension = templateDimensions.find((item) => item.id === dimensionId);
     if (dimension?.isAdjustment) {
@@ -2080,7 +2433,6 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
     else next.add(dimensionId);
     return next;
   });
-  const positionsForDepartment = [...new Set(templates.filter((item) => item.department === draft.department).map((item) => item.role).filter(Boolean))];
   const switchTemplateScope = (department, role) => {
     const next = templates.find((item) => item.department === department && (!role || item.role === role))
       ?? templates.find((item) => item.department === department);
@@ -2090,7 +2442,16 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
   const weightedCategories = draft.categories?.filter((item) => item.type !== "adjustment") ?? [];
   const totalWeight = weightedCategories.reduce((sum, item) => sum + Number(item.weight || 0), 0);
   const templateWeight = templateMetrics.reduce((sum, item) => sum + Number(item.weight || 0), 0);
-  const canSave = totalWeight === 100 && templateMetrics.length > 0 && adjustmentMetrics.length > 0;
+  const invalidReviewWeightMetrics = templateMetrics.filter((item) => {
+    const weights = item.reviewWeights ?? {};
+    return Number(weights.first || 0) + Number(weights.assistance || 0) + Number(weights.bp || 0) !== 100;
+  });
+  const incompleteTemplateMetrics = templateMetrics.filter((item) => !String(item.assessmentCycle || "").trim()
+    || !String(item.calculationRule || "").trim()
+    || !String(item.expectedOutput || "").trim());
+  const canSave = totalWeight === 100 && templateMetrics.length > 0 && adjustmentMetrics.length > 0
+    && invalidReviewWeightMetrics.length === 0 && incompleteTemplateMetrics.length === 0
+    && (!draft.assistScoreEnabled || String(draft.defaultAssistReviewer || "").trim());
   const importPreset = () => {
     const existingIds = new Set(draft.categories.map((item) => item.id));
     const additions = clonePerformanceCategories(defaultPerformanceCategories)
@@ -2104,7 +2465,13 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
   };
   const saveTemplate = () => {
     if (!canSave) {
-      showTemplateFeedback("请将全部绩效指标权重调整为 100% 后再保存");
+      showTemplateFeedback(draft.assistScoreEnabled && !String(draft.defaultAssistReviewer || "").trim()
+        ? "开启协助评分后，请先指定默认协助评分人"
+        : invalidReviewWeightMetrics.length
+          ? `有 ${invalidReviewWeightMetrics.length} 项评分人权重未达到 100%`
+          : incompleteTemplateMetrics.length
+            ? `有 ${incompleteTemplateMetrics.length} 项指标缺少周期、计算规则或成果输出`
+            : "请将全部绩效指标权重调整为 100% 后再保存");
       return;
     }
     onSave(draft);
@@ -2139,57 +2506,35 @@ function TargetTemplateModal({ templates, departments, onSave, onCreate, onClose
       <div className="modal target-template-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="维护岗位绩效目标模板">
         <div className="target-template-modal__header">
           <div className="hr-template-title-icon"><GearSix size={24} weight="fill" /></div>
-          <div className="hr-template-title-copy"><div><strong>维护部门岗位绩效模板</strong><span>HR 维护模式</span></div><p>为特定部门与岗位配置标准化的三级绩效考核指标体系</p></div>
-          <div className="hr-template-header-actions"><button className="hr-template-text-button" onClick={() => setHelpOpen(true)} type="button">使用帮助</button><button aria-label="关闭模板维护" className="icon-btn" onClick={onClose} type="button"><X size={20} /></button></div>
+          <div className="hr-template-title-copy"><div><strong>维护部门岗位绩效模板</strong></div></div>
+          <div className="hr-template-header-actions"><button aria-label="关闭模板维护" className="icon-btn" onClick={onClose} type="button"><X size={20} /></button></div>
         </div>
         <div className="modal__body target-template-modal__body">
           <section className="hr-template-scope" aria-label="模板范围">
-            <div className="hr-template-scope__notice"><WarningCircle size={18} weight="fill" /><span><b>模板范围：</b>每个部门和岗位分别维护，切换范围后将加载对应模板。</span></div>
             <div className="hr-template-scope__fields">
-              <label><span>所属部门</span><div className="hr-template-inline-control"><select aria-label="模板所属部门" value={draft.department ?? ""} onChange={(event) => switchTemplateScope(event.target.value, "")}>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select><button className="hr-template-secondary-button" onClick={() => { setCreatingDepartment(true); setDepartmentError(""); }} type="button">+ 新建部门</button></div></label>
-              <label><span>对应岗位</span><select aria-label="对应岗位" value={draft.role ?? ""} onChange={(event) => switchTemplateScope(draft.department, event.target.value)}>{positionsForDepartment.length ? positionsForDepartment.map((item) => <option key={item} value={item}>{item}</option>) : <option value={draft.role ?? "通用岗位"}>{draft.role ?? "通用岗位"}</option>}</select></label>
+              <label><span>所属部门</span><select aria-label="模板所属部门" value={draft.department ?? ""} onChange={(event) => switchTemplateScope(event.target.value, "")}>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
             </div>
-            {creatingDepartment ? <div className="template-new-department"><input aria-label="新部门名称" autoFocus onChange={(event) => setNewDepartmentName(event.target.value)} placeholder="请输入部门名称" value={newDepartmentName} /><button className="primary-btn" onClick={createDepartment} type="button">确认新建部门</button><button className="table-link" onClick={() => { setCreatingDepartment(false); setDepartmentError(""); }} type="button">取消</button>{departmentError ? <small>{departmentError}</small> : null}</div> : null}
           </section>
-          <section className="hr-template-builder" aria-label="三层绩效模板结构">
-            <div className="hr-template-builder__toolbar">
-              <div><strong>三层绩效模板结构</strong><p>第一层：维度&nbsp;&nbsp;|&nbsp;&nbsp;第二层：指标&nbsp;&nbsp;|&nbsp;&nbsp;第三层：评定档位与描述</p></div>
-              <div className="hr-template-toolbar-actions"><span>{templateDimensions.length} 个维度 · {editableTemplateMetrics.length} 项指标/类别</span><button className="hr-template-primary-button" onClick={addDimension} type="button"><b>+ 新增考核维度</b><small>一级目录</small></button></div>
-            </div>
-            <div className={`hr-template-weight ${canSave ? "is-valid" : "is-warning"} ${totalWeight > 100 ? "is-overweight" : ""}`}>
-              <div><span>权重总计（含个人月度目标）</span><b>{totalWeight}%</b><small>模板指标 {templateWeight}%</small></div>
-              <div className="hr-template-weight__track"><i style={{ width: `${Math.min(Math.max(totalWeight, 0), 100)}%` }} /></div>
-              <p>{canSave ? "权重配置正确，可以保存当前模板。" : `总权重必须等于 100%，当前还需${totalWeight < 100 ? `补充 ${100 - totalWeight}%` : `减少 ${totalWeight - 100}%`}。`}</p>
-            </div>
-            <div className="hr-template-dimensions">
-              {templateDimensions.map((dimension, dimensionIndex) => {
-                const dimensionWeight = dimension.metrics.filter((metric) => metric.type !== "adjustment").reduce((sum, metric) => sum + Number(metric.weight || 0), 0);
-                const collapsed = collapsedDimensions.has(dimension.id);
-                return <article className="hr-template-dimension" key={dimension.id}>
-                  <header className={`hr-template-dimension__header ${dimension.isAdjustment ? "is-adjustment" : ""}`}><span className="hr-template-dimension__drag" aria-hidden="true">⠿</span><span>part{dimensionIndex + 1}</span><input aria-label={`维度名称：${dimension.name}`} value={dimension.name} onChange={(event) => updateDimensionName(dimension.id, event.target.value)} /><b>{dimension.isAdjustment ? "无权重 · 总评分 -10～+10" : `总权重 ${dimensionWeight}%`}</b><button onClick={() => addTemplateTarget(dimension.id)} type="button">{dimension.isAdjustment ? "+ 新增加减分类别" : "+ 新增指标"}</button><button aria-label={`${collapsed ? "展开" : "收起"}${dimension.name}`} onClick={() => toggleDimension(dimension.id)} type="button">{collapsed ? "展开" : "收起"}</button><button aria-label={`删除维度：${dimension.name}`} disabled={dimension.isAdjustment || templateDimensions.length <= 1} onClick={() => removeDimension(dimension.id)} type="button">删除维度</button></header>
-                  {!collapsed ? <div className="hr-template-dimension__body">
-                    {dimension.metrics.length ? dimension.metrics.map((metric, metricIndex) => <section className="hr-template-metric" key={metric.id}>
-                      <div className="hr-template-metric__head"><span>{dimension.isAdjustment ? "类别" : "指标"} {metricIndex + 1}</span><input aria-label={`模板目标名称：${metric.name}`} value={metric.name} onChange={(event) => updateCategory(metric.id, "name", event.target.value)} />{dimension.isAdjustment ? <b className="hr-template-adjustment-badge">独立计分</b> : <label><span>权重</span><input aria-label={`模板目标权重：${metric.name}`} min="0" max="100" type="number" value={metric.weight} onChange={(event) => updateCategory(metric.id, "weight", Number(event.target.value))} /><b>%</b></label>}<button aria-label={`删除指标：${metric.name}`} disabled={dimension.isAdjustment ? adjustmentMetrics.length <= 1 : templateMetrics.length <= 1} onClick={() => removeTemplateTarget(metric.id)} type="button">删除指标</button></div>
-                      {dimension.isAdjustment ? <div className="hr-template-adjustment-fields">
-                        <label className="hr-template-adjustment-fields__criteria"><span>评定标准</span><textarea aria-label={`${metric.name}评定标准`} rows={3} value={metric.requirement ?? ""} onChange={(event) => updateCategory(metric.id, "requirement", event.target.value)} /></label>
-                        <label><span>数据来源</span><textarea aria-label={`${metric.name}数据来源`} rows={3} value={metric.source ?? ""} onChange={(event) => updateCategory(metric.id, "source", event.target.value)} /></label>
-                        <div className="hr-template-adjustment-range"><span>类别评分范围</span><label>最低分<input aria-label={`${metric.name}最低分`} max="0" min="-10" type="number" value={metric.minScore ?? -3} onChange={(event) => updateCategory(metric.id, "minScore", Number(event.target.value))} /></label><label>最高分<input aria-label={`${metric.name}最高分`} max="10" min="0" type="number" value={metric.maxScore ?? 3} onChange={(event) => updateCategory(metric.id, "maxScore", Number(event.target.value))} /></label></div>
-                      </div> : <>
-                        <div className="hr-template-standards-head"><div><strong>绩效描述与评定档位标准</strong><span>为当前指标配置不同得分区间及其完成标准</span></div><button onClick={() => addStandard(metric.id)} type="button">+ 添加档位</button></div>
-                        <div className="hr-template-standards">{(metric.standards ?? []).map((standard, standardIndex) => <div className="hr-template-standard" key={standard.id}><span className="hr-template-standard__index">{standardIndex + 1}</span><label><span>档位名称</span><input aria-label={`${metric.name}档位名称`} value={standard.label} onChange={(event) => updateStandard(metric.id, standard.id, "label", event.target.value)} /></label><label><span>分数范围</span><input aria-label={`${metric.name}${standard.label}分数范围`} value={standard.scoreRange} onChange={(event) => updateStandard(metric.id, standard.id, "scoreRange", event.target.value)} /></label><label className="hr-template-standard__description"><span>绩效描述</span><textarea aria-label={`${metric.name}${standard.label}绩效描述`} rows={2} value={standard.description} onChange={(event) => updateStandard(metric.id, standard.id, "description", event.target.value)} /></label><button aria-label={`删除${metric.name}${standard.label}绩效描述`} disabled={(metric.standards?.length ?? 0) <= 1} onClick={() => removeStandard(metric.id, standard.id)} type="button"><X size={15} /></button></div>)}</div>
-                      </>}
-                    </section>) : <div className="hr-template-empty"><strong>当前维度还没有指标</strong><span>添加指标后即可配置绩效档位与描述。</span><button onClick={() => addTemplateTarget(dimension.id)} type="button">立即添加指标</button></div>}
-                  </div> : null}
-                </article>;
-              })}
-              <div className="hr-template-add-dimension"><button onClick={addDimension} type="button"><b>+ 新增考核维度</b><span>创建一级目录，并在其中添加多个考核指标</span></button><button onClick={importPreset} type="button">导入通用必选指标库</button></div>
-            </div>
+           <section className="hr-template-builder performance-task-editor" aria-label="工作任务与权重">
+             <div className={`hr-template-reference-weight ${templateWeight === 100 ? "is-valid" : "is-invalid"}`}>
+               <div><span>权重总计（含个人月度目标）</span><strong>{templateWeight}%</strong><small>模板指标 80%</small></div>
+               <div className="hr-template-reference-weight__track"><i style={{ width: `${Math.min(templateWeight, 100)}%` }} /></div>
+               <p>{templateWeight === 100 ? "权重配置正确，可以保存当前模板。" : `当前权重合计为 ${templateWeight}%，请调整为 100%。`}</p>
+             </div>
+             <table className="hr-template-reference-table" aria-label="工作内容分解与权重">
+               <thead><tr><th scope="col">工作内容分解</th><th scope="col">权重</th></tr></thead>
+               <tbody>{editableTemplateMetrics.map((metric) => <tr className={metric.type === "adjustment" ? "is-adjustment" : ""} key={metric.id}>
+                 <td><div className="hr-template-reference-name"><input aria-label={`编辑${metric.name}`} value={metric.name ?? ""} onChange={(event) => updateCategory(metric.id, "name", event.target.value)} />{metric.type === "adjustment" ? null : <button className="table-link table-link--danger" aria-label={`删除${metric.name}`} onClick={() => removeTemplateTarget(metric.id)} type="button">删除</button>}</div></td>
+                 <td>{metric.type === "adjustment" ? <span className="hr-template-adjustment-badge">加减分项<small>固定项</small></span> : <label className="hr-template-weight-editor"><input aria-label={`${metric.name}权重`} min="0" max="100" type="number" value={metric.weight ?? 0} onChange={(event) => updateCategory(metric.id, "weight", Number(event.target.value))} /><span>%</span></label>}</td>
+               </tr>)}</tbody>
+             </table>
+             <div className="hr-template-reference-actions"><button className="hr-template-secondary-button" onClick={addReferenceContent} type="button">+ 新增工作内容</button><span>固定权重合计：<b>{templateWeight}%</b>{templateWeight === 100 ? " ✓" : ""}</span></div>
           </section>
         </div>
         <div className="target-template-modal__footer"><span><WarningCircle size={17} weight="fill" />保存后仅更新当前模板，不会覆盖已下发的历史绩效目标。</span><div className="action-row"><button className="hr-template-preview-button" onClick={() => setPreviewOpen(true)} type="button">效果预览</button><button className="primary-btn" disabled={!canSave} onClick={saveTemplate} type="button">保存当前模板</button></div></div>
         {templateFeedback ? <div className="hr-template-feedback" role="status"><CheckCircle size={18} weight="fill" /><span>{templateFeedback}</span><button aria-label="关闭提示" onClick={() => setTemplateFeedback("")} type="button"><X size={15} /></button></div> : null}
-        {previewOpen ? <div className="hr-template-suboverlay" onClick={() => setPreviewOpen(false)} role="presentation"><section className="hr-template-preview" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="员工视角绩效考核表预览"><header><div><strong>员工视角 - 绩效考核表预览</strong><span>{draft.department} · {draft.role} · 100 分制</span></div><button aria-label="关闭效果预览" className="icon-btn" onClick={() => setPreviewOpen(false)} type="button"><X size={19} /></button></header><div className="hr-template-preview__body"><div className="hr-template-preview__summary"><b>{draft.name || `${draft.department}${draft.role}绩效模板`}</b><span>{templateDimensions.length} 个维度 · {editableTemplateMetrics.length} 项指标/类别 · 模板权重 {templateWeight}%</span></div><table><thead><tr><th>考核维度</th><th>指标名称</th><th>评定标准与档位要求</th><th>权重/计分方式</th></tr></thead><tbody>{templateDimensions.flatMap((dimension) => dimension.metrics.map((metric, metricIndex) => <tr key={metric.id}>{metricIndex === 0 ? <td rowSpan={dimension.metrics.length}>{dimension.name}</td> : null}<td>{metric.name}</td><td>{dimension.isAdjustment ? <p>{metric.requirement}<br /><b>数据来源：</b>{metric.source}</p> : (metric.standards ?? []).map((standard) => <p key={standard.id}><b>{standard.label}（{standard.scoreRange}）</b>：{standard.description}</p>)}</td><td>{dimension.isAdjustment ? `无权重 · ${metric.minScore ?? -3}～${metric.maxScore ?? 3}分` : `${metric.weight}%`}</td></tr>))}</tbody></table></div></section></div> : null}
-        {helpOpen ? <div className="hr-template-suboverlay" onClick={() => setHelpOpen(false)} role="presentation"><section className="hr-template-help" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="绩效模板使用帮助"><header><strong>三级绩效模板使用帮助</strong><button aria-label="关闭使用帮助" className="icon-btn" onClick={() => setHelpOpen(false)} type="button"><X size={19} /></button></header><div><p><b>第一层 · 维度：</b>用于划分考核方向，并汇总其下全部指标权重。</p><p><b>第二层 · 指标：</b>每个维度可配置多个指标名称与独立权重。</p><p><b>第三层 · 评定档位：</b>为每个指标维护档位、得分范围和对应的完成标准。</p></div><button className="primary-btn" onClick={() => setHelpOpen(false)} type="button">知道了</button></section></div> : null}
+        {previewOpen ? <div className="hr-template-suboverlay" onClick={() => setPreviewOpen(false)} role="presentation"><section className="hr-template-preview" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="员工视角绩效考核表预览"><header><div><strong>员工视角 - 绩效考核表预览</strong><span>{draft.department} · {draft.role} · 100 分制</span></div><button aria-label="关闭效果预览" className="icon-btn" onClick={() => setPreviewOpen(false)} type="button"><X size={19} /></button></header><div className="hr-template-preview__body"><div className="hr-template-preview__summary"><b>{draft.name || `${draft.department}${draft.role}绩效模板`}</b><span>{templateMetrics.length} 项工作任务 · {adjustmentMetrics.length} 项加减分 · 模板权重 {templateWeight}%</span></div><table><thead><tr><th>工作任务</th><th>衡量标准 / 计算规则</th><th>成果输出与评分档位</th><th>权重/计分方式</th></tr></thead><tbody>{[...templateMetrics, ...adjustmentMetrics].map((metric) => <tr key={metric.id}><td>{metric.name}</td><td>{metric.type === "adjustment" ? metric.requirement : metric.calculationRule}</td><td>{metric.type === "adjustment" ? <p><b>数据来源：</b>{metric.source}</p> : <>{metric.expectedOutput ? <p><b>目标成果：</b>{metric.expectedOutput}</p> : null}{(metric.standards ?? []).map((standard) => <p key={standard.id}><b>{standard.label}（{standard.scoreRange}）</b>：{standard.description}</p>)}</>}</td><td>{metric.type === "adjustment" ? `独立计分 · ${metric.minScore ?? -3}～${metric.maxScore ?? 3}分` : `${metric.weight}%`}</td></tr>)}</tbody></table></div></section></div> : null}
+        {helpOpen ? <div className="hr-template-suboverlay" onClick={() => setHelpOpen(false)} role="presentation"><section className="hr-template-help" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="绩效模板使用帮助"><header><strong>工作任务模板使用帮助</strong><button aria-label="关闭使用帮助" className="icon-btn" onClick={() => setHelpOpen(false)} type="button"><X size={19} /></button></header><div><p><b>工作任务：</b>按岗位的实际工作逐项填写，可随岗位需要新增、删除或调整。</p><p><b>任务权重：</b>为每项任务设置本月贡献比例，任务总权重与个人月度任务合计为 100%。</p><p><b>评价依据：</b>为每项任务维护考评周期、计算规则、成果输出、评分关系和评分档位。</p></div><button className="primary-btn" onClick={() => setHelpOpen(false)} type="button">知道了</button></section></div> : null}
       </div>
     </div>
   );
@@ -2657,6 +3002,10 @@ function IssuePerformancePage({
   onClearSelection,
   onSelectGroup,
   onClearGroup,
+  assistScoreEnabled,
+  assistReviewer,
+  onAssistScoreEnabledChange,
+  onAssistReviewerChange,
   onSubmit,
   onClose,
 }) {
@@ -2687,7 +3036,19 @@ function IssuePerformancePage({
   const activePathLabel = activeIssuePath.length ? activeIssuePath.map((key) => key.split("/").at(-1)).join(" / ") : "请选择组织范围";
   const selectedIssueItems = useMemo(() => visibleIssueCandidates.filter((item) => selectedIssueIds.includes(item.id)), [selectedIssueIds, visibleIssueCandidates]);
   const selectedGroupCount = useMemo(() => new Set(selectedIssueItems.map((item) => getIssueOrgName(item))).size, [selectedIssueItems]);
-  const canSubmit = !isPastIssueMonth && selectedIssueIds.length > 0 && categoryTotalWeight === 100 && Boolean(deadline) && access.issueMode !== "none";
+  const includesBp = selectedIssueItems.some((item) => getSubjectType(item) === SUBJECT_TYPE.bp);
+  const includesAssistableSubject = selectedIssueItems.some((item) => supportsAssistance(item));
+  const onlyBp = selectedIssueItems.length > 0 && !includesAssistableSubject;
+  const invalidIssueScoreWeights = categoryTemplates.filter((category) => category.type !== "adjustment").filter((category) => {
+    const weights = category.reviewWeights ?? {};
+    return Number(weights.first || 0) + Number(weights.assistance || 0) + Number(weights.bp || 0) !== 100;
+  });
+  const incompleteIssueMetrics = categoryTemplates.filter((category) => category.type !== "adjustment").filter((category) => !String(category.assessmentCycle || "").trim()
+    || !String(category.calculationRule || "").trim()
+    || !String(category.expectedOutput || "").trim());
+  const canSubmit = !isPastIssueMonth && selectedIssueIds.length > 0 && categoryTotalWeight === 100 && Boolean(deadline) && access.issueMode !== "none"
+    && invalidIssueScoreWeights.length === 0 && incompleteIssueMetrics.length === 0
+    && (!assistScoreEnabled || !includesAssistableSubject || Boolean(String(assistReviewer || "").trim()));
   const chooseIssueNode = (node, columnIndex) => setActiveIssuePath((current) => [...current.slice(0, columnIndex), node.key]);
   const balanceWeights = () => {
     const weightedTargets = categoryTemplates.filter((category) => category.type !== "adjustment");
@@ -2720,6 +3081,9 @@ function IssuePerformancePage({
   };
   const updateIssueStandard = (category, standardId, field, value) => {
     updateCategory(category.id, "standards", (category.standards ?? []).map((standard) => standard.id === standardId ? { ...standard, [field]: value } : standard));
+  };
+  const updateIssueReviewWeight = (category, key, value) => {
+    updateCategory(category.id, "reviewWeights", { first: 0, assistance: 0, bp: 0, ...category.reviewWeights, [key]: Number(value) });
   };
   const addIssueDimension = () => {
     const stamp = Date.now();
@@ -2770,36 +3134,48 @@ function IssuePerformancePage({
           <div className="issue-launch-panel__foot"><strong>已选 {selectedCount} 人</strong><button className="ghost-chip" disabled={!selectedCount} onClick={onClearSelection} type="button">查看全部已选</button></div>
         </section>
         <section className="issue-launch-panel issue-launch-panel--config">
-          <section className="issue-launch-config-banner"><div><span>绩</span><div><strong>{activeGroupName} · 绩效目标配置</strong><small>系统按部门和岗位带出HR维护的模板；Leader仅编辑本次下发草案，不会覆盖HR模板。</small></div></div><div className="issue-launch-config-stats"><div><span>已选人员</span><strong>{selectedCount} 人</strong></div><div><span>直属Leader</span><strong>{access.viewerName}</strong></div><div><span>目标版本</span><strong>待下发V1</strong></div></div></section>
+          <section className="issue-launch-config-banner"><div><span>绩</span><div><strong>{activeGroupName} · 绩效目标配置</strong><small>系统按部门和岗位带出BP配置的模板；本次调整只作用于当前下发，不会覆盖源模板。</small></div></div><div className="issue-launch-config-stats"><div><span>已选人员</span><strong>{selectedCount} 人</strong></div><div><span>下发负责人</span><strong>{access.viewerName}</strong></div><div><span>目标版本</span><strong>待下发V1</strong></div></div></section>
+          <section className="issue-launch-content-card performance-issue-assist-card">
+            <div className="issue-launch-content-card__head"><div><strong>评分关系确认</strong><span>下发负责人可覆盖BP模板默认值；下发后仅BP与原下发负责人可修改。</span></div><b>{onlyBp ? "老板 100%" : assistScoreEnabled ? "40% / 20% / 40%" : "50% / 50%"}</b></div>
+            <div className="performance-assist-config performance-assist-config--issue">
+              <label className="performance-assist-toggle"><input aria-label="本次下发开启协助评分" checked={assistScoreEnabled && !onlyBp} disabled={onlyBp} onChange={(event) => onAssistScoreEnabledChange(event.target.checked)} type="checkbox" /><span>{onlyBp ? "BP绩效不支持协助评分" : assistScoreEnabled ? "已开启协助评分" : "未开启协助评分"}</span></label>
+              <label><span>协助评分人</span><AssistReviewerSelect ariaLabel="本次下发协助评分人" disabled={!assistScoreEnabled || onlyBp} excludedNames={selectedIssueItems.map((item) => item.employee)} onChange={onAssistReviewerChange} value={assistReviewer} /></label>
+              <div className="performance-assist-chain"><span>{onlyBp ? "老板评分与评语 100%" : assistScoreEnabled ? "部门领导/老板 40% → 协助评分人 20% → BP 40%" : "部门领导/老板 50% → BP 50%"}</span><small>{includesBp && includesAssistableSubject ? "所选BP人员自动使用老板100%评分；其他人员按当前配置。" : "加减分项由一级评分人录入并直接计入最终结果"}</small></div>
+            </div>
+          </section>
           <section className="issue-launch-content-card">
             <div className="issue-launch-content-card__head"><div><strong>绩效目标</strong><span>岗位通用目标与个人月度目标共同参与100%权重校验；加减分独立计算。</span></div><div className="issue-launch-weight"><button className="ghost-chip" onClick={balanceWeights} type="button">平均分配</button><b className={categoryTotalWeight === 100 ? "is-valid" : "is-invalid"}>合计 {categoryTotalWeight}%</b><i><em style={{ width: `${Math.min(100, categoryTotalWeight)}%` }} /></i></div></div>
             <label className="issue-launch-template-selector"><span>当前部门岗位模板</span><select aria-label="当前部门岗位模板" value={activeRoleTemplateId} onChange={(event) => onActiveRoleTemplateChange(event.target.value)}>{availableRoleTemplates.map((template) => <option key={template.id} value={template.id}>{template.department} · {template.role}</option>)}</select><small>下发时会分别应用所选员工对应部门和岗位的模板；当前编辑仅作用于当前岗位的本月草案。</small></label>
-            <div className="issue-launch-template-builder" aria-label="本次下发绩效模板结构">
+            <div className="issue-launch-template-builder issue-launch-template-builder--table" aria-label="本次下发绩效模板结构">
               <div className="issue-launch-template-legend"><div><span>岗位通用绩效目标</span><span>个人月度重点目标</span><span>独立加减分项</span></div><button className="hr-template-primary-button" onClick={addIssueDimension} type="button">+ 新增绩效维度</button></div>
-              {issueDimensions.map((dimension, dimensionIndex) => {
-                const dimensionWeight = dimension.metrics.filter((metric) => metric.type !== "adjustment").reduce((sum, metric) => sum + Number(metric.weight || 0), 0);
-                const isTemplate = dimension.origin === "template";
-                return <article className="issue-launch-template-dimension" key={`${dimension.origin}-${dimension.id}`}>
-                  <header className={dimension.origin === "adjustment" ? "is-adjustment" : ""}><span>Part {dimensionIndex + 1}</span><input aria-label={`绩效维度名称：${dimension.name}`} onChange={(event) => updateIssueDimensionName(dimension, event.target.value)} value={dimension.name} /><b>{dimension.origin === "adjustment" ? "无权重 · 总评分 -10～+10" : `总权重 ${dimensionWeight}%`}</b><small>{isTemplate ? "引用 HR 模板 · 本次可编辑" : dimension.origin === "personal" ? "Leader 本月配置" : "不参与权重校验"}</small><button onClick={() => addIssueMetric(dimension)} type="button">{dimension.origin === "adjustment" ? "+ 新增加减分类别" : "+ 新增指标"}</button><button className="is-danger" disabled={dimension.origin === "adjustment" || issueDimensions.length <= 1} onClick={() => removeCategory(dimension.metrics.map((metric) => metric.id))} type="button">删除维度</button></header>
-                  <div className="issue-launch-template-dimension__body">
-                    {dimension.metrics.map((category, metricIndex) => <section className="issue-launch-template-metric" key={category.id}>
-                      <div className="issue-launch-template-metric__head"><span>{category.type === "adjustment" ? "类别" : "指标"} {metricIndex + 1}</span><input aria-label={`绩效指标名称：${category.name}`} onChange={(event) => updateCategory(category.id, "name", event.target.value)} value={category.name} />{category.type === "adjustment" ? <b className="issue-launch-independent">独立计分</b> : <label><span>权重</span><div className="issue-launch-stepper"><button onClick={() => adjustWeight(category.id, -5)} type="button">-</button><input aria-label={`绩效指标权重：${category.name}`} max="100" min="0" onChange={(event) => updateCategory(category.id, "weight", Number(event.target.value))} type="number" value={category.weight} /><button onClick={() => adjustWeight(category.id, 5)} type="button">+</button></div></label>}<button className="table-link table-link--danger" disabled={category.type === "adjustment" ? dimension.metrics.length <= 1 : categoryTemplates.length <= 1} onClick={() => removeCategory(category.id)} type="button">删除指标</button></div>
-                      {category.type === "adjustment" ? <div className="issue-launch-adjustment-fields">
-                        <label><span>评定标准</span><textarea aria-label={`${category.name}下发评定标准`} onChange={(event) => updateCategory(category.id, "requirement", event.target.value)} rows={3} value={category.requirement ?? ""} /></label>
-                        <label><span>数据来源</span><textarea aria-label={`${category.name}下发数据来源`} onChange={(event) => updateCategory(category.id, "source", event.target.value)} rows={3} value={category.source ?? ""} /></label>
-                        <div><span>评分范围</span><label>最低分<input aria-label={`${category.name}下发最低分`} max="0" min="-10" onChange={(event) => updateCategory(category.id, "minScore", Number(event.target.value))} type="number" value={category.minScore ?? -3} /></label><label>最高分<input aria-label={`${category.name}下发最高分`} max="10" min="0" onChange={(event) => updateCategory(category.id, "maxScore", Number(event.target.value))} type="number" value={category.maxScore ?? 3} /></label></div>
-                      </div> : <div className="issue-launch-template-standards"><div><div><strong>绩效描述与评定档位标准</strong><span>已引用 HR 模板，可按本次目标修改</span></div><button onClick={() => addIssueStandard(category)} type="button">+ 新增档位</button></div>{(category.standards ?? []).map((standard, standardIndex) => <div className="issue-launch-template-standard" key={standard.id}><i>{standardIndex + 1}</i><input aria-label={`${category.name}档位名称`} onChange={(event) => updateIssueStandard(category, standard.id, "label", event.target.value)} value={standard.label} /><input aria-label={`${category.name}${standard.label}分数范围`} onChange={(event) => updateIssueStandard(category, standard.id, "scoreRange", event.target.value)} value={standard.scoreRange} /><textarea aria-label={`${category.name}${standard.label}绩效描述`} onChange={(event) => updateIssueStandard(category, standard.id, "description", event.target.value)} rows={2} value={standard.description} /><button aria-label={`删除${category.name}${standard.label}档位`} onClick={() => removeIssueStandard(category, standard.id)} type="button"><X size={14} /></button></div>)}</div>}
-                    </section>)}
-                  </div>
-                </article>;
-              })}
+              <div className="issue-launch-template-table">
+                <div className="issue-launch-template-table__head"><span>工作内容分解</span><span>权重</span></div>
+                {issueDimensions.map((dimension) => {
+                  const dimensionWeight = dimension.metrics.filter((metric) => metric.type !== "adjustment").reduce((sum, metric) => sum + Number(metric.weight || 0), 0);
+                  const isTemplate = dimension.origin === "template";
+                  return <div className="issue-launch-template-table__group" key={`${dimension.origin}-${dimension.id}`}>
+                    <div className="issue-launch-template-table__group-head"><input aria-label={`绩效维度名称：${dimension.name}`} onChange={(event) => updateIssueDimensionName(dimension, event.target.value)} value={dimension.name} /><span>{isTemplate ? "BP模板" : dimension.origin === "personal" ? "本月配置" : "独立计分"}</span><b>{dimension.origin === "adjustment" ? "-10～+10分" : `小计 ${dimensionWeight}%`}</b><button onClick={() => addIssueMetric(dimension)} type="button">{dimension.origin === "adjustment" ? "+ 新增加减分类别" : "+ 新增指标"}</button><button className="is-danger" disabled={dimension.origin === "adjustment" || issueDimensions.length <= 1} onClick={() => removeCategory(dimension.metrics.map((metric) => metric.id))} type="button">删除维度</button></div>
+                    {dimension.metrics.map((category, metricIndex) => <div className="issue-launch-template-table__row" key={category.id}>
+                      <div className="issue-launch-template-table__content"><div className="issue-launch-template-table__title"><input aria-label={`绩效指标名称：${category.name}`} onChange={(event) => updateCategory(category.id, "name", event.target.value)} value={category.name} /><span>{category.type === "adjustment" ? "加减分项" : category.origin === "personal" ? "个人目标" : `指标 ${metricIndex + 1}`}</span></div>
+                        <details className="issue-launch-template-table__editor"><summary>编辑模板内容</summary>
+                          {category.type === "adjustment" ? <div className="issue-launch-adjustment-fields"><label><span>评定标准</span><textarea aria-label={`${category.name}下发评定标准`} onChange={(event) => updateCategory(category.id, "requirement", event.target.value)} rows={3} value={category.requirement ?? ""} /></label><label><span>数据来源</span><textarea aria-label={`${category.name}下发数据来源`} onChange={(event) => updateCategory(category.id, "source", event.target.value)} rows={3} value={category.source ?? ""} /></label><div><span>评分范围</span><label>最低分<input aria-label={`${category.name}下发最低分`} max="0" min="-10" onChange={(event) => updateCategory(category.id, "minScore", Number(event.target.value))} type="number" value={category.minScore ?? -3} /></label><label>最高分<input aria-label={`${category.name}下发最高分`} max="10" min="0" onChange={(event) => updateCategory(category.id, "maxScore", Number(event.target.value))} type="number" value={category.maxScore ?? 3} /></label></div></div> : <><div className="issue-launch-metric-config"><label><span>考评周期</span><select aria-label={`${category.name}下发考评周期`} value={category.assessmentCycle ?? "月度"} onChange={(event) => updateCategory(category.id, "assessmentCycle", event.target.value)}><option value="月度">月度</option><option value="季度">季度</option><option value="年度">年度</option></select></label><label className="is-wide"><span>衡量标准 / 计算规则</span><textarea aria-label={`${category.name}下发计算规则`} rows={2} value={category.calculationRule ?? ""} onChange={(event) => updateCategory(category.id, "calculationRule", event.target.value)} /></label><label className="is-wide"><span>目标成果输出</span><textarea aria-label={`${category.name}下发成果输出`} rows={2} value={category.expectedOutput ?? ""} onChange={(event) => updateCategory(category.id, "expectedOutput", event.target.value)} /></label><div className="issue-launch-review-weights"><span>当前指标评分关系</span><label>一级<input aria-label={`${category.name}下发一级评分权重`} type="number" min="0" max="100" value={category.reviewWeights?.first ?? 0} onChange={(event) => updateIssueReviewWeight(category, "first", event.target.value)} />%</label><label>协助<input aria-label={`${category.name}下发协助评分权重`} type="number" min="0" max="100" value={category.reviewWeights?.assistance ?? 0} onChange={(event) => updateIssueReviewWeight(category, "assistance", event.target.value)} />%</label><label>BP<input aria-label={`${category.name}下发BP评分权重`} type="number" min="0" max="100" value={category.reviewWeights?.bp ?? 0} onChange={(event) => updateIssueReviewWeight(category, "bp", event.target.value)} />%</label><b className={(Number(category.reviewWeights?.first || 0) + Number(category.reviewWeights?.assistance || 0) + Number(category.reviewWeights?.bp || 0)) === 100 ? "is-valid" : "is-invalid"}>合计 {Number(category.reviewWeights?.first || 0) + Number(category.reviewWeights?.assistance || 0) + Number(category.reviewWeights?.bp || 0)}%</b></div></div><div className="issue-launch-template-standards"><div><div><strong>绩效描述与评定档位标准</strong><span>已引用 BP 模板，可按本次目标修改</span></div><button onClick={() => addIssueStandard(category)} type="button">+ 新增档位</button></div>{(category.standards ?? []).map((standard, standardIndex) => <div className="issue-launch-template-standard" key={standard.id}><i>{standardIndex + 1}</i><input aria-label={`${category.name}档位名称`} onChange={(event) => updateIssueStandard(category, standard.id, "label", event.target.value)} value={standard.label} /><input aria-label={`${category.name}${standard.label}分数范围`} onChange={(event) => updateIssueStandard(category.id, "standards", category.standards) || updateIssueStandard(category, standard.id, "description", event.target.value)} rows={2} value={standard.description} /><button aria-label={`删除${category.name}${standard.label}档位`} onClick={() => removeIssueStandard(category, standard.id)} type="button"><X size={14} /></button></div>)}</div></>}
+                          <button className="table-link table-link--danger" disabled={category.type === "adjustment" ? dimension.metrics.length <= 1 : categoryTemplates.length <= 1} onClick={() => removeCategory(category.id)} type="button">删除指标</button>
+                        </details>
+                      </div>
+                      <div className="issue-launch-template-table__weight">{category.type === "adjustment" ? <span>加减分项</span> : <div className="issue-launch-stepper"><button onClick={() => adjustWeight(category.id, -5)} type="button">-</button><input aria-label={`绩效指标权重：${category.name}`} max="100" min="0" onChange={(event) => updateCategory(category.id, "weight", Number(event.target.value))} type="number" value={category.weight} /><button onClick={() => adjustWeight(category.id, 5)} type="button">+</button><em>%</em></div>}</div>
+                    </div>)}
+                  </div>;
+                })}
+              </div>
             </div>
             <div className="issue-launch-content-card__foot"><button className="ghost-chip" onClick={addCategory} type="button">+ 新增个人月度目标</button><span className={categoryTotalWeight === 100 ? "score-positive" : "score-negative"}>{categoryTotalWeight === 100 ? "权重校验通过" : `权重合计${categoryTotalWeight}%，需调整为100%`}</span></div>
           </section>
           {categoryTotalWeight !== 100 ? <p className="performance-template-warning">请将权重调整为 100% 后再下发。</p> : null}
+          {invalidIssueScoreWeights.length ? <p className="performance-template-warning">有 {invalidIssueScoreWeights.length} 项指标的评分人权重合计不为 100%。</p> : null}
+          {incompleteIssueMetrics.length ? <p className="performance-template-warning">有 {incompleteIssueMetrics.length} 项指标缺少考评周期、计算规则或目标成果输出。</p> : null}
         </section>
       </main>
-      <footer className="issue-launch-footer"><div><span className="issue-launch-footer__check">✓</span><div><strong>{canSubmit ? `${selectedGroupCount} 个组 · ${selectedCount} 人可下发` : "请完成成员选择、权重校验与截止时间设置"}</strong><span>将应用当前方案与绩效周期 {issueMonth}，截止 {deadline || "未设置"}。</span></div></div><div><button className="ghost-chip" onClick={onClose} type="button">保存草稿</button><button className="primary-btn" disabled={!canSubmit} onClick={() => onSubmit({ deadline })} type="button">校验并下发</button></div></footer>
+      <footer className="issue-launch-footer"><div><span className="issue-launch-footer__check">✓</span><div><strong>{canSubmit ? `${selectedGroupCount} 个组 · ${selectedCount} 人可下发` : "请完成成员选择、评分关系、权重校验与截止时间设置"}</strong><span>将应用当前方案与绩效周期 {issueMonth}，截止 {deadline || "未设置"}。</span></div></div><div><button className="ghost-chip" onClick={onClose} type="button">保存草稿</button><button className="primary-btn" disabled={!canSubmit} onClick={() => onSubmit({ deadline })} type="button">校验并下发</button></div></footer>
     </div>
   );
 }
@@ -2848,7 +3224,7 @@ export function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
           <article><span>基础绩效分</span><strong>{baseScore}</strong><small>目标指标加权结果</small></article>
           <article className={adjustmentScore < 0 ? "is-negative" : "is-positive"}><span>加减分</span><strong>{adjustmentScore > 0 ? `+${adjustmentScore}` : adjustmentScore}</strong><small>独立于目标权重计算</small></article>
           <article><span>流程状态</span><strong className="is-status">{review.status}</strong><small>最后更新 {review.lastActionAt}</small></article>
-          <article><span>申诉状态</span><strong className="is-status">{review.appealStatus}</strong><small>{review.appealStatus === "无申诉" ? "当前无待处理争议" : "存在申诉处理记录"}</small></article>
+          <article><span>申诉状态</span><strong className="is-status">{replaceLegacyHrLabel(review.appealStatus)}</strong><small>{review.appealStatus === "无申诉" ? "当前无待处理争议" : "存在申诉处理记录"}</small></article>
         </div>
       </section>
 
@@ -2879,8 +3255,8 @@ export function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
                       <small>数据来源 · {row.source}</small>
                     </div>
                     <div className="template-metric-row__scores">
-                      <span>{requiresSecondReview(review) ? "两级评分" : "一级评分"}</span>
-                      {row.type === "adjustment" ? <small>一级 {Number(row.firstScore || 0)} · 二级 {requiresSecondReview(review) ? Number(row.secondScore || 0) : "无需"}</small> : null}
+                      <span>{getSubjectType(review) === SUBJECT_TYPE.bp ? "老板评分 100%" : requiresSecondReview(review) ? "一级40% · 协助20% · BP40%" : "一级50% · BP50%"}</span>
+                      {row.type === "adjustment" ? <small>直接计入 {Number(row.adjustmentScore ?? row.firstScore ?? 0)} 分</small> : null}
                       <div><small>综合</small><strong>{Number(calcRowComposite(row, review).toFixed(1))}</strong></div>
                       <div><small>计入</small><strong>{calcRowScore(row, review)}</strong></div>
                     </div>
@@ -2891,17 +3267,21 @@ export function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
                     <div className="template-metric-row__leader-reviews">
                       <article aria-label={`${row.label} 一级领导评价`}>
                         <header>
-                          <div><span>一级领导</span><strong>{review.directLeader || "未配置"}</strong></div>
+                          <div><span>{getSubjectType(review) === SUBJECT_TYPE.employee ? "部门领导" : "老板"}</span><strong>{review.firstReviewer ?? review.directLeader ?? "未配置"}</strong></div>
                           <b>{row.firstScore === "" || row.firstScore === null || row.firstScore === undefined ? "--" : row.firstScore}<small>{row.firstScore === "" || row.firstScore === null || row.firstScore === undefined ? "" : "分"}</small></b>
                         </header>
                         <p>{row.firstComment || "暂无一级领导评语"}</p>
                       </article>
-                      <article aria-label={`${row.label} 二级领导评价`} className={!requiresSecondReview(review) ? "is-not-required" : ""}>
+                      <article aria-label={`${row.label} 协助评分人评价`} className={!requiresSecondReview(review) || row.type === "adjustment" ? "is-not-required" : ""}>
                         <header>
-                          <div><span>二级领导</span><strong>{requiresSecondReview(review) ? review.indirectLeader || "未配置" : "无需二级复评"}</strong></div>
-                          <b>{requiresSecondReview(review) ? row.secondScore === "" || row.secondScore === null || row.secondScore === undefined ? "--" : row.secondScore : "无需"}<small>{requiresSecondReview(review) && row.secondScore !== "" && row.secondScore !== null && row.secondScore !== undefined ? "分" : ""}</small></b>
+                          <div><span>协助评分人</span><strong>{requiresSecondReview(review) ? review.assistReviewer || review.indirectLeader || "未配置" : "未开启"}</strong></div>
+                          <b>{requiresSecondReview(review) && row.type !== "adjustment" ? row.assistScore === "" || row.assistScore === null || row.assistScore === undefined ? "--" : row.assistScore : "无需"}<small>{requiresSecondReview(review) && row.type !== "adjustment" && row.assistScore !== "" && row.assistScore !== null && row.assistScore !== undefined ? "分" : ""}</small></b>
                         </header>
-                        <p>{requiresSecondReview(review) ? row.secondComment || "暂无二级领导评语" : "该岗位仅需一级领导评分，无二级领导评语。"}</p>
+                        <p>{row.type === "adjustment" ? "加减分直接计入，无需协助评分。" : requiresSecondReview(review) ? row.assistComment || "暂无协助评分评语" : "本次未开启协助评分。"}</p>
+                      </article>
+                      <article aria-label={`${row.label} BP评价`} className={getSubjectType(review) === SUBJECT_TYPE.bp || row.type === "adjustment" ? "is-not-required" : ""}>
+                        <header><div><span>BP</span><strong>{getSubjectType(review) === SUBJECT_TYPE.bp ? "不适用" : review.bpReviewer || "BP-唐宁"}</strong></div><b>{getSubjectType(review) !== SUBJECT_TYPE.bp && row.type !== "adjustment" ? row.bpScore === "" || row.bpScore === null || row.bpScore === undefined ? "--" : row.bpScore : "无需"}<small>{getSubjectType(review) !== SUBJECT_TYPE.bp && row.type !== "adjustment" && row.bpScore !== "" && row.bpScore !== null && row.bpScore !== undefined ? "分" : ""}</small></b></header>
+                        <p>{row.type === "adjustment" ? "加减分直接计入，无需BP重复评分。" : getSubjectType(review) === SUBJECT_TYPE.bp ? "BP绩效仅由老板评分。" : row.bpComment || "暂无BP评语"}</p>
                       </article>
                     </div>
                   </article>
@@ -2919,15 +3299,16 @@ export function PerformanceDetailPage({ review, onBack, hongguoUploads }) {
             <dl>
               <div><dt>考核周期</dt><dd><CalendarBlank size={15} />{review.cycle}</dd></div>
               <div><dt>岗位模板</dt><dd>{getReviewTemplate(review).name}</dd></div>
-              <div><dt>直属 Leader</dt><dd>{review.directLeader || "--"}</dd></div>
-              <div><dt>二级 Leader</dt><dd>{review.indirectLeader || "无需二级复评"}</dd></div>
-              {review.secondReviewConclusion ? <div><dt>二级审核</dt><dd>{review.secondReviewConclusion}</dd></div> : null}
+              <div><dt>一级评分人</dt><dd>{review.firstReviewer ?? review.directLeader ?? "--"}</dd></div>
+              <div><dt>协助评分人</dt><dd>{requiresSecondReview(review) ? review.assistReviewer || review.indirectLeader || "未配置" : "未开启"}</dd></div>
+              <div><dt>BP评分人</dt><dd>{getSubjectType(review) === SUBJECT_TYPE.bp ? "不适用" : review.bpReviewer || "BP-唐宁"}</dd></div>
+              {review.secondReviewConclusion ? <div><dt>协助评分</dt><dd>{review.secondReviewConclusion}</dd></div> : null}
             </dl>
           </section>
 
           <AdjustmentEvidencePanel
             files={review.adjustmentEvidenceFiles ?? []}
-            required={validateAdjustmentEvidence(review.rows, review.adjustmentEvidenceFiles, ["firstScore", "secondScore"]).required}
+            required={validateAdjustmentEvidence(review.rows, review.adjustmentEvidenceFiles, ["adjustmentScore", "firstScore"]).required}
           />
 
           {review.scoreConfirmation ? <section className="performance-detail-section score-confirmation-archive" aria-label="绩效成绩确认记录">
@@ -3021,6 +3402,11 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
   const [selectedIssueIds, setSelectedIssueIds] = useState([]);
   const [activeRoleTemplateId, setActiveRoleTemplateId] = useState(departmentTemplates[0]?.id ?? "");
   const [leaderTemplateDrafts, setLeaderTemplateDrafts] = useState({});
+  const [assistConfigReviewId, setAssistConfigReviewId] = useState(null);
+  const [assistConfigDraft, setAssistConfigDraft] = useState({ enabled: false, reviewer: "", reason: "" });
+  const [issueAssistScoreEnabled, setIssueAssistScoreEnabled] = useState(false);
+  const [issueAssistReviewer, setIssueAssistReviewer] = useState("");
+  const assistConfigReview = reviews.find((item) => item.id === assistConfigReviewId) ?? null;
   const pageSize = 10;
   const access = roleAccess[activeRole?.id ?? "ceo"] ?? roleAccess.ceo;
   const canViewReview = (review) => {
@@ -3030,6 +3416,7 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
   };
   const canIssueReview = (review) => {
     if (access.issueMode === "direct") return review.directLeader === access.viewerName && review.status === REVIEW_STATUS.targetIssue;
+    if (access.issueMode === "all") return (review.firstReviewer ?? review.directLeader) === access.viewerName && review.status === REVIEW_STATUS.targetIssue;
     return false;
   };
   const canOperateWorkflow = (review, action) => {
@@ -3159,8 +3546,8 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
     { value: "all", label: "全部流程", count: filteredReviews.length },
     { value: "targetIssue", label: "绩效目标待下发", count: targetIssueCount },
     { value: "pending", label: "待处理", count: pendingCount },
-    { value: REVIEW_STATUS.hrReview, label: "HR复审", count: hrReviewCount },
-    { value: REVIEW_STATUS.committeeApproval, label: "委员会审批", count: committeeApprovalCount },
+    { value: REVIEW_STATUS.hrReview, label: "BP评分", count: hrReviewCount },
+    { value: REVIEW_STATUS.committeeApproval, label: "委员会审核", count: committeeApprovalCount },
     { value: "appeal", label: "申诉中", count: appealCount },
     { value: "archived", label: "已结束", count: archivedCount },
   ];
@@ -3244,9 +3631,9 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
     if (!review?.rows?.length) return "--";
     const score = review.rows.reduce((sum, row) => {
       if (row.type === "section") return sum;
-      const raw = level === "first" ? row.firstScore : row.secondScore;
+      const raw = level === "first" ? row.firstScore : level === "assist" ? (row.assistScore ?? row.secondScore) : row.bpScore;
       if (row.type === "adjustment") return level === "first" ? sum + Number(raw || 0) : sum;
-      return sum + raw * (row.weight ?? 0);
+      return sum + Number(raw || 0) * (row.weight ?? 0);
     }, 0);
     return Number(score.toFixed(1));
   };
@@ -3272,6 +3659,22 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
       return { ...current, [activeRoleTemplate.id]: categories.map((item) => item.id === categoryId ? { ...item, [key]: value } : item) };
     });
   };
+  const updateIssueAssistScoreEnabled = (enabled) => {
+    setIssueAssistScoreEnabled(enabled);
+    if (!activeRoleTemplate) return;
+    setLeaderTemplateDrafts((current) => {
+      const categories = current[activeRoleTemplate.id] ?? clonePerformanceCategories(activeRoleTemplate.categories);
+      return {
+        ...current,
+        [activeRoleTemplate.id]: categories.map((item) => item.type === "adjustment" ? item : {
+          ...item,
+          reviewWeights: enabled
+            ? { first: 40, assistance: 20, bp: 40 }
+            : { first: 50, assistance: 0, bp: 50 },
+        }),
+      };
+    });
+  };
   const addCategory = (options = {}) => {
     if (!activeRoleTemplate) return;
     const nextIndex = categoryTemplates.length + 1;
@@ -3287,6 +3690,10 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
         minScore: options.minScore,
         maxScore: options.maxScore,
         requirement: options.requirement ?? "",
+        assessmentCycle: options.assessmentCycle ?? "月度",
+        calculationRule: options.calculationRule ?? (options.type === "adjustment" ? "按加减分规则独立计入最终绩效分。" : "按目标完成情况与评定档位综合评分。"),
+        expectedOutput: options.expectedOutput ?? (options.type === "adjustment" ? "提交可核验的加减分事实与佐证。" : "提交与本指标对应的可核验成果。"),
+        reviewWeights: options.type === "adjustment" ? undefined : (issueAssistScoreEnabled ? { first: 40, assistance: 20, bp: 40 } : { first: 50, assistance: 0, bp: 50 }),
         source: options.source ?? "任务记录 / 绩效填报",
         standards: options.type === "adjustment" ? [] : createMetricStandards(`personal-${stamp}`),
         origin: options.origin ?? "personal",
@@ -3294,6 +3701,50 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
         type: options.type ?? "weighted",
       }],
     }));
+  };
+  const approveAllCommitteeReviews = () => {
+    const eligible = filteredReviews.filter((review) => review.status === REVIEW_STATUS.committeeApproval
+      && canPerformReviewAction(activeRole?.id ?? "ceo", "committee_approve", review, access.viewerName));
+    if (!eligible.length) {
+      setActionFeedback("当前没有可一键通过的绩效委员会审核任务。");
+      return;
+    }
+    if (!window.confirm(`确认一键通过当前筛选范围内的 ${eligible.length} 条绩效审核吗？委员会只能通过或退回，不能修改评分与评语。`)) return;
+    eligible.forEach((review) => {
+      const score = calcScore(review);
+      const next = applyWorkflowAction(review, {
+        type: "committee_approve",
+        operator: "绩效委员会",
+        actedAt: getActionTimestamp(),
+        note: "绩效委员会一键审核通过",
+        updates: {
+          committeeStatus: "审核通过",
+          resultVersions: review.resultVersions?.length ? review.resultVersions : [{ version: 1, score, grade: getGrade(score), status: "已生效", operator: "绩效委员会", actedAt: getActionTimestamp() }],
+        },
+      });
+      onSave(next);
+    });
+    setActionFeedback(`一键审核完成：通过 ${eligible.length} 条，失败 0 条。`);
+  };
+  const openAssistConfig = (review) => {
+    setAssistConfigReviewId(review.id);
+    setAssistConfigDraft({ enabled: requiresSecondReview(review), reviewer: review.assistReviewer ?? review.indirectLeader ?? "", reason: "" });
+  };
+  const saveAssistConfig = () => {
+    const review = reviews.find((item) => item.id === assistConfigReviewId);
+    if (!review) return;
+    const result = updateAssistanceConfiguration(review, {
+      ...assistConfigDraft,
+      operator: access.viewerName,
+      actedAt: getActionTimestamp(),
+    });
+    if (!result.ok) {
+      setActionFeedback(result.message);
+      return;
+    }
+    onSave(result.review);
+    setAssistConfigReviewId(null);
+    setActionFeedback("协助评分配置已更新；如评分已开始，受影响的协助评分与BP评分已清空并重新流转。");
   };
   const removeCategory = (categoryId) => {
     if (!activeRoleTemplate) return;
@@ -3317,7 +3768,16 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
     if (review && canIssueReview(review)) {
       setSelectedIssueIds([review.id]);
       const template = departmentTemplates.find((item) => item.department === review.department && item.role === review.role);
-      if (template) setActiveRoleTemplateId(template.id);
+      if (template) {
+        setActiveRoleTemplateId(template.id);
+        const enabled = getSubjectType(review) !== SUBJECT_TYPE.bp && Boolean(template.assistScoreEnabled);
+        setIssueAssistScoreEnabled(enabled);
+        setIssueAssistReviewer(enabled ? template.defaultAssistReviewer ?? "" : "");
+      }
+    } else {
+      const enabled = Boolean(activeRoleTemplate?.assistScoreEnabled);
+      setIssueAssistScoreEnabled(enabled);
+      setIssueAssistReviewer(enabled ? activeRoleTemplate?.defaultAssistReviewer ?? "" : "");
     }
     setIssueDialogOpen(true);
   };
@@ -3337,6 +3797,8 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
       categories: categoryTemplates,
       categoriesByReview,
       operator: access.viewerName,
+      assistScoreEnabled: issueAssistScoreEnabled,
+      assistReviewer: issueAssistScoreEnabled ? issueAssistReviewer.trim() : "",
       deadline: issueOptions.deadline,
       notifyMode: issueOptions.notifyMode ?? "站内信 + 待办",
     });
@@ -3368,6 +3830,10 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
           onClearSelection={() => setSelectedIssueIds([])}
           onSelectGroup={selectIssueGroup}
           onClearGroup={clearIssueGroup}
+          assistScoreEnabled={issueAssistScoreEnabled}
+          assistReviewer={issueAssistReviewer}
+          onAssistScoreEnabledChange={updateIssueAssistScoreEnabled}
+          onAssistReviewerChange={setIssueAssistReviewer}
           onSubmit={submitBatchIssue}
           onClose={() => setIssueDialogOpen(false)}
         />
@@ -3445,7 +3911,7 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
           <div>
             <span className="platform-eyebrow">绩效管理</span>
             <h1>绩效中心</h1>
-            <p>统一管理目标下发、结果填报、多级复审、成绩确认、绩效申诉与归档，并保留完整版本、签名凭证和操作记录。</p>
+            <p>统一管理目标下发、动态评分、绩效委员会审核、成绩确认、绩效申诉与归档，并保留完整版本和操作记录。</p>
           </div>
         </div>
         <div className="platform-header__side">
@@ -3459,16 +3925,17 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
           <label><span>归属部门</span><select value={filters.department} onChange={(event) => updateFilter("department", event.target.value)}><option value="all">全部</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label><span>人员</span><input value={filters.employee} onChange={(event) => updateFilter("employee", event.target.value)} placeholder="请输入人员姓名" /></label>
           <label><span>等级筛选</span><select aria-label="等级筛选" value={filters.grade} onChange={(event) => updateFilter("grade", event.target.value)}><option value="all">全部</option><option value="S">S</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="grade_asc">等级正序（D→S）</option><option value="grade_desc">等级倒序（S→D）</option></select></label>
-          <label><span>状态</span><select value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}><option value="all">全部流程</option><option value="targetIssue">绩效目标待下发</option><option value={REVIEW_STATUS.secondReview}>二级复评中</option><option value={REVIEW_STATUS.hrReview}>HR复审中</option><option value={REVIEW_STATUS.committeeApproval}>绩效委员会审批中</option>{performanceFocusOptions.filter((option) => option.value !== "all").map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label><span>状态</span><select value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}><option value="all">全部流程</option><option value="targetIssue">绩效目标待下发</option><option value={REVIEW_STATUS.secondReview}>协助评分中</option><option value={REVIEW_STATUS.hrReview}>BP评分中</option><option value={REVIEW_STATUS.committeeApproval}>绩效委员会审核中</option>{performanceFocusOptions.filter((option) => option.value !== "all").map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         </div>
         <div className="performance-filter-panel__actions">
           <button className="primary-btn" type="button" onClick={() => setPageIndex(0)}>查询</button>
           <button className="ghost-chip" type="button" onClick={() => { setFilters({ cycle: "all", status: "all", department: "all", grade: "all", employee: "" }); setActiveTab("all"); setPageIndex(0); }}>重置</button>
           <button className="ghost-chip" type="button" onClick={resetFullFlowTest}><ClockCounterClockwise size={16} weight="bold" />重置全流程测试</button>
           <button className="ghost-chip" type="button" onClick={() => setRuleDialogOpen(true)}>制度规则</button>
-          {activeRole?.id === "hr" ? <button className="ghost-chip" type="button" onClick={() => setTemplateDialogOpen(true)}>绩效模板下发</button> : null}
+          {activeRole?.id === "hr" ? <button className="ghost-chip" type="button" onClick={() => setTemplateDialogOpen(true)}>BP绩效模板配置</button> : null}
           <button className="ghost-chip" type="button" onClick={() => setHongguoUploadOpen(true)}><UploadSimple size={16} weight="bold" />上传红果数据</button>
-          {activeRole?.id === "leader" ? <button className="primary-btn" type="button" onClick={() => openIssueDialog()}>下发月度绩效目标</button> : null}
+          {["leader", "ceo"].includes(activeRole?.id) ? <button className="primary-btn" type="button" onClick={() => openIssueDialog()}>下发月度绩效目标</button> : null}
+          {activeRole?.id === "ceo" ? <button className="primary-btn" disabled={!committeeApprovalCount} type="button" onClick={approveAllCommitteeReviews}>一键全部通过审核</button> : null}
         </div>
       </section>
       {actionFeedback ? <div className="performance-action-feedback" role="status">{actionFeedback}</div> : null}
@@ -3541,7 +4008,8 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
               <span>绩效目标确认</span>
               <span>结果补充</span>
               <span>一级评分</span>
-              <span>二级评分</span>
+              <span>协助评分</span>
+              <span>BP评分</span>
               <span>加减分</span>
               <span>综合得分</span>
               <span>绩效等级</span>
@@ -3557,7 +4025,8 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
               const resultEntered = ![REVIEW_STATUS.targetIssue, REVIEW_STATUS.employeeConfirm, REVIEW_STATUS.targetDispute, REVIEW_STATUS.executing, REVIEW_STATUS.resultEntry].includes(item.status);
               const firstScore = statusIndex >= Object.values(REVIEW_STATUS).indexOf(REVIEW_STATUS.secondReview) ? calcLeaderScore(item, "first") : "--";
               const needsSecondReview = requiresSecondReview(item);
-              const secondScore = needsSecondReview && statusIndex >= Object.values(REVIEW_STATUS).indexOf(REVIEW_STATUS.hrReview) ? calcLeaderScore(item, "second") : "--";
+              const secondScore = needsSecondReview && statusIndex >= Object.values(REVIEW_STATUS).indexOf(REVIEW_STATUS.hrReview) ? calcLeaderScore(item, "assist") : "--";
+              const bpScore = getSubjectType(item) !== SUBJECT_TYPE.bp && statusIndex >= Object.values(REVIEW_STATUS).indexOf(REVIEW_STATUS.committeeApproval) ? calcLeaderScore(item, "bp") : "--";
               const adjustment = item.rows.filter((row) => row.type === "adjustment").reduce((sum, row) => sum + calcRowScore(row, item), 0);
               const grade = getGrade(total);
               const roleWorkflowStatuses = [];
@@ -3575,6 +4044,9 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
               const canProvideAppealEvidence = showsLeaderSupport && isOpenAppealReview(item);
               const showsEmployeeAppeal = activeRole?.id === "employee" && item.employee === access.viewerName;
               const canAppeal = showsEmployeeAppeal && canStartAppeal(item);
+              const canModifyAssist = supportsAssistance(item)
+                && canPerformReviewAction(activeRole?.id ?? "ceo", "configure_assistance", item, access.viewerName)
+                && item.status !== REVIEW_STATUS.archived;
 
               return (
                 <div key={item.id} className={`admin-table__row admin-table__row--performance-ledger ${selectedReviewId === item.id ? "is-selected" : ""}`}>
@@ -3583,15 +4055,16 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
                   </div>
                   <div className="admin-table__cell admin-table__cell--primary performance-inline-cell">
                     <strong>{item.employee}</strong>
-                    <small>{item.isFullFlowTest ? "全流程测试" : item.role.includes("组长") || item.role.includes("总监") ? "负责人" : "组员"}</small>
+                    <small>{item.isFullFlowTest ? "全流程测试" : getSubjectType(item) === SUBJECT_TYPE.bp ? "BP" : getSubjectType(item) === SUBJECT_TYPE.departmentLeader ? "负责人" : "组员"}</small>
                   </div>
                   <div className="field-stack performance-inline-cell">
                     <b>{item.department}</b>
                     <small>{getReviewTemplate(item).name}</small>
                   </div>
-                  <div className="field-stack performance-inline-cell">
-                    <b>一级：{item.directLeader}</b>
-                    {needsSecondReview ? <small>二级：{item.indirectLeader}</small> : null}
+                  <div className="field-stack performance-reviewers-cell">
+                    <b>一级：{item.firstReviewer ?? item.directLeader}</b>
+                    {needsSecondReview ? <small>协助：{item.assistReviewer ?? item.indirectLeader}</small> : <small>协助：未开启</small>}
+                    {getSubjectType(item) !== SUBJECT_TYPE.bp ? <small>BP：{item.bpReviewer ?? "BP-唐宁"}</small> : null}
                   </div>
                   <div className="performance-table-status">
                     <b className={`field-pill ${targetConfirmed ? "field-pill--success" : item.status === REVIEW_STATUS.targetDispute ? "field-pill--warning" : "field-pill--neutral"}`}>{targetStatusLabel}</b>
@@ -3601,13 +4074,14 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
                   </div>
                   <div className="field-stack"><b>{firstScore}</b></div>
                   <div className="field-stack"><b>{needsSecondReview ? secondScore : "无需"}</b></div>
+                  <div className="field-stack"><b>{getSubjectType(item) === SUBJECT_TYPE.bp ? "无需" : bpScore}</b></div>
                   <div className="field-stack"><b className={adjustment < 0 ? "score-negative" : "score-positive"}>{adjustment > 0 ? `+${adjustment}` : adjustment}</b></div>
                   <div className="field-stack"><b>{resultEntered ? total : "--"}</b></div>
                   <span><b className={`field-pill ${grade === "S" ? "field-pill--success" : grade === "D" ? "field-pill--danger" : grade === "C" ? "field-pill--warning" : "field-pill--primary"}`}>{resultEntered ? `${grade}-${getLevelLabel(total)}` : "--"}</b></span>
                   <div className="performance-table-status">
                     <b className={`field-pill ${getStatusTone(item.status)}`}>{item.status}</b>
                   </div>
-                  <span><b className={`field-pill ${item.status === REVIEW_STATUS.appealInProgress ? "field-pill--primary" : "field-pill--success"}`}>{item.appealStatus === "无申诉" ? "无申诉" : item.appealStatus}</b></span>
+                  <span><b className={`field-pill ${item.status === REVIEW_STATUS.appealInProgress ? "field-pill--primary" : "field-pill--success"}`}>{item.appealStatus === "无申诉" ? "无申诉" : replaceLegacyHrLabel(item.appealStatus)}</b></span>
                   <div className="table-actions performance-row-actions" aria-label={`${item.employee}绩效操作`}>
                     {roleWorkflowActions.map(({ action, enabled, status }) => <button
                       className="performance-row-action performance-row-action--workflow"
@@ -3623,6 +4097,7 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
                     </button>)}
                     {showsLeaderSupport ? <button className="performance-row-action performance-row-action--support" disabled={!canChangeTarget} onClick={() => { if (canChangeTarget) openTargetChange(item); }} type="button">变更目标</button> : null}
                     {showsLeaderSupport ? <button className="performance-row-action performance-row-action--support" disabled={!canProvideAppealEvidence} onClick={() => { if (canProvideAppealEvidence) openAppealEvidence(item); }} type="button">填写部门负责人意见</button> : null}
+                    {(activeRole?.id === "hr" || (item.originalIssuer ?? item.directLeader) === access.viewerName) ? <button className="performance-row-action performance-row-action--support" disabled={!canModifyAssist} onClick={() => { if (canModifyAssist) openAssistConfig(item); }} type="button">修改协助评分</button> : null}
                     {showsEmployeeAppeal ? <button
                       className="performance-row-action performance-row-action--appeal"
                       disabled={!canAppeal}
@@ -3660,6 +4135,7 @@ function PerformanceCenter({ reviews, onSave, onBatchIssue, onSaveAppeal, onRese
       {hongguoUploadOpen ? <HongguoUploadModal onClose={() => setHongguoUploadOpen(false)} onImport={(upload) => setHongguoUploads((current) => [...current, { ...upload, id: `hongguo-${Date.now()}` }])} /> : null}
       {ruleDialogOpen ? <RuleModal onClose={() => setRuleDialogOpen(false)} /> : null}
       {templateDialogOpen ? <TargetTemplateModal templates={departmentTemplates} departments={[...new Set([...departments, ...departmentTemplates.map((item) => item.department)])]} onSave={onSaveDepartmentTemplate} onCreate={onCreateDepartmentTemplate} onClose={() => setTemplateDialogOpen(false)} /> : null}
+      {assistConfigReviewId ? <div className="overlay" onClick={() => setAssistConfigReviewId(null)} role="presentation"><section className="modal performance-assist-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-label="修改协助评分配置"><div className="modal__header"><div><strong>修改协助评分配置</strong><span>仅BP或原下发负责人可修改，操作会写入日志。</span></div><button aria-label="关闭" className="icon-btn" onClick={() => setAssistConfigReviewId(null)} type="button"><X size={18} /></button></div><div className="modal__body"><div className="performance-assist-config"><label className="performance-assist-toggle"><input checked={assistConfigDraft.enabled} onChange={(event) => setAssistConfigDraft((current) => ({ ...current, enabled: event.target.checked }))} type="checkbox" /><span>{assistConfigDraft.enabled ? "已开启协助评分" : "未开启协助评分"}</span></label><label><span>协助评分人</span><AssistReviewerSelect ariaLabel="修改协助评分人" disabled={!assistConfigDraft.enabled} excludedNames={[assistConfigReview?.employee, assistConfigReview?.firstReviewer ?? assistConfigReview?.directLeader, assistConfigReview?.bpReviewer]} onChange={(reviewer) => setAssistConfigDraft((current) => ({ ...current, reviewer }))} value={assistConfigDraft.reviewer} /></label><label className="performance-assist-config__reason"><span>修改原因</span><textarea onChange={(event) => setAssistConfigDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="必填；说明修改原因" rows={4} value={assistConfigDraft.reason} /></label><p>评分已开始时，修改会清空原协助评分和BP评分，并按新配置重新进入相应评分节点。</p></div></div><div className="modal__footer"><button className="ghost-chip" onClick={() => setAssistConfigReviewId(null)} type="button">取消</button><button className="primary-btn" onClick={saveAssistConfig} type="button">确认修改</button></div></section></div> : null}
     </div>
   );
 }
@@ -3899,9 +4375,11 @@ function AppContent() {
     try {
       if (import.meta.env.MODE === "test") return reviewsSeed.map(migratePerformanceAppealReview);
       const storedReviews = JSON.parse(window.localStorage.getItem("kpi-bi:performance-reviews:v1"));
-      return ensureFullFlowTestReview(storedReviews || reviewsSeed).map(migratePerformanceAppealReview);
+      const merged = ensureFullFlowTestReview(storedReviews || reviewsSeed);
+      const bpSeed = reviewsSeed.find((item) => item.id === "rv-bp-self-1");
+      return [...merged, ...(bpSeed && !merged.some((item) => item.id === bpSeed.id) ? [bpSeed] : [])].map(migratePerformanceAppealReview);
     } catch {
-      return reviewsSeed;
+      return reviewsSeed.map(migratePerformanceAppealReview);
     }
   });
   const [departmentTemplates, setDepartmentTemplates] = useState(departmentPerformanceTemplatesSeed);
@@ -3993,6 +4471,8 @@ function AppContent() {
       const assignment = payload.categoriesByReview?.[item.id] ?? { categories: payload.categories };
       const assignedCategories = clonePerformanceCategories(assignment.categories);
       const issuedRows = materializeTargetRows(assignedCategories);
+      const subjectType = getSubjectType(item);
+      const assistScoreEnabled = subjectType !== SUBJECT_TYPE.bp && Boolean(payload.assistScoreEnabled);
       return {
         ...item,
         cycle: payload.cycle,
@@ -4000,6 +4480,15 @@ function AppContent() {
         owner: item.employee,
         assignedCategories,
         rows: issuedRows,
+        subjectType,
+        firstReviewer: item.firstReviewer ?? (subjectType === SUBJECT_TYPE.employee ? item.directLeader : "CEO"),
+        bossReviewer: item.bossReviewer ?? "CEO",
+        bpReviewer: subjectType === SUBJECT_TYPE.bp ? "" : (item.bpReviewer ?? "BP-唐宁"),
+        assistScoreEnabled,
+        requiresSecondReview: assistScoreEnabled,
+        assistReviewer: assistScoreEnabled ? payload.assistReviewer : "",
+        indirectLeader: assistScoreEnabled ? payload.assistReviewer : "",
+        originalIssuer: payload.operator,
         departmentTemplateId: assignment.templateId ?? null,
         departmentTemplateName: assignment.templateName ?? `${item.department}·${item.role}绩效模板`,
         roleTemplateId: assignment.templateId ?? item.roleTemplateId,
@@ -4019,7 +4508,7 @@ function AppContent() {
             action: "批量下发月度绩效目标",
             operator: payload.operator,
             actedAt: "2026-07-08 10:00",
-            note: `已按${payload.cycle}${assignment.templateName ?? `${item.department}·${item.role}模板`}下发绩效目标V1，共${assignedCategories.filter((category) => category.type !== "adjustment").length}项目标；提交截止${payload.deadline || "未设置"}，通知方式${payload.notifyMode || "站内信 + 待办"}。`,
+            note: `已按${payload.cycle}${assignment.templateName ?? `${item.department}·${item.role}模板`}下发绩效目标V1，共${assignedCategories.filter((category) => category.type !== "adjustment").length}项目标；${subjectType === SUBJECT_TYPE.bp ? "BP绩效由老板100%评分" : assistScoreEnabled ? `开启协助评分（${payload.assistReviewer}），评分占比40%/20%/40%` : "未开启协助评分，一级与BP各占50%"}；提交截止${payload.deadline || "未设置"}。`,
             fromStatus: item.status,
             toStatus: REVIEW_STATUS.employeeConfirm,
           },
@@ -4045,13 +4534,13 @@ function AppContent() {
       item.id === reviewId && activeRole === "employee" && item.employee === roleAccess.employee.viewerName
         ? {
             ...item,
-            appealStatus: "待HR受理",
+            appealStatus: "待BP受理",
             status: REVIEW_STATUS.appealSubmitted,
-            owner: "HR-唐宁",
+            owner: "BP-唐宁",
             appealDate,
             appealContent: draft.appealContent.trim(),
             appealEvidenceList: draft.appealEvidenceList.trim(),
-            appealReceptionist: "HR-唐宁",
+            appealReceptionist: "BP-唐宁",
             appealNote: draft.appealContent.trim(),
             scoreConfirmation: {
               decision: "appeal",

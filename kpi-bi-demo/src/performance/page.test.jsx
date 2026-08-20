@@ -139,7 +139,7 @@ describe("绩效中心交互与权限", () => {
     render(<App />);
     openPerformance();
     expect(document.body.textContent).not.toContain("OKR");
-    expect(screen.getAllByRole("button", { name: "绩效委员会审批" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "绩效委员会审核" }).length).toBeGreaterThan(0);
     expect(screen.getByText("综合绩效完成度")).toBeInTheDocument();
     expect(screen.getByText("评分未完成")).toBeInTheDocument();
     expect(screen.getByText("平均分")).toBeInTheDocument();
@@ -179,18 +179,18 @@ describe("绩效中心交互与权限", () => {
     expect(gradeSelect).toHaveValue("grade_desc");
   });
 
-  test("HR和CEO不能互相代办审批节点", () => {
+  test("BP和CEO不能互相代办评分与委员会审核节点", () => {
     render(<App />);
-    switchRole("HR组织视图");
+    switchRole("BP组织视图");
     openPerformance();
     fireEvent.change(screen.getByLabelText("状态"), { target: { value: REVIEW_STATUS.hrReview } });
-    expect(screen.getAllByRole("button", { name: "HR复审并提交绩效委员会" }).some((button) => !button.disabled)).toBe(true);
+    expect(screen.getAllByRole("button", { name: "BP评分与评语" }).some((button) => !button.disabled)).toBe(true);
 
     switchRole("CEO经营驾驶舱");
     fireEvent.change(screen.getByLabelText("状态"), { target: { value: REVIEW_STATUS.hrReview } });
-    expect(screen.queryByRole("button", { name: "HR复审并提交绩效委员会" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "BP评分与评语" })).toBeNull();
     fireEvent.change(screen.getByLabelText("状态"), { target: { value: REVIEW_STATUS.committeeApproval } });
-    expect(screen.getAllByRole("button", { name: "绩效委员会审批" }).some((button) => !button.disabled)).toBe(true);
+    expect(screen.getAllByRole("button", { name: "绩效委员会审核" }).some((button) => !button.disabled)).toBe(true);
   });
 
   test("员工视图只显示本人且不能发起他人流程", () => {
@@ -239,18 +239,17 @@ describe("绩效中心交互与权限", () => {
     expect(screen.getByText("人员绩效列表")).toBeInTheDocument();
   });
 
-  test("HR可按部门和岗位创建绩效模板，Leader看不到维护入口", () => {
+  test("BP可按部门和岗位创建绩效模板并配置协助评分，Leader看不到维护入口", () => {
     render(<App />);
-    switchRole("HR组织视图");
+    switchRole("BP组织视图");
     openPerformance();
-    fireEvent.click(screen.getByRole("button", { name: "绩效模板下发" }));
+    fireEvent.click(screen.getByRole("button", { name: "BP绩效模板配置" }));
     expect(screen.getByRole("dialog", { name: "维护岗位绩效目标模板" })).toBeInTheDocument();
-    expect(screen.getByText("三层绩效模板结构")).toBeInTheDocument();
+    expect(screen.getByText("工作任务与权重")).toBeInTheDocument();
     const templateDialog = screen.getByRole("dialog", { name: "维护岗位绩效目标模板" });
-    expect(within(templateDialog).getAllByText("绩效描述与评定档位标准").length).toBeGreaterThan(0);
-    expect(within(templateDialog).getByText(/第一层：维度/)).toBeInTheDocument();
-    expect(within(templateDialog).getByText(/权重总计/)).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "+ 新增指标" }).length).toBeGreaterThanOrEqual(3);
+    expect(within(templateDialog).getAllByText("评分档位与完成标准").length).toBeGreaterThan(0);
+    expect(within(templateDialog).getByText(/工作任务权重/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "+ 添加工作任务" }).length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue("按时交付率")).toBeInTheDocument();
     expect(screen.getAllByDisplayValue("优秀").length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue("完成基准量的130%以上（含130%）。")).toBeInTheDocument();
@@ -259,25 +258,26 @@ describe("绩效中心交互与权限", () => {
     expect(screen.getByLabelText("IP成交数据来源").value).toContain("上级和协作方评价");
     expect(screen.getByLabelText("IP成交最低分")).toHaveValue(0);
     expect(screen.getByLabelText("IP成交最高分")).toHaveValue(10);
-    expect(within(templateDialog).getByText("无权重 · 总评分 -10～+10")).toBeInTheDocument();
+    expect(within(templateDialog).getByText("不参与任务权重，按类别独立计分。")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "+ 添加档位" })[0]);
     expect(screen.getByDisplayValue("新增档位")).toBeInTheDocument();
     expect(screen.getByLabelText("模板所属部门")).toBeInTheDocument();
     expect(screen.getByLabelText("对应岗位")).toBeInTheDocument();
+    expect(screen.queryByLabelText("模板默认开启协助评分")).toBeNull();
     expect(screen.queryByLabelText("模板名称")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "效果预览" }));
     expect(screen.getByRole("dialog", { name: "员工视角绩效考核表预览" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "评定标准与档位要求" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "成果输出与评分档位" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "关闭效果预览" }));
     fireEvent.click(screen.getByRole("button", { name: "+ 新建部门" }));
     fireEvent.change(screen.getByLabelText("新部门名称"), { target: { value: "测试部门" } });
     fireEvent.click(screen.getByRole("button", { name: "确认新建部门" }));
     expect(screen.getByRole("option", { name: "测试部门" })).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "+ 新增指标" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "+ 添加工作任务" })[0]);
     expect(screen.getByDisplayValue("新增绩效目标")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "关闭模板维护" }));
     switchRole("Leader团队负责人");
-    expect(screen.queryByRole("button", { name: "绩效模板下发" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "BP绩效模板配置" })).toBeNull();
   });
 
   test("详情展示目标版本、结果版本和评分拆分", () => {
@@ -290,25 +290,27 @@ describe("绩效中心交互与权限", () => {
     expect(screen.getByText("基础绩效分")).toBeInTheDocument();
     expect(screen.getAllByText("加减分").length).toBeGreaterThan(0);
     const firstLeaderReviews = screen.getAllByLabelText(/一级领导评价/);
-    const secondLeaderReviews = screen.getAllByLabelText(/二级领导评价/);
+    const secondLeaderReviews = screen.getAllByLabelText(/协助评分人评价/);
+    const bpReviews = screen.getAllByLabelText(/BP评价/);
     expect(firstLeaderReviews.length).toBeGreaterThan(0);
     expect(secondLeaderReviews).toHaveLength(firstLeaderReviews.length);
-    expect(firstLeaderReviews[0]).toHaveTextContent("一级领导");
+    expect(bpReviews).toHaveLength(firstLeaderReviews.length);
+    expect(firstLeaderReviews[0]).toHaveTextContent("部门领导");
     expect(firstLeaderReviews[0]).toHaveTextContent("江晚");
     expect(firstLeaderReviews[0]).toHaveTextContent("交付数量达到目标，节点响应及时。");
-    expect(secondLeaderReviews[0]).toHaveTextContent("二级领导");
+    expect(secondLeaderReviews[0]).toHaveTextContent("协助评分人");
     expect(secondLeaderReviews[0]).toHaveTextContent("复核通过，产出数据与交付记录一致。");
   });
 
-  test("二级复评恢复完整绩效表并保留结果审核结论", () => {
+  test("协助评分恢复完整绩效表并保留评分结论", () => {
     render(<App />);
     switchRole("Leader团队负责人");
     openPerformance();
-    const actionButton = screen.getAllByRole("button", { name: "二级复评与结果审核" }).find((button) => !button.disabled);
+    const actionButton = screen.getAllByRole("button", { name: "协助评分与评语" }).find((button) => !button.disabled);
     fireEvent.click(actionButton);
 
-    expect(screen.getByText("二级复评与结果审核处理")).toBeInTheDocument();
-    expect(screen.getByLabelText("结果审核结论")).toBeInTheDocument();
+    expect(screen.getByText("协助评分与评语处理")).toBeInTheDocument();
+    expect(screen.getByLabelText("协助评分结论")).toBeInTheDocument();
     const scoreTable = document.querySelector(".okr-sheet-table");
     expect(scoreTable).toBeInTheDocument();
     expect(scoreTable.closest(".okr-sheet-card")).toHaveClass("okr-sheet-card--second_review");
@@ -319,17 +321,19 @@ describe("绩效中心交互与权限", () => {
       "数据来源",
       "权重",
       "完成情况（被考核人自填）",
-      "第一级上级评分",
+      "部门领导评分",
       "一级评语",
-      "第二级上级评分",
-      "二级评语",
+      "协助评分",
+      "协助评分评语",
+      "BP评分",
+      "BP评语",
       "单项综合得分",
     ]);
     const metricRows = within(scoreTable).getAllByRole("row").slice(1);
     expect(metricRows.length).toBeGreaterThan(0);
-    expect(within(metricRows[0]).getAllByRole("cell")).toHaveLength(10);
-    expect(within(scoreTable).getAllByLabelText(/二级评分/).length).toBe(metricRows.length);
-    expect(within(scoreTable).getAllByLabelText(/二级评语/).length).toBe(metricRows.length);
+    expect(within(metricRows[0]).getAllByRole("cell")).toHaveLength(12);
+    expect(within(scoreTable).getAllByLabelText(/协助评分$/).length).toBe(metricRows.length);
+    expect(within(scoreTable).getAllByLabelText(/协助评分评语/).length).toBe(metricRows.length);
     const referencePanel = screen.getByLabelText("当月周报记录");
     expect(scoreTable.compareDocumentPosition(referencePanel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const projectReferenceHeading = screen.getByText("项目交付与业务表现");
@@ -338,10 +342,10 @@ describe("绩效中心交互与权限", () => {
     expect(scoreReferenceHeading.compareDocumentPosition(referencePanel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "确认提交" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("请填写二级结果审核意见");
+    expect(screen.getByRole("alert")).toHaveTextContent("请填写协助评分汇总意见");
 
-    fireEvent.change(screen.getByLabelText("结果审核结论"), { target: { value: "return" } });
-    fireEvent.change(screen.getByLabelText("二级结果审核意见"), { target: { value: "证明材料口径不完整，请补充后重新提交。" } });
+    fireEvent.change(screen.getByLabelText("协助评分结论"), { target: { value: "return" } });
+    fireEvent.change(screen.getByLabelText("协助评分汇总意见"), { target: { value: "证明材料口径不完整，请补充后重新提交。" } });
     fireEvent.click(screen.getByRole("button", { name: "确认提交" }));
     expect(screen.getByText("操作成功，流程状态与操作日志已更新。")).toBeInTheDocument();
   });

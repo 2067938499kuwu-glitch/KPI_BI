@@ -1,12 +1,55 @@
 import { getRoleTemplate } from "./roleTemplates";
 
 export const performanceScoreRatio = {
-  firstLeader: 0.6,
-  secondLeader: 0.4,
+  withAssistance: { first: 0.4, assistance: 0.2, bp: 0.4 },
+  withoutAssistance: { first: 0.5, bp: 0.5 },
+  bp: { boss: 1 },
 };
 
+export const SUBJECT_TYPE = {
+  employee: "employee",
+  departmentLeader: "departmentLeader",
+  bp: "bp",
+};
+
+export function getSubjectType(review) {
+  if (review?.subjectType) return review.subjectType;
+  const role = String(review?.role || "");
+  const employee = String(review?.employee || "");
+  if (/BP/i.test(role) || /^BP[-－]/i.test(employee)) return SUBJECT_TYPE.bp;
+  if (/负责人|总监|经理|组长|Leader/i.test(role)) return SUBJECT_TYPE.departmentLeader;
+  return SUBJECT_TYPE.employee;
+}
+
+export function supportsAssistance(review) {
+  return getSubjectType(review) !== SUBJECT_TYPE.bp;
+}
+
 export function requiresSecondReview(review) {
-  return review?.requiresSecondReview !== false;
+  if (!supportsAssistance(review)) return false;
+  return review?.assistScoreEnabled ?? review?.requiresSecondReview ?? false;
+}
+
+function normalizeReviewWeight(value) {
+  const score = Number(value || 0);
+  return score > 1 ? score / 100 : score;
+}
+
+export function getRowReviewWeights(row, review) {
+  const configured = row?.reviewWeights;
+  if (configured) {
+    const weights = {
+      first: normalizeReviewWeight(configured.first),
+      assistance: normalizeReviewWeight(configured.assistance ?? configured.assist),
+      bp: normalizeReviewWeight(configured.bp),
+    };
+    const total = weights.first + weights.assistance + weights.bp;
+    if (Math.abs(total - 1) < 0.001) return weights;
+  }
+  if (getSubjectType(review) === SUBJECT_TYPE.bp) return { first: 1, assistance: 0, bp: 0 };
+  return requiresSecondReview(review)
+    ? performanceScoreRatio.withAssistance
+    : { first: performanceScoreRatio.withoutAssistance.first, assistance: 0, bp: performanceScoreRatio.withoutAssistance.bp };
 }
 
 export const REVIEW_STATUS = {
@@ -16,12 +59,12 @@ export const REVIEW_STATUS = {
   executing: "绩效目标已生效",
   resultEntry: "待员工填报结果",
   firstReview: "待一级领导评分",
-  secondReview: "待二级领导复评",
-  hrReview: "待HR复审",
-  committeeApproval: "待绩效委员会审批",
+  secondReview: "待协助评分",
+  hrReview: "待BP评分",
+  committeeApproval: "待绩效委员会审核",
   feedback: "待反馈与面谈",
-  appealSubmitted: "待HR受理",
-  appealInvestigation: "HR申诉裁定中",
+  appealSubmitted: "待BP受理",
+  appealInvestigation: "BP申诉裁定中",
   appealInProgress: "待绩效委员会复核",
   archived: "已结束",
 };
@@ -33,9 +76,9 @@ export const WORKFLOW_ACTIONS = {
   [REVIEW_STATUS.executing]: { type: "start_result_entry", label: "进入结果填报", nextStatus: REVIEW_STATUS.resultEntry },
   [REVIEW_STATUS.resultEntry]: { type: "enter_result", label: "填报完成结果", nextStatus: REVIEW_STATUS.firstReview },
   [REVIEW_STATUS.firstReview]: { type: "first_score", label: "一级评分与评语", nextStatus: REVIEW_STATUS.secondReview },
-  [REVIEW_STATUS.secondReview]: { type: "second_review", label: "二级复评与结果审核", nextStatus: REVIEW_STATUS.hrReview },
-  [REVIEW_STATUS.hrReview]: { type: "hr_review", label: "HR复审并提交绩效委员会", nextStatus: REVIEW_STATUS.committeeApproval },
-  [REVIEW_STATUS.committeeApproval]: { type: "committee_approve", label: "绩效委员会审批", nextStatus: REVIEW_STATUS.feedback },
+  [REVIEW_STATUS.secondReview]: { type: "second_review", label: "协助评分与评语", nextStatus: REVIEW_STATUS.hrReview },
+  [REVIEW_STATUS.hrReview]: { type: "hr_review", label: "BP评分与评语", nextStatus: REVIEW_STATUS.committeeApproval },
+  [REVIEW_STATUS.committeeApproval]: { type: "committee_approve", label: "绩效委员会审核", nextStatus: REVIEW_STATUS.feedback },
   [REVIEW_STATUS.feedback]: { type: "interview_feedback", label: "反馈与面谈记录", nextStatus: REVIEW_STATUS.archived },
   [REVIEW_STATUS.appealSubmitted]: { type: "accept_appeal", label: "受理绩效申诉", nextStatus: REVIEW_STATUS.appealInvestigation },
   [REVIEW_STATUS.appealInvestigation]: { type: "adjudicate_appeal", label: "填写处理记录并提交绩效委员会", nextStatus: REVIEW_STATUS.appealInProgress },
@@ -63,8 +106,14 @@ const pendingReviewStatuses = new Set([
 ]);
 
 export function calcRowComposite(row, review) {
-  if (!requiresSecondReview(review)) return row.firstScore;
-  return row.firstScore * performanceScoreRatio.firstLeader + row.secondScore * performanceScoreRatio.secondLeader;
+  if (row.type === "adjustment") return Number(row.adjustmentScore ?? row.firstScore ?? 0);
+  const firstScore = Number(row.firstScore || 0);
+  const bpScore = Number(row.bpScore ?? 0);
+  const assistanceScore = Number(row.assistScore ?? row.secondScore ?? 0);
+  const weights = getRowReviewWeights(row, review);
+  return firstScore * weights.first
+    + assistanceScore * weights.assistance
+    + bpScore * weights.bp;
 }
 
 export function calcRowScore(row, review) {
@@ -79,7 +128,7 @@ export function calcBaseScore(review) {
 }
 
 export function calcAdjustmentScore(review) {
-  return Number(review.rows.reduce((sum, row) => row.type === "adjustment" ? sum + calcRowComposite(row, review) : sum, 0).toFixed(2));
+  return Number(review.rows.reduce((sum, row) => row.type === "adjustment" ? sum + Number(row.adjustmentScore ?? row.firstScore ?? 0) : sum, 0).toFixed(2));
 }
 
 export function calcScore(review) {
@@ -108,7 +157,10 @@ export function getNextReviewStatus(reviewOrStatus) {
   if (status === REVIEW_STATUS.targetDispute) return REVIEW_STATUS.employeeConfirm;
   if (status === REVIEW_STATUS.executing) return REVIEW_STATUS.resultEntry;
   if (status === REVIEW_STATUS.resultEntry) return REVIEW_STATUS.firstReview;
-  if (status === REVIEW_STATUS.firstReview) return requiresSecondReview(reviewOrStatus) ? REVIEW_STATUS.secondReview : REVIEW_STATUS.hrReview;
+  if (status === REVIEW_STATUS.firstReview) {
+    if (getSubjectType(reviewOrStatus) === SUBJECT_TYPE.bp) return REVIEW_STATUS.committeeApproval;
+    return requiresSecondReview(reviewOrStatus) ? REVIEW_STATUS.secondReview : REVIEW_STATUS.hrReview;
+  }
   if (status === REVIEW_STATUS.secondReview) return REVIEW_STATUS.hrReview;
   if (status === REVIEW_STATUS.hrReview) return REVIEW_STATUS.committeeApproval;
   if (status === REVIEW_STATUS.committeeApproval) return REVIEW_STATUS.feedback;
@@ -154,7 +206,7 @@ export function applyWorkflowAction(review, action) {
     confirmStatus: toStatus === REVIEW_STATUS.employeeConfirm ? "待确认绩效目标" : review.confirmStatus,
     resultStatus: action.updates?.resultStatus ?? (toStatus === REVIEW_STATUS.resultEntry ? "待补充" : review.resultStatus),
     feedbackStatus: action.updates?.feedbackStatus ?? (toStatus === REVIEW_STATUS.archived && fromStatus === REVIEW_STATUS.feedback ? "已面谈" : review.feedbackStatus),
-    committeeStatus: action.updates?.committeeStatus ?? (fromStatus === REVIEW_STATUS.committeeApproval && toStatus === REVIEW_STATUS.feedback ? "已审批" : review.committeeStatus),
+    committeeStatus: action.updates?.committeeStatus ?? (fromStatus === REVIEW_STATUS.committeeApproval && toStatus === REVIEW_STATUS.feedback ? "审核通过" : review.committeeStatus),
     appealStatus: action.updates?.appealStatus ?? (fromStatus === REVIEW_STATUS.appealInProgress ? "已裁定" : review.appealStatus),
   };
 }
@@ -243,6 +295,11 @@ export function materializeTargetRows(targets = [], previousRows = []) {
         firstComment: target.firstComment ?? previous.firstComment ?? "",
         secondScore: target.secondScore ?? previous.secondScore ?? "",
         secondComment: target.secondComment ?? previous.secondComment ?? "",
+        assistScore: target.assistScore ?? previous.assistScore ?? previous.secondScore ?? "",
+        assistComment: target.assistComment ?? previous.assistComment ?? previous.secondComment ?? "",
+        bpScore: target.bpScore ?? previous.bpScore ?? "",
+        bpComment: target.bpComment ?? previous.bpComment ?? "",
+        adjustmentScore: target.adjustmentScore ?? previous.adjustmentScore ?? previous.firstScore ?? "",
       };
     });
 }
@@ -281,19 +338,89 @@ export function validateAdjustmentEvidence(rows, files = [], scoreFields = ["fir
 
 export const ROLE_ACTIONS = {
   employee: new Set(["confirm_target", "dispute_target", "start_result_entry", "enter_result", "submit_appeal", "reject_target_change"]),
-  leader: new Set(["issue_target", "reissue_target", "change_target", "first_score", "second_review", "return_result", "interview_feedback", "record_adjustment", "provide_appeal_evidence"]),
-  hr: new Set(["hr_review", "accept_appeal", "adjudicate_appeal", "manage_exception"]),
-  ceo: new Set(["committee_approve", "resolve_appeal"]),
+  leader: new Set(["issue_target", "reissue_target", "change_target", "first_score", "second_review", "return_result", "interview_feedback", "record_adjustment", "provide_appeal_evidence", "configure_assistance"]),
+  hr: new Set(["hr_review", "second_review", "accept_appeal", "adjudicate_appeal", "manage_exception", "configure_assistance"]),
+  ceo: new Set(["issue_target", "reissue_target", "change_target", "first_score", "committee_approve", "resolve_appeal", "configure_assistance"]),
 };
 
 export function canPerformReviewAction(roleId, actionType, review, viewerName) {
   if (!ROLE_ACTIONS[roleId]?.has(actionType)) return false;
   if (roleId === "employee") return review?.employee === viewerName;
-  if (roleId === "leader") {
-    if (actionType === "second_review") return review?.indirectLeader === viewerName;
-    return review?.directLeader === viewerName;
+  if (actionType === "first_score") {
+    return (review?.firstReviewer ?? review?.directLeader) === viewerName;
   }
+  if (actionType === "second_review") {
+    return (review?.assistReviewer ?? review?.indirectLeader) === viewerName;
+  }
+  if (actionType === "hr_review") {
+    return roleId === "hr" && (review?.bpReviewer ?? viewerName) === viewerName;
+  }
+  if (actionType === "configure_assistance") {
+    return roleId === "hr" || (review?.originalIssuer ?? review?.directLeader) === viewerName;
+  }
+  if (roleId === "leader") return review?.directLeader === viewerName;
   return roleId === "hr" || roleId === "ceo";
+}
+
+export function updateAssistanceConfiguration(review, {
+  enabled,
+  reviewer,
+  reason,
+  operator,
+  actedAt,
+}) {
+  if (!supportsAssistance(review) && enabled) {
+    return { ok: false, code: "VALIDATION", message: "BP绩效不支持协助评分", review };
+  }
+  if (enabled && !String(reviewer || "").trim()) {
+    return { ok: false, code: "VALIDATION", message: "开启协助评分后必须指定协助评分人", review };
+  }
+  if (!String(reason || "").trim()) {
+    return { ok: false, code: "VALIDATION", message: "请填写协助评分配置修改原因", review };
+  }
+  const normalizedReviewer = String(reviewer || "").trim();
+  const occupiedReviewers = [
+    review.employee,
+    review.firstReviewer ?? review.directLeader,
+    getSubjectType(review) === SUBJECT_TYPE.bp ? "" : review.bpReviewer,
+  ].filter(Boolean);
+  if (enabled && occupiedReviewers.includes(normalizedReviewer)) {
+    return { ok: false, code: "VALIDATION", message: "协助评分人不能与被考核人、一级评分人或BP评分人重复", review };
+  }
+  const fromStatus = review.status;
+  const scoringStarted = [
+    REVIEW_STATUS.secondReview,
+    REVIEW_STATUS.hrReview,
+    REVIEW_STATUS.committeeApproval,
+    REVIEW_STATUS.feedback,
+  ].includes(review.status);
+  const rows = (review.rows ?? []).map((row) => ({
+    ...row,
+    ...(scoringStarted ? { assistScore: "", assistComment: "", bpScore: "", bpComment: "" } : {}),
+  }));
+  const nextStatus = scoringStarted
+    ? (enabled ? REVIEW_STATUS.secondReview : REVIEW_STATUS.hrReview)
+    : review.status;
+  const beforeReviewer = review.assistReviewer ?? review.indirectLeader ?? "未指定";
+  const next = {
+    ...review,
+    rows,
+    assistScoreEnabled: Boolean(enabled),
+    requiresSecondReview: Boolean(enabled),
+    assistReviewer: enabled ? normalizedReviewer : "",
+    indirectLeader: enabled ? normalizedReviewer : "",
+    status: nextStatus,
+    version: Number(review.version ?? 1) + 1,
+  };
+  next.operationLogs = appendLog(review, {
+    action: "修改协助评分配置",
+    operator,
+    actedAt,
+    note: `由${requiresSecondReview(review) ? `开启（${beforeReviewer}）` : "关闭"}修改为${enabled ? `开启（${normalizedReviewer}）` : "关闭"}；原因：${String(reason).trim()}${scoringStarted ? "；已清空协助评分与BP评分并重新进入评分流程" : ""}`,
+    fromStatus,
+    toStatus: nextStatus,
+  });
+  return { ok: true, review: next };
 }
 
 function versionConflict(review, expectedVersion) {

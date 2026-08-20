@@ -23,6 +23,7 @@ import {
   rejectTargetVersion,
   resolveAppealResult,
   returnResultForSupplement,
+  updateAssistanceConfiguration,
   validateAdjustmentEvidence,
   validateAdjustmentTotal,
   validateTargetWeights,
@@ -66,31 +67,35 @@ describe("绩效目标与评分纯函数", () => {
     ])).toMatchObject({ total: 90, valid: false });
   });
 
-  test("基础指标与加减分均按一级60%和二级40%合成", () => {
+  test("开启协助评分时按一级40%、协助20%、BP40%合成，加减分直接计入", () => {
     const review = {
+      subjectType: "employee",
+      assistScoreEnabled: true,
       rows: [
-        { type: "weighted", weight: 0.4, firstScore: 75, secondScore: 65 },
-        { type: "weighted", weight: 0.3, firstScore: 85, secondScore: 65 },
-        { type: "adjustment", firstScore: 3, secondScore: -8, reason: "交付奖励", evidence: "验收记录" },
+        { type: "weighted", weight: 0.4, firstScore: 75, assistScore: 65, bpScore: 80 },
+        { type: "weighted", weight: 0.3, firstScore: 85, assistScore: 65, bpScore: 75 },
+        { type: "adjustment", adjustmentScore: 3, firstScore: 3, assistScore: -8, bpScore: -6, reason: "交付奖励", evidence: "验收记录" },
       ],
     };
-    expect(calcRowScore(review.rows[0], review)).toBe(28.4);
+    expect(calcRowScore(review.rows[0], review)).toBe(30);
     expect(calcRowScore(review.rows[1], review)).toBe(23.1);
-    expect(calcBaseScore(review)).toBe(51.5);
-    expect(calcAdjustmentScore(review)).toBe(-1.4);
-    expect(calcScore(review)).toBe(50.1);
+    expect(calcBaseScore(review)).toBe(53.1);
+    expect(calcAdjustmentScore(review)).toBe(3);
+    expect(calcScore(review)).toBe(56.1);
   });
 
-  test("无需二级复评时只使用一级评分，最终分限制在0至100", () => {
+  test("不开启协助评分时一级与BP各50%，BP本人由老板100%评分", () => {
     expect(calcScore({ requiresSecondReview: false, rows: [
-      { type: "weighted", weight: 1, firstScore: 80, secondScore: 0 },
-      { type: "adjustment", firstScore: 30 },
+      { type: "weighted", weight: 1, firstScore: 80, bpScore: 80 },
+      { type: "adjustment", adjustmentScore: 30 },
     ] })).toBe(100);
     expect(calcScore({ requiresSecondReview: false, rows: [
-      { type: "weighted", weight: 1, firstScore: 5, secondScore: 0 },
-      { type: "adjustment", firstScore: -20 },
+      { type: "weighted", weight: 1, firstScore: 5, bpScore: 5 },
+      { type: "adjustment", adjustmentScore: -20 },
     ] })).toBe(0);
+    expect(calcScore({ subjectType: "bp", rows: [{ type: "weighted", weight: 1, firstScore: 82 }, { type: "adjustment", adjustmentScore: 2 }] })).toBe(84);
     expect(getNextReviewStatus({ status: REVIEW_STATUS.firstReview, requiresSecondReview: false })).toBe(REVIEW_STATUS.hrReview);
+    expect(getNextReviewStatus({ status: REVIEW_STATUS.firstReview, subjectType: "bp" })).toBe(REVIEW_STATUS.committeeApproval);
   });
 
   test("加减分累计限制在-10至+10", () => {
@@ -121,8 +126,8 @@ describe("绩效目标与评分纯函数", () => {
     const next = applyWorkflowAction(review, { type: "issue_target", operator: "江晚", note: "下发7月目标", actedAt });
     expect(next.status).toBe(REVIEW_STATUS.employeeConfirm);
     expect(next.operationLogs[0]).toMatchObject({ action: "下发月度绩效目标", operator: "江晚" });
-    expect(getWorkflowAction({ status: REVIEW_STATUS.hrReview }).label).toBe("HR复审并提交绩效委员会");
-    expect(getWorkflowAction({ status: REVIEW_STATUS.committeeApproval }).label).toBe("绩效委员会审批");
+    expect(getWorkflowAction({ status: REVIEW_STATUS.hrReview }).label).toBe("BP评分与评语");
+    expect(getWorkflowAction({ status: REVIEW_STATUS.committeeApproval }).label).toBe("绩效委员会审核");
     expect(getWorkflowAction({ status: REVIEW_STATUS.appealSubmitted })).toEqual({ type: "accept_appeal", label: "受理绩效申诉", nextStatus: REVIEW_STATUS.appealInvestigation });
     expect(getWorkflowAction({ status: REVIEW_STATUS.appealInvestigation })).toEqual({ type: "adjudicate_appeal", label: "填写处理记录并提交绩效委员会", nextStatus: REVIEW_STATUS.appealInProgress });
     expect(getWorkflowAction({ status: REVIEW_STATUS.appealInProgress }).label).toBe("绩效委员会复核申诉");
@@ -232,8 +237,22 @@ describe("绩效目标与评分纯函数", () => {
     const rows = createRowsFromTemplate(ROLE_TEMPLATE_IDS.editor, {
       editOutput: { firstScore: 80, secondScore: 70 }, editQuality: { firstScore: 85, secondScore: 75 },
       editEfficiency: { firstScore: 78, secondScore: 72 }, editAsset: { firstScore: 2, secondScore: 1 },
-    });
-    expect(calcScore({ rows })).toBeGreaterThan(70);
+    }).map((row) => ({ ...row, assistScore: row.secondScore, bpScore: row.secondScore, adjustmentScore: row.firstScore }));
+    expect(calcScore({ rows, assistScoreEnabled: true })).toBeGreaterThan(70);
+  });
+
+  test("BP或原下发负责人修改协助评分后清空受影响评分并回到正确节点", () => {
+    const review = { id: "rv-assist", employee: "张小北", subjectType: "employee", status: REVIEW_STATUS.committeeApproval, assistScoreEnabled: true, assistReviewer: "王晨", rows: [{ type: "weighted", assistScore: 80, assistComment: "完成", bpScore: 82, bpComment: "完成" }], operationLogs: [], version: 1 };
+    const result = updateAssistanceConfiguration(review, { enabled: false, reviewer: "", reason: "协助人岗位调整", operator: "BP-唐宁", actedAt });
+    expect(result).toMatchObject({ ok: true, review: { status: REVIEW_STATUS.hrReview, assistScoreEnabled: false, version: 2 } });
+    expect(result.review.rows[0]).toMatchObject({ assistScore: "", assistComment: "", bpScore: "", bpComment: "" });
+    expect(result.review.operationLogs[0].note).toContain("已清空协助评分与BP评分");
+  });
+
+  test("协助评分人不能与被考核人或既有评分人重复", () => {
+    const review = { id: "rv-assist-repeat", employee: "张小北", subjectType: "employee", firstReviewer: "江晚", bpReviewer: "BP-唐宁", status: REVIEW_STATUS.firstReview, rows: [], operationLogs: [] };
+    expect(updateAssistanceConfiguration(review, { enabled: true, reviewer: "江晚", reason: "测试重复", operator: "BP-唐宁", actedAt })).toMatchObject({ ok: false, code: "VALIDATION" });
+    expect(updateAssistanceConfiguration(review, { enabled: true, reviewer: "BP-唐宁", reason: "测试重复", operator: "BP-唐宁", actedAt })).toMatchObject({ ok: false, code: "VALIDATION" });
   });
 
   test("全流程测试数据可由现有四种角色依次完成所有主流程节点", () => {
@@ -242,7 +261,7 @@ describe("绩效目标与评分纯函数", () => {
       id: FULL_FLOW_TEST_REVIEW_ID,
       employee: "张小北",
       directLeader: "江晚",
-      indirectLeader: "江晚",
+      indirectLeader: "磊姐",
       status: REVIEW_STATUS.targetIssue,
       isFullFlowTest: true,
     });
@@ -255,8 +274,8 @@ describe("绩效目标与评分纯函数", () => {
       { role: "employee", viewer: "张小北", type: "confirm_target", from: REVIEW_STATUS.employeeConfirm },
       { role: "employee", viewer: "张小北", type: "enter_result", from: REVIEW_STATUS.resultEntry },
       { role: "leader", viewer: "江晚", type: "first_score", from: REVIEW_STATUS.firstReview },
-      { role: "leader", viewer: "江晚", type: "second_review", from: REVIEW_STATUS.secondReview },
-      { role: "hr", viewer: "HR-唐宁", type: "hr_review", from: REVIEW_STATUS.hrReview },
+      { role: "leader", viewer: "磊姐", type: "second_review", from: REVIEW_STATUS.secondReview },
+      { role: "hr", viewer: "BP-唐宁", type: "hr_review", from: REVIEW_STATUS.hrReview },
       { role: "ceo", viewer: "CEO", type: "committee_approve", from: REVIEW_STATUS.committeeApproval },
       { role: "leader", viewer: "江晚", type: "interview_feedback", from: REVIEW_STATUS.feedback },
     ];

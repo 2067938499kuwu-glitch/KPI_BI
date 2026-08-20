@@ -62,7 +62,7 @@ describe("绩效成绩确认与申诉决定", () => {
     }));
   });
 
-  test("在线申诉表流转到HR后仅开放受理区域", () => {
+  test("在线申诉表流转到BP后仅开放受理区域", () => {
     const review = reviewsSeed.find((item) => item.id === "rv-appeal-1");
     const onSubmit = vi.fn();
 
@@ -71,7 +71,7 @@ describe("绩效成绩确认与申诉决定", () => {
     expect(screen.getByRole("region", { name: "在线绩效申诉表" })).toHaveTextContent(review.employee);
     expect(screen.queryByLabelText("申诉内容")).toBeNull();
     expect(screen.getByRole("radio", { name: "受理" })).toBeChecked();
-    fireEvent.change(screen.getByLabelText("HR受理意见"), { target: { value: "已核验在线填写内容，受理质量指标争议。" } });
+    fireEvent.change(screen.getByLabelText("BP受理意见"), { target: { value: "已核验在线填写内容，受理质量指标争议。" } });
     fireEvent.click(screen.getByRole("button", { name: "确认提交" }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({

@@ -26,7 +26,12 @@ function createAdjustmentReview(status, overrides = {}) {
         type: "weighted",
         weight: 1,
         firstScore: 80,
+        firstComment: "一级已评分",
         secondScore: 80,
+        assistScore: "",
+        assistComment: "",
+        bpScore: 80,
+        bpComment: "BP已评分",
       },
       {
         key: "ip-deal",
@@ -80,10 +85,10 @@ describe("加减分双级评分与共用材料", () => {
     expect(onSubmit.mock.calls[0][0].updates.adjustmentEvidenceFiles).toHaveLength(1);
   });
 
-  test("二级加减分按60%和40%合成并复用一级材料", () => {
+  test("协助评分不重复调整加减分并复用一级材料", () => {
     const review = createAdjustmentReview(REVIEW_STATUS.secondReview, {
       rows: createAdjustmentReview(REVIEW_STATUS.secondReview).rows.map((row) => row.type === "adjustment"
-        ? { ...row, firstScore: 5, firstComment: "一级确认成交" }
+        ? { ...row, firstScore: 5, adjustmentScore: 5, firstComment: "一级确认成交" }
         : row),
       adjustmentEvidenceFiles: [{
         id: "file-1",
@@ -99,7 +104,7 @@ describe("加减分双级评分与共用材料", () => {
     const onSubmit = vi.fn();
     render(
       <WorkflowActionPage
-        action={{ type: "second_review", label: "二级复评与结果审核", nextStatus: REVIEW_STATUS.hrReview }}
+        action={{ type: "second_review", label: "协助评分与评语", nextStatus: REVIEW_STATUS.hrReview }}
         hongguoUploads={[]}
         onBack={() => {}}
         onSubmit={onSubmit}
@@ -107,14 +112,15 @@ describe("加减分双级评分与共用材料", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("IP成交 二级评分"), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("IP成交 二级评语"), { target: { value: "复核成交材料有效" } });
-    fireEvent.change(screen.getByLabelText("二级结果审核意见"), { target: { value: "材料完整，复评通过" } });
+    expect(screen.getByLabelText("IP成交 协助评分")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("月度交付 协助评分"), { target: { value: "78" } });
+    fireEvent.change(screen.getByLabelText("月度交付 协助评分评语"), { target: { value: "复核交付材料有效" } });
+    fireEvent.change(screen.getByLabelText("协助评分汇总意见"), { target: { value: "材料完整，协助评分完成" } });
     fireEvent.click(screen.getByRole("button", { name: "确认提交" }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     const payload = onSubmit.mock.calls[0][0];
     expect(payload.updates.adjustmentEvidenceFiles).toHaveLength(1);
-    expect(calcAdjustmentScore({ ...review, rows: payload.updates.rows })).toBe(4.2);
+    expect(calcAdjustmentScore({ ...review, rows: payload.updates.rows })).toBe(5);
   });
 });

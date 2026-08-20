@@ -2247,9 +2247,9 @@ const roleScopeConfig = {
     actions: "可查看部门任务、部门确认与评分处理",
   },
   hr: {
-    name: "HR",
-    scope: "公司级人效与招聘授权范围",
-    actions: "可复审、管理招聘流程与查看组织数据",
+    name: "BP",
+    scope: "公司级绩效与招聘授权范围",
+    actions: "可进行BP评分、管理招聘流程与查看组织数据",
   },
   ceo: {
     name: "CEO",
